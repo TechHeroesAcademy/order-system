@@ -333,6 +333,8 @@ $$;
 
 -- ---------- public customer tracking ----------
 
+drop type if exists public.tracked_order cascade;
+
 create type public.tracked_order as (
   order_number text,
   status order_status,

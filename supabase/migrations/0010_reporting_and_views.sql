@@ -1,7 +1,7 @@
 -- 0010_reporting_and_views.sql
 -- Factory-safe view (no customer PII) + Owner reporting/analytics RPCs.
 
-create view public.factory_orders_view
+create or replace view public.factory_orders_view
 with (security_invoker = false) as
 select
   o.id,
@@ -64,11 +64,19 @@ end;
 $$;
 
 -- Daily report for a given day (defaults to today).
-create or replace function public.daily_report(p_day date default current_date)
+-- Return type changed once during development (extra in-factory/ready/exited
+-- columns were added) — CREATE OR REPLACE can't change a function's return
+-- type, so this drops it first to stay safely re-runnable.
+drop function if exists public.daily_report(date);
+
+create function public.daily_report(p_day date default current_date)
 returns table (
   new_orders bigint,
   collected_orders bigint,
   entered_factory bigint,
+  in_factory_now bigint,
+  ready_now bigint,
+  exited_factory bigint,
   delivered_orders bigint,
   delayed_orders bigint
 )
@@ -84,21 +92,31 @@ begin
       count(*) filter (where created_at::date = p_day),
       count(*) filter (where collected_at::date = p_day),
       count(*) filter (where factory_received_at::date = p_day),
+      count(*) filter (where status = 'at_factory'),
+      count(*) filter (where status = 'ready'),
+      count(*) filter (where driver_pickup_at::date = p_day),
       count(*) filter (where delivered_at::date = p_day),
       count(*) filter (where public.is_order_delayed(orders.*))
     from public.orders;
 end;
 $$;
 
--- Monthly report for the month containing p_month (defaults to current month).
-create or replace function public.monthly_report(p_month date default current_date)
+-- Monthly report for the month containing p_month (defaults to current
+-- month), including a month-over-month comparison. Same drop-first note as
+-- daily_report above.
+drop function if exists public.monthly_report(date);
+
+create function public.monthly_report(p_month date default current_date)
 returns table (
   total_orders bigint,
   total_pieces bigint,
   completed_orders bigint,
   delayed_orders bigint,
   avg_completion_hours numeric,
-  on_time_rate numeric
+  on_time_rate numeric,
+  prev_total_orders bigint,
+  prev_completed_orders bigint,
+  orders_change_percent numeric
 )
 language plpgsql
 security definer
@@ -107,23 +125,35 @@ as $$
 declare
   v_start date := date_trunc('month', p_month)::date;
   v_end date := (date_trunc('month', p_month) + interval '1 month')::date;
+  v_prev_start date := (date_trunc('month', p_month) - interval '1 month')::date;
+  v_prev_end date := v_start;
+  v_total bigint;
+  v_prev_total bigint;
 begin
   if not public.is_owner_or_moderator() then raise exception 'غير مصرح' using errcode = '42501'; end if;
 
+  select count(*) into v_total from public.orders where created_at >= v_start and created_at < v_end;
+  select count(*) into v_prev_total from public.orders where created_at >= v_prev_start and created_at < v_prev_end;
+
   return query
     select
-      count(*),
-      coalesce(sum(pieces_count), 0),
-      count(*) filter (where status = 'delivered'),
-      count(*) filter (where public.is_order_delayed(orders.*)),
-      round(avg(extract(epoch from (delivered_at - created_at)) / 3600.0) filter (where status = 'delivered'), 1),
-      round(
-        100.0 * count(*) filter (where status = 'delivered' and delivered_at <= created_at + (public.order_sla_hours() || ' hours')::interval)
-        / nullif(count(*) filter (where status = 'delivered'), 0),
-        1
-      )
-    from public.orders
-    where created_at >= v_start and created_at < v_end;
+      v_total,
+      coalesce((select sum(pieces_count) from public.orders where created_at >= v_start and created_at < v_end), 0),
+      (select count(*) from public.orders where created_at >= v_start and created_at < v_end and status = 'delivered'),
+      (select count(*) from public.orders where created_at >= v_start and created_at < v_end and public.is_order_delayed(orders.*)),
+      (select round(avg(extract(epoch from (delivered_at - created_at)) / 3600.0), 1)
+         from public.orders
+         where created_at >= v_start and created_at < v_end and status = 'delivered'),
+      (select round(
+          100.0 * count(*) filter (where delivered_at <= created_at + (public.order_sla_hours() || ' hours')::interval)
+          / nullif(count(*), 0),
+          1
+        )
+        from public.orders
+        where created_at >= v_start and created_at < v_end and status = 'delivered'),
+      v_prev_total,
+      (select count(*) from public.orders where created_at >= v_prev_start and created_at < v_prev_end and status = 'delivered'),
+      case when v_prev_total = 0 then null else round(100.0 * (v_total - v_prev_total) / v_prev_total, 1) end;
 end;
 $$;
 

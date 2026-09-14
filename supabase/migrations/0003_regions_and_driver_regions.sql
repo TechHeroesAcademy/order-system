@@ -6,9 +6,17 @@ create table if not exists public.regions (
   created_at timestamptz not null default now()
 );
 
-alter table public.profiles
-  add constraint profiles_region_id_fkey
-  foreign key (region_id) references public.regions (id) on delete set null;
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'profiles_region_id_fkey'
+  ) then
+    alter table public.profiles
+      add constraint profiles_region_id_fkey
+      foreign key (region_id) references public.regions (id) on delete set null;
+  end if;
+end;
+$$;
 
 -- Which regions each driver covers (used by the auto-distribution suggestion).
 create table if not exists public.driver_regions (

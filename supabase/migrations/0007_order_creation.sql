@@ -14,6 +14,8 @@ as $$
   select lpad((floor(random() * 9000) + 1000)::int::text, 4, '0');
 $$;
 
+drop type if exists public.new_order_result cascade;
+
 create type public.new_order_result as (
   order_id uuid,
   order_number text,
