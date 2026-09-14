@@ -48,6 +48,14 @@ export function OrdersFilterBar({
     updateParam("q", search);
   }
 
+  const [minPieces, setMinPieces] = useState(searchParams.get("minPieces") ?? "");
+  const [maxPieces, setMaxPieces] = useState(searchParams.get("maxPieces") ?? "");
+
+  function submitPieces() {
+    updateParam("minPieces", minPieces);
+    updateParam("maxPieces", maxPieces);
+  }
+
   return (
     <div className="flex flex-wrap gap-2">
       <div className="flex min-w-56 flex-1 gap-2">
@@ -102,6 +110,49 @@ export function OrdersFilterBar({
           ))}
         </SelectContent>
       </Select>
+
+      <div className="flex items-center gap-1.5">
+        <Input
+          type="date"
+          dir="ltr"
+          className="w-40"
+          defaultValue={searchParams.get("from") ?? ""}
+          onChange={(e) => updateParam("from", e.target.value)}
+          aria-label="من تاريخ"
+        />
+        <span className="text-sm text-muted-foreground">إلى</span>
+        <Input
+          type="date"
+          dir="ltr"
+          className="w-40"
+          defaultValue={searchParams.get("to") ?? ""}
+          onChange={(e) => updateParam("to", e.target.value)}
+          aria-label="إلى تاريخ"
+        />
+      </div>
+
+      <div className="flex items-center gap-1.5">
+        <Input
+          type="number"
+          min={0}
+          placeholder="أقل عدد قطع"
+          className="w-32"
+          value={minPieces}
+          onChange={(e) => setMinPieces(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && submitPieces()}
+          onBlur={submitPieces}
+        />
+        <Input
+          type="number"
+          min={0}
+          placeholder="أكثر عدد قطع"
+          className="w-32"
+          value={maxPieces}
+          onChange={(e) => setMaxPieces(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && submitPieces()}
+          onBlur={submitPieces}
+        />
+      </div>
     </div>
   );
 }

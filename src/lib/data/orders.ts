@@ -19,6 +19,10 @@ export interface OrderFilters {
   regionId?: string | "all";
   driverId?: string | "all";
   search?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  minPieces?: number;
+  maxPieces?: number;
   page?: number;
   pageSize?: number;
 }
@@ -62,6 +66,19 @@ export async function listOrders(filters: OrderFilters = {}): Promise<OrderListR
     query = query.or(
       `order_number.ilike.%${term}%,customer_name.ilike.%${term}%,customer_phone.ilike.%${term}%`,
     );
+  }
+  if (filters.dateFrom) {
+    query = query.gte("created_at", filters.dateFrom);
+  }
+  if (filters.dateTo) {
+    // dateTo is a plain date (YYYY-MM-DD); include the whole day.
+    query = query.lt("created_at", `${filters.dateTo}T23:59:59.999`);
+  }
+  if (filters.minPieces != null) {
+    query = query.gte("pieces_count", filters.minPieces);
+  }
+  if (filters.maxPieces != null) {
+    query = query.lte("pieces_count", filters.maxPieces);
   }
 
   const { data, error, count } = await query.range(from, to);

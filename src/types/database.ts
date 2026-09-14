@@ -142,6 +142,9 @@ export interface DailyReport {
   new_orders: number;
   collected_orders: number;
   entered_factory: number;
+  in_factory_now: number;
+  ready_now: number;
+  exited_factory: number;
   delivered_orders: number;
   delayed_orders: number;
 }
@@ -153,6 +156,9 @@ export interface MonthlyReport {
   delayed_orders: number;
   avg_completion_hours: number | null;
   on_time_rate: number | null;
+  prev_total_orders: number;
+  prev_completed_orders: number;
+  orders_change_percent: number | null;
 }
 
 export interface DriverPerformanceRow {

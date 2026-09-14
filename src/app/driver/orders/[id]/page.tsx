@@ -72,12 +72,22 @@ export default async function DriverOrderDetailPage({ params }: { params: Promis
             )}
           </dl>
 
-          <a
-            href={`tel:${order.customer_phone}`}
-            className="block rounded-lg border bg-accent/40 p-3 text-center text-sm font-medium hover:bg-accent"
-          >
-            اتصال بالعميل
-          </a>
+          <div className="grid grid-cols-2 gap-2">
+            <a
+              href={`tel:${order.customer_phone}`}
+              className="block rounded-lg border bg-accent/40 p-3 text-center text-sm font-medium hover:bg-accent"
+            >
+              اتصال بالعميل
+            </a>
+            <a
+              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(order.customer_address)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block rounded-lg border bg-accent/40 p-3 text-center text-sm font-medium hover:bg-accent"
+            >
+              فتح الموقع على الخريطة
+            </a>
+          </div>
         </CardContent>
       </Card>
 

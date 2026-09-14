@@ -17,7 +17,7 @@ import {
 import { StatCard } from "@/components/shared/stat-card";
 import { formatHours, formatPercent } from "@/lib/domain/format";
 import { EmptyState } from "@/components/shared/empty-state";
-import { BarChart3 } from "lucide-react";
+import { BarChart3, TrendingUp, TrendingDown, Minus } from "lucide-react";
 
 export default async function ReportsPage() {
   const [daily, monthly, driverPerf, topRegions] = await Promise.all([
@@ -40,10 +40,13 @@ export default async function ReportsPage() {
         </TabsList>
 
         <TabsContent value="daily" className="space-y-3 pt-4">
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <StatCard label="أوردرات جديدة" value={daily.new_orders} />
             <StatCard label="تم استلامها من العملاء" value={daily.collected_orders} />
-            <StatCard label="دخلت المصنع" value={daily.entered_factory} />
+            <StatCard label="دخلت المصنع اليوم" value={daily.entered_factory} />
+            <StatCard label="خرجت من المصنع اليوم" value={daily.exited_factory} />
+            <StatCard label="داخل المصنع حاليًا" value={daily.in_factory_now} />
+            <StatCard label="جاهزة للتسليم حاليًا" value={daily.ready_now} tone="warning" />
             <StatCard label="تم تسليمها" value={daily.delivered_orders} tone="success" />
             <StatCard label="متأخرة" value={daily.delayed_orders} tone="warning" />
           </div>
@@ -58,6 +61,44 @@ export default async function ReportsPage() {
             <StatCard label="متوسط مدة التنفيذ" value={formatHours(monthly.avg_completion_hours)} />
             <StatCard label="نسبة التسليم في الوقت" value={formatPercent(monthly.on_time_rate)} tone="success" />
           </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">مقارنة بالشهر السابق</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-wrap items-center gap-6">
+              <div>
+                <p className="text-xs text-muted-foreground">هذا الشهر</p>
+                <p className="text-xl font-bold tabular-nums">{monthly.total_orders}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">الشهر السابق</p>
+                <p className="text-xl font-bold tabular-nums">{monthly.prev_total_orders}</p>
+              </div>
+              <div className="flex items-center gap-1.5">
+                {monthly.orders_change_percent === null ? (
+                  <Minus className="size-4 text-muted-foreground" />
+                ) : monthly.orders_change_percent > 0 ? (
+                  <TrendingUp className="size-4 text-success" />
+                ) : monthly.orders_change_percent < 0 ? (
+                  <TrendingDown className="size-4 text-destructive" />
+                ) : (
+                  <Minus className="size-4 text-muted-foreground" />
+                )}
+                <span
+                  className={
+                    monthly.orders_change_percent === null || monthly.orders_change_percent === 0
+                      ? "text-muted-foreground"
+                      : monthly.orders_change_percent > 0
+                        ? "text-success"
+                        : "text-destructive"
+                  }
+                >
+                  {monthly.orders_change_percent === null ? "لا يوجد بيانات كافية" : formatPercent(monthly.orders_change_percent)}
+                </span>
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="drivers" className="pt-4">

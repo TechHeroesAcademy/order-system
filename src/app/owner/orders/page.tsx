@@ -17,10 +17,14 @@ export default async function OwnerOrdersPage({
   const regionId = typeof sp.region === "string" ? sp.region : "all";
   const driverId = typeof sp.driver === "string" ? sp.driver : "all";
   const search = typeof sp.q === "string" ? sp.q : "";
+  const dateFrom = typeof sp.from === "string" && sp.from ? sp.from : undefined;
+  const dateTo = typeof sp.to === "string" && sp.to ? sp.to : undefined;
+  const minPieces = typeof sp.minPieces === "string" && sp.minPieces ? Number(sp.minPieces) : undefined;
+  const maxPieces = typeof sp.maxPieces === "string" && sp.maxPieces ? Number(sp.maxPieces) : undefined;
   const page = typeof sp.page === "string" ? Number(sp.page) || 1 : 1;
 
   const [{ orders, total }, regions, drivers] = await Promise.all([
-    listOrders({ status, regionId, driverId, search, page, pageSize: 25 }),
+    listOrders({ status, regionId, driverId, search, dateFrom, dateTo, minPieces, maxPieces, page, pageSize: 25 }),
     listRegions(),
     listStaff("driver"),
   ]);
