@@ -7,7 +7,7 @@ const NAV_ITEMS: NavItem[] = [{ href: "/driver", label: "أوردراتي", icon
 export default async function DriverLayout({ children }: { children: React.ReactNode }) {
   const profile = await requireRole("driver");
   return (
-    <AppShell profile={profile} navItems={NAV_ITEMS} title="نظام الأوردرات">
+    <AppShell profile={profile} navItems={NAV_ITEMS} title="المجد">
       {children}
     </AppShell>
   );

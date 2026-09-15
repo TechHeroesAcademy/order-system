@@ -56,25 +56,32 @@ export function TeamManager({
   staff,
   regions,
   driverRegionsMap,
+  viewerRole,
 }: {
   staff: Profile[];
   regions: Region[];
   driverRegionsMap: Record<string, string[]>;
+  /** Owner sees/can do everything; Moderator is scoped to driver/factory accounts. */
+  viewerRole: UserRole;
 }) {
   const [staffList, setStaffList] = useState(staff);
   const [regionsList, setRegionsList] = useState(regions);
   const [regionsByDriver, setRegionsByDriver] = useState(driverRegionsMap);
+  const isModerator = viewerRole === "moderator";
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-xl font-bold">إدارة الفريق</h1>
         <div className="flex gap-2">
-          <AddRegionDialog
-            onCreated={(region) => setRegionsList((prev) => [...prev, region].sort((a, b) => a.name.localeCompare(b.name)))}
-          />
+          {!isModerator && (
+            <AddRegionDialog
+              onCreated={(region) => setRegionsList((prev) => [...prev, region].sort((a, b) => a.name.localeCompare(b.name)))}
+            />
+          )}
           <AddStaffDialog
             regions={regionsList}
+            viewerRole={viewerRole}
             onCreated={(profile) => setStaffList((prev) => [profile, ...prev])}
           />
         </div>
@@ -129,15 +136,19 @@ export function TeamManager({
                       )}
                     </TableCell>
                     <TableCell>
-                      <ToggleActiveButton
-                        userId={member.id}
-                        isActive={member.is_active}
-                        onToggled={(isActive) =>
-                          setStaffList((prev) =>
-                            prev.map((m) => (m.id === member.id ? { ...m, is_active: isActive } : m)),
-                          )
-                        }
-                      />
+                      {isModerator && !["driver", "factory"].includes(member.role) ? (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      ) : (
+                        <ToggleActiveButton
+                          userId={member.id}
+                          isActive={member.is_active}
+                          onToggled={(isActive) =>
+                            setStaffList((prev) =>
+                              prev.map((m) => (m.id === member.id ? { ...m, is_active: isActive } : m)),
+                            )
+                          }
+                        />
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -320,16 +331,19 @@ function AddRegionDialog({ onCreated }: { onCreated: (region: Region) => void })
 
 function AddStaffDialog({
   regions,
+  viewerRole,
   onCreated,
 }: {
   regions: Region[];
+  viewerRole: UserRole;
   onCreated: (profile: Profile) => void;
 }) {
+  const roleOptions = viewerRole === "moderator" ? (["driver", "factory"] as const) : ROLE_OPTIONS;
   const [open, setOpen] = useState(false);
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
-  const [role, setRole] = useState<UserRole>("moderator");
+  const [role, setRole] = useState<UserRole>(roleOptions[0]);
   const [regionIds, setRegionIds] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -338,7 +352,7 @@ function AddStaffDialog({
     setFullName("");
     setPhone("");
     setEmail("");
-    setRole("moderator");
+    setRole(roleOptions[0]);
     setRegionIds([]);
     setError(null);
   }
@@ -421,7 +435,7 @@ function AddStaffDialog({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {ROLE_OPTIONS.map((r) => (
+                {roleOptions.map((r) => (
                   <SelectItem key={r} value={r}>
                     {ROLE_LABELS_AR[r]}
                   </SelectItem>

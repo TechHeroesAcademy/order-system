@@ -7,7 +7,7 @@ const NAV_ITEMS: NavItem[] = [{ href: "/factory", label: "الأوردرات", i
 export default async function FactoryLayout({ children }: { children: React.ReactNode }) {
   const profile = await requireRole("factory");
   return (
-    <AppShell profile={profile} navItems={NAV_ITEMS} title="نظام الأوردرات">
+    <AppShell profile={profile} navItems={NAV_ITEMS} title="المجد">
       {children}
     </AppShell>
   );

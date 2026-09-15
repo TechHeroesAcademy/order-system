@@ -8,14 +8,22 @@ import { createStaffAccountSchema, regionNameSchema } from "@/lib/domain/validat
 import { ok, fail, toErrorMessage, type ActionResult } from "./types";
 import type { z } from "zod";
 
-/** Owner creates a new staff account (moderator/driver/factory/owner). */
+/**
+ * Owner or Moderator creates a new staff account. A Moderator may only create
+ * drivers/factory accounts (never another owner or moderator — that stays an
+ * Owner-only action, same boundary the self-escalation trigger enforces on
+ * the profiles table).
+ */
 export async function createStaffAccountAction(
   input: z.infer<typeof createStaffAccountSchema>,
 ): Promise<ActionResult<{ userId: string }>> {
-  await requireRole("owner");
+  const me = await requireRole("owner", "moderator");
   const parsed = createStaffAccountSchema.safeParse(input);
   if (!parsed.success) {
     return fail(parsed.error.issues[0]?.message ?? "بيانات غير صالحة");
+  }
+  if (me.role === "moderator" && !["driver", "factory"].includes(parsed.data.role)) {
+    return fail("المشرف يمكنه فقط إضافة حساب مندوب أو مصنع");
   }
 
   const admin = createAdminClient();
@@ -49,20 +57,30 @@ export async function createStaffAccountAction(
   await admin.auth.resetPasswordForEmail(parsed.data.email);
 
   revalidatePath("/owner/team");
+  revalidatePath("/moderator/team");
   return ok({ userId: data.user.id });
 }
 
 export async function setStaffActiveAction(userId: string, isActive: boolean): Promise<ActionResult> {
-  await requireRole("owner");
+  const me = await requireRole("owner", "moderator");
   const supabase = await createClient();
+
+  if (me.role === "moderator") {
+    const { data: target } = await supabase.from("profiles").select("role").eq("id", userId).single();
+    if (!target || !["driver", "factory"].includes(target.role)) {
+      return fail("لا يمكنك تعديل حالة هذا الحساب");
+    }
+  }
+
   const { error } = await supabase.from("profiles").update({ is_active: isActive }).eq("id", userId);
   if (error) return fail(toErrorMessage(error));
   revalidatePath("/owner/team");
+  revalidatePath("/moderator/team");
   return ok(undefined);
 }
 
 export async function setDriverRegionsAction(driverId: string, regionIds: string[]): Promise<ActionResult> {
-  await requireRole("owner");
+  await requireRole("owner", "moderator");
   const supabase = await createClient();
 
   const { error: deleteError } = await supabase.from("driver_regions").delete().eq("driver_id", driverId);
@@ -75,6 +93,7 @@ export async function setDriverRegionsAction(driverId: string, regionIds: string
   }
 
   revalidatePath("/owner/team");
+  revalidatePath("/moderator/team");
   return ok(undefined);
 }
 

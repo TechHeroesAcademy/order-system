@@ -200,7 +200,9 @@ create or replace function public.driver_deliver_to_customer(p_order_id uuid, p_
 returns boolean
 language plpgsql
 security definer
-set search_path = public
+-- extensions included for crypt() below — see the note on create_order_internal
+-- in 0007_order_creation.sql for why.
+set search_path = public, extensions
 as $$
 declare
   v_order public.orders;

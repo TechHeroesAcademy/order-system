@@ -38,7 +38,11 @@ create or replace function public.create_order_internal(
 returns public.new_order_result
 language plpgsql
 security definer
-set search_path = public
+-- extensions is included because Supabase installs pgcrypto (crypt/gen_salt,
+-- used below) into the "extensions" schema by default, not "public"; a plain
+-- local Postgres install puts it in "public", which is why this gap wasn't
+-- caught by local testing.
+set search_path = public, extensions
 as $$
 declare
   v_code text := public.generate_delivery_code();

@@ -21,7 +21,7 @@ export default async function HomePage() {
   return (
     <main className="flex min-h-screen flex-col items-center justify-center gap-8 p-6">
       <div className="text-center space-y-2">
-        <h1 className="text-2xl font-bold">نظام إدارة وتتبع الأوردرات</h1>
+        <h1 className="text-2xl font-bold">شركة المجد</h1>
         <p className="text-muted-foreground">أنشئ أوردر جديد أو تابع حالة أوردر موجود بالفعل</p>
       </div>
 

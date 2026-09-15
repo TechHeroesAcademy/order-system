@@ -12,7 +12,7 @@ const NAV_ITEMS: NavItem[] = [
 export default async function OwnerLayout({ children }: { children: React.ReactNode }) {
   const profile = await requireRole("owner");
   return (
-    <AppShell profile={profile} navItems={NAV_ITEMS} title="نظام الأوردرات">
+    <AppShell profile={profile} navItems={NAV_ITEMS} title="المجد">
       {children}
     </AppShell>
   );

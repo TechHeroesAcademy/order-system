@@ -30,6 +30,16 @@ create policy profiles_update_owner on public.profiles
   for update using (public.is_owner())
   with check (public.is_owner());
 
+-- A Moderator may update (e.g. activate/deactivate) driver/factory accounts
+-- only — never an Owner's or another Moderator's row. `using` gates on the
+-- row's current role, `with check` gates on the row post-update, so this
+-- also blocks a Moderator from changing someone's role to owner/moderator
+-- (on top of the self-escalation trigger above, which covers self-updates).
+drop policy if exists profiles_update_moderator on public.profiles;
+create policy profiles_update_moderator on public.profiles
+  for update using (public.current_user_role() = 'moderator' and role in ('driver', 'factory'))
+  with check (public.current_user_role() = 'moderator' and role in ('driver', 'factory'));
+
 -- Only an Owner may change someone else's role/active flag; a self-update may
 -- never change those two columns (checked in a trigger since RLS can't diff
 -- old/new column values on its own).
@@ -75,6 +85,13 @@ create policy driver_regions_select on public.driver_regions
 drop policy if exists driver_regions_write_owner on public.driver_regions;
 create policy driver_regions_write_owner on public.driver_regions
   for all using (public.is_owner()) with check (public.is_owner());
+
+-- Assigning a driver's coverage regions is an operational task, not a
+-- sensitive one, so a Moderator gets the same access here as an Owner.
+drop policy if exists driver_regions_write_moderator on public.driver_regions;
+create policy driver_regions_write_moderator on public.driver_regions
+  for all using (public.current_user_role() = 'moderator')
+  with check (public.current_user_role() = 'moderator');
 
 -- ---------- orders ----------
 alter table public.orders enable row level security;
