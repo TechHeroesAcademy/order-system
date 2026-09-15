@@ -4,9 +4,12 @@ import { OrderTimeline } from "./order-timeline";
 import { DistributionPanel } from "./distribution-panel";
 import { ChangeDriverButton } from "./change-driver-button";
 import { CancelOrderButton } from "./cancel-order-button";
+import { ConfirmActionButton } from "@/components/shared/confirm-action-button";
+import { factoryConfirmReceiptAction, factoryMarkReadyAction } from "@/lib/actions/orders";
 import { Badge } from "@/components/ui/badge";
 import { formatDateTime } from "@/lib/domain/format";
 import { isOrderDelayed } from "@/lib/domain/order-status";
+import { PackageCheck, CheckCircle2 } from "lucide-react";
 import type { Order, OrderHistoryEntry, Region, Profile } from "@/types/database";
 
 const FIELD_LABELS: { key: keyof Order; label: string }[] = [
@@ -117,6 +120,41 @@ export function OrderDetailView({
           <Card>
             <CardContent className="pt-6">
               <ChangeDriverButton orderId={order.id} currentDriverId={order.assigned_driver_id} drivers={drivers} />
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Manual override for the factory step — the database already lets
+            Owner/Moderator do this (not just the factory account), for when
+            someone needs to correct or skip ahead without waiting on the
+            factory dashboard. */}
+        {canManageDistribution && (order.status === "collected" || order.status === "at_factory") && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">إجراءات المصنع</CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0">
+              {order.status === "collected" && (
+                <ConfirmActionButton
+                  label="تأكيد استلام المصنع"
+                  confirmTitle="تأكيد استلام الأوردر في المصنع"
+                  onConfirm={() => factoryConfirmReceiptAction(order.id)}
+                  successMessage="تم تأكيد الاستلام في المصنع"
+                  icon={<PackageCheck />}
+                  variant="outline"
+                />
+              )}
+              {order.status === "at_factory" && (
+                <ConfirmActionButton
+                  label="الأوردر جاهز للتسليم"
+                  confirmTitle="تأكيد جاهزية الأوردر"
+                  confirmDescription="سيتم إشعار المندوب المسؤول لاستلام الأوردر."
+                  onConfirm={() => factoryMarkReadyAction(order.id)}
+                  successMessage="تم تجهيز الأوردر للتسليم"
+                  icon={<CheckCircle2 />}
+                  variant="outline"
+                />
+              )}
             </CardContent>
           </Card>
         )}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Loader2, PackageCheck, Factory, Truck, KeyRound, Ban } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -96,6 +97,7 @@ function DeliverToCustomerCard({ orderId }: { orderId: string }) {
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const router = useRouter();
 
   function submitDelivery() {
     const parsed = deliveryCodeSchema.safeParse({ code });
@@ -116,6 +118,7 @@ function DeliverToCustomerCard({ orderId }: { orderId: string }) {
         return;
       }
       toast.success("تم تسليم الأوردر للعميل بنجاح");
+      router.refresh();
     });
   }
 
@@ -153,6 +156,7 @@ function RefusalDialog({ orderId }: { orderId: string }) {
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const router = useRouter();
 
   function submit() {
     const parsed = refusalReasonSchema.safeParse({ reason });
@@ -169,6 +173,7 @@ function RefusalDialog({ orderId }: { orderId: string }) {
       }
       toast.success("تم تسجيل رفض الاستلام");
       setOpen(false);
+      router.refresh();
     });
   }
 

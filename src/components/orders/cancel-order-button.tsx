@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Loader2, Ban } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -17,11 +18,12 @@ import {
 import { cancelOrderAction } from "@/lib/actions/orders";
 import { cancelOrderSchema } from "@/lib/domain/validators";
 
-export function CancelOrderButton({ orderId }: { orderId: string }) {
+export function CancelOrderButton({ orderId, compact = false }: { orderId: string; compact?: boolean }) {
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const router = useRouter();
 
   function handleConfirm() {
     const parsed = cancelOrderSchema.safeParse({ reason });
@@ -39,16 +41,23 @@ export function CancelOrderButton({ orderId }: { orderId: string }) {
       toast.success("تم إلغاء الأوردر");
       setOpen(false);
       setReason("");
+      router.refresh();
     });
   }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="destructive" className="w-full">
-          <Ban />
-          إلغاء الأوردر
-        </Button>
+        {compact ? (
+          <Button variant="ghost" size="icon" title="إلغاء الأوردر" className="text-destructive hover:text-destructive">
+            <Ban className="size-4" />
+          </Button>
+        ) : (
+          <Button variant="destructive" className="w-full">
+            <Ban />
+            إلغاء الأوردر
+          </Button>
+        )}
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>

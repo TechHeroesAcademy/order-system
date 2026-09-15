@@ -44,7 +44,7 @@ export default async function ModeratorOrdersPage({
 
       <Card>
         <CardContent className="p-0">
-          <OrdersTable orders={orders} regions={regions} basePath="/moderator/orders" />
+          <OrdersTable orders={orders} regions={regions} basePath="/moderator/orders" drivers={drivers} />
         </CardContent>
       </Card>
 

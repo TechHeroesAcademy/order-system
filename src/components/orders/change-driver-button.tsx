@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Loader2, UserCog } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -29,14 +30,18 @@ export function ChangeDriverButton({
   orderId,
   currentDriverId,
   drivers,
+  compact = false,
 }: {
   orderId: string;
   currentDriverId: string | null;
   drivers: Profile[];
+  /** Icon-only trigger for tight spaces (an orders-table row) instead of the full-width labeled button. */
+  compact?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<string>("");
   const [pending, startTransition] = useTransition();
+  const router = useRouter();
   const hasDriver = Boolean(currentDriverId);
 
   const options = drivers.filter((d) => d.is_active && d.id !== currentDriverId);
@@ -52,16 +57,23 @@ export function ChangeDriverButton({
       toast.success(hasDriver ? "تم تغيير المندوب المسؤول" : "تم تعيين المندوب");
       setOpen(false);
       setSelected("");
+      router.refresh();
     });
   }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="w-full">
-          <UserCog className="size-4" />
-          {hasDriver ? "تغيير المندوب" : "تعيين مندوب"}
-        </Button>
+        {compact ? (
+          <Button variant="ghost" size="icon" title={hasDriver ? "تغيير المندوب" : "تعيين مندوب"}>
+            <UserCog className="size-4" />
+          </Button>
+        ) : (
+          <Button variant="outline" size="sm" className="w-full">
+            <UserCog className="size-4" />
+            {hasDriver ? "تغيير المندوب" : "تعيين مندوب"}
+          </Button>
+        )}
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>

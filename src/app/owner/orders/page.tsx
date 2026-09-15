@@ -44,7 +44,7 @@ export default async function OwnerOrdersPage({
 
       <Card>
         <CardContent className="p-0">
-          <OrdersTable orders={orders} regions={regions} basePath="/owner/orders" />
+          <OrdersTable orders={orders} regions={regions} basePath="/owner/orders" drivers={drivers} />
         </CardContent>
       </Card>
 

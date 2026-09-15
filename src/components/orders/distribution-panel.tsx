@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Loader2, Sparkles, UserCheck, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -29,6 +30,7 @@ export function DistributionPanel({
   const [drivers, setDrivers] = useState<SuggestedDriverRow[] | null>(null);
   const [loadingDrivers, setLoadingDrivers] = useState(true);
   const [pending, startTransition] = useTransition();
+  const router = useRouter();
 
   useEffect(() => {
     let active = true;
@@ -50,6 +52,7 @@ export function DistributionPanel({
         return;
       }
       toast.success("تم تحديد المندوب — بانتظار اعتماد Owner");
+      router.refresh();
     });
   }
 
@@ -61,6 +64,7 @@ export function DistributionPanel({
         return;
       }
       toast.success("تم إلغاء التوزيع المقترح");
+      router.refresh();
     });
   }
 
@@ -72,6 +76,7 @@ export function DistributionPanel({
         return;
       }
       toast.success("تم اعتماد التوزيع وإرسال الأوردر للمندوب");
+      router.refresh();
     });
   }
 

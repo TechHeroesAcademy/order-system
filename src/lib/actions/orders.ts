@@ -112,6 +112,7 @@ export async function setOrderDistributionAction(
   });
   if (error) return fail(toErrorMessage(error));
   revalidatePath("/owner");
+  revalidatePath("/moderator");
   return ok(undefined);
 }
 
@@ -121,6 +122,7 @@ export async function clearOrderDistributionAction(orderId: string): Promise<Act
   const { error } = await supabase.rpc("clear_order_distribution", { p_order_id: orderId });
   if (error) return fail(toErrorMessage(error));
   revalidatePath("/owner");
+  revalidatePath("/moderator");
   return ok(undefined);
 }
 
@@ -155,6 +157,7 @@ export async function cancelOrderAction(orderId: string, reason: string): Promis
   const { error } = await supabase.rpc("owner_cancel_order", { p_order_id: orderId, p_reason: reason });
   if (error) return fail(toErrorMessage(error));
   revalidatePath("/owner");
+  revalidatePath("/moderator");
   return ok(undefined);
 }
 
@@ -218,24 +221,34 @@ export async function driverLogRefusalAction(orderId: string, reason: string): P
 
 // ---------- Factory ----------
 
+// The RPCs themselves already allow owner/moderator/factory (see
+// factory_confirm_receipt / factory_mark_ready in
+// supabase/migrations/0009_workflow_rpcs.sql) — an Owner or Moderator can
+// step in and manually confirm/ready an order at the factory. This
+// requireRole() used to only say "owner"/"factory", silently blocking
+// Moderator here even though the database allowed it and the order-detail
+// page has no other way to do it — see order-detail-view.tsx's "factory
+// actions" panel.
 export async function factoryConfirmReceiptAction(orderId: string): Promise<ActionResult> {
-  await requireRole("owner", "factory");
+  await requireRole("owner", "moderator", "factory");
   const supabase = await createClient();
   const { error } = await supabase.rpc("factory_confirm_receipt", { p_order_id: orderId });
   if (error) return fail(toErrorMessage(error));
   revalidatePath("/factory");
   revalidatePath("/driver");
   revalidatePath("/owner");
+  revalidatePath("/moderator");
   return ok(undefined);
 }
 
 export async function factoryMarkReadyAction(orderId: string): Promise<ActionResult> {
-  await requireRole("owner", "factory");
+  await requireRole("owner", "moderator", "factory");
   const supabase = await createClient();
   const { error } = await supabase.rpc("factory_mark_ready", { p_order_id: orderId });
   if (error) return fail(toErrorMessage(error));
   revalidatePath("/factory");
   revalidatePath("/driver");
   revalidatePath("/owner");
+  revalidatePath("/moderator");
   return ok(undefined);
 }

@@ -8,21 +8,28 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { OrderStatusBadge } from "./order-status-badge";
+import { ChangeDriverButton } from "./change-driver-button";
+import { CancelOrderButton } from "./cancel-order-button";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/shared/empty-state";
 import { formatDateTime } from "@/lib/domain/format";
 import { isOrderDelayed } from "@/lib/domain/order-status";
 import { PackageSearch } from "lucide-react";
 import type { OrderListRow } from "@/lib/data/orders";
-import type { Region } from "@/types/database";
+import type { Region, Profile } from "@/types/database";
+
+const TERMINAL_STATUSES = new Set(["delivered", "refused", "cancelled"]);
 
 export function OrdersTable({
   orders,
   basePath,
+  drivers = [],
 }: {
   orders: OrderListRow[];
   regions: Region[];
   basePath: string;
+  /** Active drivers, for the inline "change driver" action — Owner/Moderator only. */
+  drivers?: Profile[];
 }) {
   if (orders.length === 0) {
     return <EmptyState icon={PackageSearch} title="لا يوجد أوردرات مطابقة" />;
@@ -38,11 +45,13 @@ export function OrdersTable({
           <TableHead>المندوب</TableHead>
           <TableHead>الحالة</TableHead>
           <TableHead>تاريخ الإنشاء</TableHead>
+          <TableHead className="text-center">إجراءات</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
         {orders.map((order) => {
           const delayed = isOrderDelayed(order.status, order.created_at);
+          const isTerminal = TERMINAL_STATUSES.has(order.status);
           return (
             <TableRow key={order.id}>
               <TableCell>
@@ -65,6 +74,21 @@ export function OrdersTable({
                 </div>
               </TableCell>
               <TableCell className="text-muted-foreground">{formatDateTime(order.created_at)}</TableCell>
+              <TableCell>
+                {isTerminal ? (
+                  <p className="text-center text-xs text-muted-foreground">—</p>
+                ) : (
+                  <div className="flex items-center justify-center gap-0.5">
+                    <ChangeDriverButton
+                      orderId={order.id}
+                      currentDriverId={order.assigned_driver_id}
+                      drivers={drivers}
+                      compact
+                    />
+                    <CancelOrderButton orderId={order.id} compact />
+                  </div>
+                )}
+              </TableCell>
             </TableRow>
           );
         })}
