@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireRole } from "@/lib/auth";
-import { createStaffAccountSchema, regionNameSchema } from "@/lib/domain/validators";
+import { createStaffAccountSchema, regionNameSchema, updateStaffAddressSchema } from "@/lib/domain/validators";
 import { normalizePhone } from "@/lib/domain/phone";
 import { ok, fail, toErrorMessage, type ActionResult } from "./types";
 import type { z } from "zod";
@@ -51,6 +51,7 @@ export async function createStaffAccountAction(
       full_name: parsed.data.full_name,
       phone: normalizedPhone,
       role: parsed.data.role,
+      address: parsed.data.role === "factory" ? (parsed.data.address?.trim() || null) : null,
     },
   });
 
@@ -136,6 +137,35 @@ export async function setDriverRegionsAction(driverId: string, regionIds: string
     const { error: insertError } = await supabase.from("driver_regions").insert(rows);
     if (insertError) return fail(toErrorMessage(insertError));
   }
+
+  revalidatePath("/owner/team");
+  revalidatePath("/moderator/team");
+  return ok(undefined);
+}
+
+/** Owner/Moderator fixing or filling in a factory account's location later. */
+export async function updateStaffAddressAction(
+  userId: string,
+  input: z.infer<typeof updateStaffAddressSchema>,
+): Promise<ActionResult> {
+  const me = await requireRole("owner", "moderator");
+  const parsed = updateStaffAddressSchema.safeParse(input);
+  if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? "بيانات غير صالحة");
+
+  const supabase = await createClient();
+  const { data: target } = await supabase.from("profiles").select("role").eq("id", userId).single();
+  if (!target || target.role !== "factory") {
+    return fail("العنوان متاح فقط لحسابات المصنع");
+  }
+  if (me.role === "moderator" && target.role !== "factory") {
+    return fail("لا يمكنك تعديل هذا الحساب");
+  }
+
+  const { error } = await supabase
+    .from("profiles")
+    .update({ address: parsed.data.address?.trim() || null })
+    .eq("id", userId);
+  if (error) return fail(toErrorMessage(error));
 
   revalidatePath("/owner/team");
   revalidatePath("/moderator/team");

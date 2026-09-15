@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { getOrderById, getOrderHistory, listRegions } from "@/lib/data/orders";
+import { listStaff } from "@/lib/data/staff";
 import { requireRole } from "@/lib/auth";
 import { OrderStatusBadge } from "@/components/orders/order-status-badge";
 import { OrderTimeline } from "@/components/orders/order-timeline";
@@ -13,12 +14,18 @@ export default async function DriverOrderDetailPage({ params }: { params: Promis
   const { id } = await params;
   const profile = await requireRole("driver");
 
-  const [order, history, regions] = await Promise.all([getOrderById(id), getOrderHistory(id), listRegions()]);
+  const [order, history, regions, factories] = await Promise.all([
+    getOrderById(id),
+    getOrderHistory(id),
+    listRegions(),
+    listStaff("factory"),
+  ]);
 
   if (!order) notFound();
   if (order.assigned_driver_id !== profile.id) notFound();
 
   const region = regions.find((r) => r.id === order.region_id) ?? null;
+  const assignedFactory = factories.find((f) => f.id === order.assigned_factory_id) ?? null;
   const delayed = isOrderDelayed(order.status, order.created_at);
 
   return (
@@ -91,7 +98,10 @@ export default async function DriverOrderDetailPage({ params }: { params: Promis
         </CardContent>
       </Card>
 
-      <DriverOrderActions order={order} />
+      <DriverOrderActions
+        order={order}
+        factory={assignedFactory ? { full_name: assignedFactory.full_name, address: assignedFactory.address } : null}
+      />
 
       <Card>
         <CardHeader>

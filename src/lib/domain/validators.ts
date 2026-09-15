@@ -80,6 +80,16 @@ export const createStaffAccountSchema = z.object({
   email: z.string().trim().email("بريد إلكتروني غير صالح").optional().or(z.literal("")),
   role: z.enum(["owner", "moderator", "driver", "factory"]),
   region_ids: z.array(z.string().uuid()).optional().default([]),
+  // Only meaningful for role="factory" — where the driver drops off/picks
+  // up orders. Left optional rather than required-when-factory so an
+  // existing flow that doesn't collect it yet (or a factory added before a
+  // location is known) still works; it can be filled in later.
+  address: z.string().trim().max(500).optional().nullable(),
+});
+
+/** Owner/Moderator editing an existing factory account's location. */
+export const updateStaffAddressSchema = z.object({
+  address: z.string().trim().max(500).nullable(),
 });
 
 /** Step 1 of the phone-based login: just the phone number. */

@@ -25,6 +25,8 @@ export interface Profile {
   phone: string | null;
   role: UserRole;
   region_id: string | null;
+  /** Free-text location/address. Only meaningful (and only shown) for role="factory" today. */
+  address: string | null;
   is_active: boolean;
   password_set: boolean;
   created_at: string;
@@ -63,6 +65,7 @@ export interface Order {
   distribution_approved_at: string | null;
   distribution_approved_by: string | null;
   assigned_factory_id: string | null;
+  handed_to_factory_at: string | null;
 
   collected_at: string | null;
   factory_received_at: string | null;
@@ -122,7 +125,9 @@ export interface FactoryOrderRow {
   assigned_driver_name: string | null;
   assigned_factory_id: string | null;
   assigned_factory_name: string | null;
+  assigned_factory_address: string | null;
   collected_at: string | null;
+  handed_to_factory_at: string | null;
   factory_received_at: string | null;
   factory_ready_at: string | null;
   created_at: string;

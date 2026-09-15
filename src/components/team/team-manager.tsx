@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { Loader2, MapPin, Plus, UserPlus, Users, KeyRound } from "lucide-react";
+import { Loader2, MapPin, Plus, UserPlus, Users, KeyRound, Factory } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -40,8 +40,9 @@ import {
   setStaffActiveAction,
   setDriverRegionsAction,
   resetStaffPasswordAction,
+  updateStaffAddressAction,
 } from "@/lib/actions/admin";
-import { createStaffAccountSchema, regionNameSchema } from "@/lib/domain/validators";
+import { createStaffAccountSchema, regionNameSchema, updateStaffAddressSchema } from "@/lib/domain/validators";
 import type { Profile, Region, UserRole } from "@/types/database";
 
 const ROLE_LABELS_AR: Record<UserRole, string> = {
@@ -102,7 +103,7 @@ export function TeamManager({
                   <TableHead>الاسم</TableHead>
                   <TableHead>الهاتف</TableHead>
                   <TableHead>الدور</TableHead>
-                  <TableHead>المناطق</TableHead>
+                  <TableHead>المناطق / الموقع</TableHead>
                   <TableHead>الحالة</TableHead>
                   <TableHead />
                 </TableRow>
@@ -124,6 +125,14 @@ export function TeamManager({
                           regions={regionsList}
                           assignedIds={regionsByDriver[member.id] ?? []}
                           onSaved={(ids) => setRegionsByDriver((prev) => ({ ...prev, [member.id]: ids }))}
+                        />
+                      ) : member.role === "factory" ? (
+                        <FactoryAddressCell
+                          factoryId={member.id}
+                          address={member.address}
+                          onSaved={(address) =>
+                            setStaffList((prev) => prev.map((m) => (m.id === member.id ? { ...m, address } : m)))
+                          }
                         />
                       ) : (
                         <span className="text-muted-foreground">—</span>
@@ -311,6 +320,84 @@ function DriverRegionsCell({
   );
 }
 
+function FactoryAddressCell({
+  factoryId,
+  address,
+  onSaved,
+}: {
+  factoryId: string;
+  address: string | null;
+  onSaved: (address: string | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [value, setValue] = useState(address ?? "");
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  function save() {
+    const parsed = updateStaffAddressSchema.safeParse({ address: value });
+    if (!parsed.success) {
+      setError(parsed.error.issues[0]?.message ?? "بيانات غير صالحة");
+      return;
+    }
+    setError(null);
+    startTransition(async () => {
+      const res = await updateStaffAddressAction(factoryId, parsed.data);
+      if (!res.ok) {
+        setError(res.error);
+        return;
+      }
+      onSaved(parsed.data.address?.trim() || null);
+      toast.success("تم تحديث عنوان المصنع");
+      setOpen(false);
+    });
+  }
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (next) setValue(address ?? "");
+      }}
+    >
+      <DialogTrigger asChild>
+        <button className="flex items-center gap-1 text-start text-sm hover:underline">
+          <Factory className="size-3.5 text-muted-foreground" />
+          {address || "تحديد الموقع"}
+        </button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>موقع المصنع</DialogTitle>
+          <DialogDescription>
+            يظهر هذا العنوان للمندوب عند تسليم أو استلام أوردر مرتبط بهذا المصنع.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-1.5">
+          <Label htmlFor={`factory-address-${factoryId}`}>العنوان</Label>
+          <Input
+            id={`factory-address-${factoryId}`}
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            placeholder="مثال: المنطقة الصناعية، مدينة نصر، مبنى 12"
+          />
+          {error && <p className="text-sm text-destructive">{error}</p>}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setOpen(false)} disabled={pending}>
+            تراجع
+          </Button>
+          <Button onClick={save} disabled={pending}>
+            {pending && <Loader2 className="animate-spin" />}
+            حفظ
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function AddRegionDialog({ onCreated }: { onCreated: (region: Region) => void }) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
@@ -385,6 +472,7 @@ function AddStaffDialog({
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<UserRole>(roleOptions[0]);
   const [regionIds, setRegionIds] = useState<string[]>([]);
+  const [address, setAddress] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -394,6 +482,7 @@ function AddStaffDialog({
     setEmail("");
     setRole(roleOptions[0]);
     setRegionIds([]);
+    setAddress("");
     setError(null);
   }
 
@@ -408,6 +497,7 @@ function AddStaffDialog({
       email: email || undefined,
       role,
       region_ids: role === "driver" ? regionIds : [],
+      address: role === "factory" ? address : undefined,
     });
     if (!parsed.success) {
       setError(parsed.error.issues[0]?.message ?? "بيانات غير صالحة");
@@ -426,6 +516,7 @@ function AddStaffDialog({
         phone: parsed.data.phone,
         role: parsed.data.role,
         region_id: null,
+        address: parsed.data.role === "factory" ? (parsed.data.address?.trim() || null) : null,
         is_active: true,
         password_set: false,
         created_at: new Date().toISOString(),
@@ -485,6 +576,18 @@ function AddStaffDialog({
               </SelectContent>
             </Select>
           </div>
+          {role === "factory" && (
+            <div className="space-y-1.5">
+              <Label htmlFor="staff-address">عنوان المصنع (اختياري)</Label>
+              <Input
+                id="staff-address"
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                placeholder="مثال: المنطقة الصناعية، مدينة نصر، مبنى 12"
+              />
+              <p className="text-xs text-muted-foreground">يظهر هذا العنوان للمندوب عند تسليم أو استلام أوردر من هذا المصنع.</p>
+            </div>
+          )}
           {role === "driver" && (
             <div className="space-y-1.5">
               <Label>المناطق التي يغطيها</Label>

@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Loader2, PackageCheck, Factory, Truck, KeyRound, Ban } from "lucide-react";
+import { Loader2, PackageCheck, Factory, Truck, KeyRound, Ban, MapPin, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -26,9 +26,37 @@ import {
   driverLogRefusalAction,
 } from "@/lib/actions/orders";
 import { deliveryCodeSchema, refusalReasonSchema } from "@/lib/domain/validators";
+import { formatDateTime } from "@/lib/domain/format";
 import type { Order } from "@/types/database";
 
-export function DriverOrderActions({ order }: { order: Order }) {
+type FactoryInfo = { full_name: string; address: string | null } | null;
+
+/** Small "which factory / where" strip shown alongside every factory-related step below. */
+function FactoryLocationNote({ factory }: { factory: FactoryInfo }) {
+  return (
+    <div className="mb-3 flex items-start gap-2 rounded-lg border bg-accent/40 p-3 text-sm">
+      <Factory className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+      <div className="min-w-0 flex-1">
+        <p className="font-medium">{factory?.full_name ?? "لم يُحدد مصنع لهذا الأوردر"}</p>
+        {factory?.address ? (
+          <a
+            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(factory.address)}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-0.5 flex items-center gap-1 text-muted-foreground hover:text-foreground hover:underline"
+          >
+            <MapPin className="size-3.5 shrink-0" />
+            {factory.address}
+          </a>
+        ) : (
+          factory && <p className="mt-0.5 text-xs text-muted-foreground">لا يوجد عنوان مسجل لهذا المصنع بعد</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export function DriverOrderActions({ order, factory = null }: { order: Order; factory?: FactoryInfo }) {
   switch (order.status) {
     case "assigned":
       return (
@@ -47,16 +75,33 @@ export function DriverOrderActions({ order }: { order: Order }) {
       );
 
     case "collected":
+      // Status stays 'collected' through this whole step — only the factory
+      // confirming receipt moves it to 'at_factory' — so handed_to_factory_at
+      // (not order.status) is what tells "not handed off yet" apart from
+      // "handed off, now waiting on the factory to confirm". Without this,
+      // the same button kept reappearing after being pressed, which read as
+      // the step not having registered at all.
       return (
         <Card>
-          <CardContent className="pt-6">
-            <ConfirmActionButton
-              label="تم التوجه بالأوردر للمصنع"
-              confirmTitle="تأكيد تسليم الأوردر للمصنع"
-              onConfirm={() => driverHandToFactoryAction(order.id)}
-              successMessage="تم تسجيل التوجه للمصنع"
-              icon={<Factory />}
-            />
+          <CardHeader>
+            <CardTitle className="text-base">التوجه للمصنع</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <FactoryLocationNote factory={factory} />
+            {order.handed_to_factory_at ? (
+              <div className="flex items-center gap-2 rounded-lg border py-3 px-3 text-sm text-muted-foreground">
+                <Clock className="size-4 shrink-0" />
+                تم تسجيل توجهك للمصنع {formatDateTime(order.handed_to_factory_at)} — بانتظار تأكيد الاستلام من المصنع.
+              </div>
+            ) : (
+              <ConfirmActionButton
+                label="تم التوجه بالأوردر للمصنع"
+                confirmTitle="تأكيد تسليم الأوردر للمصنع"
+                onConfirm={() => driverHandToFactoryAction(order.id)}
+                successMessage="تم تسجيل التوجه للمصنع"
+                icon={<Factory />}
+              />
+            )}
           </CardContent>
         </Card>
       );
@@ -64,8 +109,14 @@ export function DriverOrderActions({ order }: { order: Order }) {
     case "at_factory":
       return (
         <Card>
-          <CardContent className="py-6 text-center text-sm text-muted-foreground">
-            الأوردر داخل المصنع حاليًا — بانتظار تجهيزه.
+          <CardHeader>
+            <CardTitle className="text-base">داخل المصنع</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <FactoryLocationNote factory={factory} />
+            <p className="py-3 text-center text-sm text-muted-foreground">
+              الأوردر داخل المصنع حاليًا — بانتظار تجهيزه. لا يمكنك استلامه إلا بعد أن يضغط المصنع &quot;جاهز للتسليم&quot;.
+            </p>
           </CardContent>
         </Card>
       );
@@ -73,7 +124,11 @@ export function DriverOrderActions({ order }: { order: Order }) {
     case "ready":
       return (
         <Card>
-          <CardContent className="pt-6">
+          <CardHeader>
+            <CardTitle className="text-base">جاهز للاستلام من المصنع</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <FactoryLocationNote factory={factory} />
             <ConfirmActionButton
               label="تم استلام الأوردر من المصنع"
               confirmTitle="تأكيد الاستلام من المصنع"

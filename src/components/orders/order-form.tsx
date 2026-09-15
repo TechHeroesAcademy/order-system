@@ -200,6 +200,7 @@ export function OrderForm({
                     {factories.map((f) => (
                       <SelectItem key={f.id} value={f.id}>
                         {f.full_name}
+                        {f.address ? ` — ${f.address}` : ""}
                       </SelectItem>
                     ))}
                   </SelectContent>

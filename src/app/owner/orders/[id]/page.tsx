@@ -29,6 +29,7 @@ export default async function OwnerOrderDetailPage({ params }: { params: Promise
       region={region}
       assignedDriverName={assignedDriver?.full_name ?? null}
       assignedFactoryName={assignedFactory?.full_name ?? null}
+      assignedFactoryAddress={assignedFactory?.address ?? null}
       viewerProfile={profile}
       canManageDistribution
       drivers={drivers}
