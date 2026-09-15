@@ -2,6 +2,7 @@ import Link from "next/link";
 import { listOrders, listRegions } from "@/lib/data/orders";
 import { listStaff } from "@/lib/data/staff";
 import { OrdersFilterBar } from "@/components/orders/orders-filter-bar";
+import { OrderStatusTabs } from "@/components/orders/order-status-tabs";
 import { OrdersTable } from "@/components/orders/orders-table";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -38,6 +39,7 @@ export default async function ModeratorOrdersPage({
         </Button>
       </div>
 
+      <OrderStatusTabs basePath="/moderator/orders" />
       <OrdersFilterBar regions={regions} drivers={drivers} basePath="/moderator/orders" />
 
       <Card>
