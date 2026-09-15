@@ -6,26 +6,36 @@
 :root {
   --radius: 0.65rem;
 
-  --background: oklch(0.99 0 0);
-  --foreground: oklch(0.18 0.01 260);
+  /* DHL-style warm/yellow brand palette. Neutrals (background, border,
+     muted, secondary) are shifted from the old blue-ish hue (~255-260) to a
+     warm hue (~85-93) so they read as "warm gray" alongside the yellow
+     primary instead of clashing with it. --primary is #FFCC00 (DHL yellow)
+     — verified via a WCAG contrast check against --primary-foreground
+     (11:1) before shipping, since bright yellow fails as a *text* color on
+     light backgrounds (~1.5:1) even though it's excellent as a fill. Any
+     spot that needs yellow-family *text* or a small icon uses Tailwind's
+     amber-700 (~5:1 on white) instead of --primary directly — see
+     order-status-tabs.tsx / distribution-panel.tsx / track/page.tsx. */
+  --background: oklch(0.985 0.009 93.6);
+  --foreground: oklch(0.2 0.015 90);
 
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.18 0.01 260);
+  --card-foreground: oklch(0.2 0.015 90);
 
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.18 0.01 260);
+  --popover-foreground: oklch(0.2 0.015 90);
 
-  --primary: oklch(0.4 0.14 255);
-  --primary-foreground: oklch(0.98 0 0);
+  --primary: oklch(0.865 0.177 90.4);
+  --primary-foreground: oklch(0.235 0.049 98.6);
 
-  --secondary: oklch(0.95 0.01 255);
-  --secondary-foreground: oklch(0.25 0.02 255);
+  --secondary: oklch(0.95 0.015 90);
+  --secondary-foreground: oklch(0.25 0.02 90);
 
-  --muted: oklch(0.96 0.005 255);
-  --muted-foreground: oklch(0.5 0.02 260);
+  --muted: oklch(0.96 0.008 90);
+  --muted-foreground: oklch(0.5 0.02 85);
 
-  --accent: oklch(0.94 0.03 250);
-  --accent-foreground: oklch(0.25 0.02 255);
+  --accent: oklch(0.94 0.035 90);
+  --accent-foreground: oklch(0.25 0.02 90);
 
   --destructive: oklch(0.55 0.22 25);
   --destructive-foreground: oklch(0.98 0 0);
@@ -33,38 +43,40 @@
   --success: oklch(0.6 0.15 145);
   --success-foreground: oklch(0.98 0 0);
 
-  --warning: oklch(0.75 0.16 75);
-  --warning-foreground: oklch(0.2 0.02 80);
+  /* Deliberately a different hue from --primary (55 vs 90) so a "warning"
+     amber and the brand's golden yellow never get mistaken for each other. */
+  --warning: oklch(0.72 0.17 55);
+  --warning-foreground: oklch(0.2 0.02 55);
 
-  --border: oklch(0.9 0.005 260);
-  --input: oklch(0.9 0.005 260);
-  --ring: oklch(0.4 0.14 255);
+  --border: oklch(0.9 0.008 90);
+  --input: oklch(0.9 0.008 90);
+  --ring: oklch(0.6 0.17 55);
 }
 
 .dark {
-  --background: oklch(0.16 0.01 260);
-  --foreground: oklch(0.96 0 0);
-  --card: oklch(0.2 0.01 260);
-  --card-foreground: oklch(0.96 0 0);
-  --popover: oklch(0.2 0.01 260);
-  --popover-foreground: oklch(0.96 0 0);
-  --primary: oklch(0.7 0.13 255);
-  --primary-foreground: oklch(0.15 0.02 255);
-  --secondary: oklch(0.27 0.01 260);
-  --secondary-foreground: oklch(0.96 0 0);
-  --muted: oklch(0.25 0.01 260);
-  --muted-foreground: oklch(0.65 0.02 260);
-  --accent: oklch(0.3 0.03 255);
-  --accent-foreground: oklch(0.96 0 0);
+  --background: oklch(0.16 0.012 80);
+  --foreground: oklch(0.96 0.005 80);
+  --card: oklch(0.2 0.012 80);
+  --card-foreground: oklch(0.96 0.005 80);
+  --popover: oklch(0.2 0.012 80);
+  --popover-foreground: oklch(0.96 0.005 80);
+  --primary: oklch(0.865 0.177 90.4);
+  --primary-foreground: oklch(0.235 0.049 98.6);
+  --secondary: oklch(0.27 0.012 80);
+  --secondary-foreground: oklch(0.96 0.005 80);
+  --muted: oklch(0.25 0.012 80);
+  --muted-foreground: oklch(0.68 0.02 80);
+  --accent: oklch(0.32 0.04 85);
+  --accent-foreground: oklch(0.96 0.005 80);
   --destructive: oklch(0.6 0.2 25);
   --destructive-foreground: oklch(0.98 0 0);
   --success: oklch(0.65 0.15 145);
   --success-foreground: oklch(0.1 0 0);
-  --warning: oklch(0.75 0.16 75);
-  --warning-foreground: oklch(0.15 0.02 80);
-  --border: oklch(0.32 0.01 260);
-  --input: oklch(0.32 0.01 260);
-  --ring: oklch(0.6 0.1 255);
+  --warning: oklch(0.72 0.17 55);
+  --warning-foreground: oklch(0.15 0.02 55);
+  --border: oklch(0.32 0.012 80);
+  --input: oklch(0.32 0.012 80);
+  --ring: oklch(0.8 0.16 84);
 }
 
 @theme inline {

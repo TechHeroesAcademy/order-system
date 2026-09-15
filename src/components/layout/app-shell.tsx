@@ -50,19 +50,25 @@ export async function AppShell({
   return (
     <div className="flex min-h-screen flex-col">
       <IdleLogoutWatcher />
-      <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/80">
+      {/* Bold yellow top bar, DHL-style — the brand block lives here since
+          this is the one element present on every screen for every role. */}
+      <header className="sticky top-0 z-40 bg-primary text-primary-foreground shadow-sm">
         <div className="flex h-14 items-center gap-3 px-4">
           <p className="font-bold whitespace-nowrap">{title}</p>
-          <Badge variant="outline" className="hidden sm:inline-flex">
+          <Badge variant="outline" className="hidden border-primary-foreground/30 text-primary-foreground sm:inline-flex">
             {ROLE_LABELS_AR[profile.role]}
           </Badge>
           <div className="flex-1" />
-          <NotificationBell notifications={notifications as never} unreadCount={unreadCount} />
+          <div className="[&_button]:text-primary-foreground [&_button]:hover:bg-primary-foreground/10">
+            <NotificationBell notifications={notifications as never} unreadCount={unreadCount} />
+          </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="outline-none">
-                <Avatar>
-                  <AvatarFallback>{initials}</AvatarFallback>
+              <button className="rounded-full outline-none ring-offset-primary transition-transform hover:scale-105 focus-visible:ring-2 focus-visible:ring-primary-foreground/60">
+                <Avatar className="border-2 border-primary-foreground/40">
+                  <AvatarFallback className="bg-primary-foreground/15 text-primary-foreground">
+                    {initials}
+                  </AvatarFallback>
                 </Avatar>
               </button>
             </DropdownMenuTrigger>
@@ -76,12 +82,12 @@ export async function AppShell({
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
-        <nav className="flex gap-1 overflow-x-auto border-t px-2 py-1.5">
+        <nav className="flex gap-1 overflow-x-auto border-t border-primary-foreground/15 px-2 py-1.5">
           {navItems.map((item) => (
             <Link
               key={item.href}
               href={item.href}
-              className="flex shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+              className="flex shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium text-primary-foreground/75 transition-colors hover:bg-primary-foreground/10 hover:text-primary-foreground"
             >
               <item.icon className="size-4" />
               {item.label}

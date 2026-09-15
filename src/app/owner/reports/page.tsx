@@ -119,7 +119,7 @@ export default async function ReportsPage() {
               <RadialStat
                 label="نسبة التسليم في الوقت"
                 percent={monthly.on_time_rate ?? 0}
-                colorClassName="text-primary"
+                colorClassName="text-amber-700 dark:text-amber-400"
               />
               <RadialStat
                 label="معدل التأخير"

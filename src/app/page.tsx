@@ -20,15 +20,20 @@ export default async function HomePage() {
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center gap-8 p-6">
-      <div className="text-center space-y-2">
+      <div className="text-center space-y-2 animate-fade-in-up">
         <h1 className="text-2xl font-bold">شركة المجد</h1>
         <p className="text-muted-foreground">أنشئ أوردر جديد أو تابع حالة أوردر موجود بالفعل</p>
       </div>
 
       <div className="grid w-full max-w-3xl gap-4 sm:grid-cols-2">
-        <Card>
+        <Card
+          className="animate-fade-in-up border-2 transition-[transform,box-shadow] hover:-translate-y-0.5 hover:shadow-lg"
+          style={{ animationDelay: "80ms" }}
+        >
           <CardHeader>
-            <PackagePlus className="size-8 text-primary" />
+            <div className="flex size-12 items-center justify-center rounded-xl bg-primary shadow-sm">
+              <PackagePlus className="size-6 text-primary-foreground" />
+            </div>
             <CardTitle>إنشاء أوردر جديد</CardTitle>
             <CardDescription>أدخل بيانات طلبك وسيتم التواصل معك لتنفيذه</CardDescription>
           </CardHeader>
@@ -39,9 +44,14 @@ export default async function HomePage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card
+          className="animate-fade-in-up border-2 transition-[transform,box-shadow] hover:-translate-y-0.5 hover:shadow-lg"
+          style={{ animationDelay: "160ms" }}
+        >
           <CardHeader>
-            <Search className="size-8 text-primary" />
+            <div className="flex size-12 items-center justify-center rounded-xl bg-primary shadow-sm">
+              <Search className="size-6 text-primary-foreground" />
+            </div>
             <CardTitle>تتبع أوردر</CardTitle>
             <CardDescription>أدخل رقم الأوردر ورقم هاتفك لمعرفة حالته الحالية</CardDescription>
           </CardHeader>
@@ -53,7 +63,7 @@ export default async function HomePage() {
         </Card>
       </div>
 
-      <Button asChild variant="ghost" size="sm">
+      <Button asChild variant="ghost" size="sm" className="animate-fade-in-up" style={{ animationDelay: "220ms" }}>
         <Link href="/login">
           <LogIn className="size-4" />
           تسجيل دخول فريق العمل

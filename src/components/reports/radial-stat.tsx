@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 export function RadialStat({
   label,
   percent,
-  colorClassName = "text-primary",
+  colorClassName = "text-amber-700 dark:text-amber-400",
 }: {
   label: string;
   percent: number;

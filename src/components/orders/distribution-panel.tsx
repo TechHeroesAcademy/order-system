@@ -84,7 +84,7 @@ export function DistributionPanel({
         {assignedDriverId && (
           <div className="flex items-center justify-between rounded-lg border bg-accent/50 p-3">
             <div className="flex items-center gap-2">
-              <UserCheck className="size-4 text-primary" />
+              <UserCheck className="size-4 text-amber-700 dark:text-amber-400" />
               <span className="text-sm font-medium">{assignedDriverName}</span>
               <Badge variant="warning">بانتظار الاعتماد</Badge>
             </div>
@@ -121,7 +121,7 @@ export function DistributionPanel({
                     <p className="flex items-center gap-1.5 text-sm font-medium">
                       {d.full_name}
                       {idx === 0 && (
-                        <span className="inline-flex items-center gap-0.5 text-xs text-primary">
+                        <span className="inline-flex items-center gap-0.5 text-xs text-amber-700 dark:text-amber-400">
                           <Sparkles className="size-3" /> مقترح
                         </span>
                       )}

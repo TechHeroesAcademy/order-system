@@ -177,7 +177,7 @@ function TrackForm() {
                             reached
                               ? "border-primary bg-primary text-primary-foreground"
                               : isNext
-                                ? "border-primary text-primary animate-pulse"
+                                ? "border-amber-600 bg-primary/15 text-amber-700 animate-pulse dark:border-amber-400 dark:text-amber-300"
                                 : "border-muted-foreground/30 text-muted-foreground",
                           )}
                           style={{ animationDelay: `${idx * 90}ms` }}
