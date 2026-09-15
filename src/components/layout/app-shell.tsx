@@ -1,6 +1,7 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import type { LucideIcon } from "lucide-react";
-import { NotificationBell } from "./notification-bell";
+import { NotificationBellSlot, NotificationBellSkeleton } from "./notification-bell-slot";
 import { SignOutButton } from "./sign-out-button";
 import { IdleLogoutWatcher } from "./idle-logout-watcher";
 import {
@@ -12,8 +13,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { listNotifications } from "@/lib/data/staff";
-import { getUnreadNotificationCount } from "@/lib/data/staff";
 import type { Profile } from "@/types/database";
 
 export interface NavItem {
@@ -29,7 +28,7 @@ const ROLE_LABELS_AR: Record<string, string> = {
   factory: "المصنع",
 };
 
-export async function AppShell({
+export function AppShell({
   profile,
   navItems,
   title,
@@ -40,11 +39,6 @@ export async function AppShell({
   title: string;
   children: React.ReactNode;
 }) {
-  const [notifications, unreadCount] = await Promise.all([
-    listNotifications(profile.id, 15),
-    getUnreadNotificationCount(profile.id),
-  ]);
-
   const initials = profile.full_name.trim().slice(0, 1);
 
   return (
@@ -60,7 +54,9 @@ export async function AppShell({
           </Badge>
           <div className="flex-1" />
           <div className="[&_button]:text-primary-foreground [&_button]:hover:bg-primary-foreground/10">
-            <NotificationBell notifications={notifications as never} unreadCount={unreadCount} />
+            <Suspense fallback={<NotificationBellSkeleton />}>
+              <NotificationBellSlot profileId={profile.id} />
+            </Suspense>
           </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
