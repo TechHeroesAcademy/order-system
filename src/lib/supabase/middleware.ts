@@ -16,7 +16,7 @@ const AREA_ALLOWED_ROLES: { prefix: string; roles: UserRole[] }[] = [
   { prefix: "/factory", roles: ["owner", "factory"] },
 ];
 
-const PUBLIC_PATHS = ["/", "/login", "/track", "/setup"];
+const PUBLIC_PATHS = ["/", "/login", "/track", "/setup", "/order/new"];
 
 /**
  * Runs on every request (see `proxy.ts`). Refreshes the Supabase session
