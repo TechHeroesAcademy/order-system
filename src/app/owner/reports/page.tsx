@@ -20,6 +20,8 @@ import { formatHours, formatPercent } from "@/lib/domain/format";
 import { EmptyState } from "@/components/shared/empty-state";
 import { OrderStatusBadge } from "@/components/orders/order-status-badge";
 import { BarChart3, TrendingUp, TrendingDown, Minus, AlertTriangle } from "lucide-react";
+import { BarList } from "@/components/reports/bar-list";
+import { RadialStat } from "@/components/reports/radial-stat";
 
 export default async function ReportsPage() {
   const [daily, monthly, driverPerf, topRegions, delayedOrders] = await Promise.all([
@@ -103,9 +105,60 @@ export default async function ReportsPage() {
               </div>
             </CardContent>
           </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">نظرة عامة</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-wrap justify-around gap-6">
+              <RadialStat
+                label="نسبة الأوردرات المكتملة"
+                percent={monthly.total_orders > 0 ? (monthly.completed_orders / monthly.total_orders) * 100 : 0}
+                colorClassName="text-success"
+              />
+              <RadialStat
+                label="نسبة التسليم في الوقت"
+                percent={monthly.on_time_rate ?? 0}
+                colorClassName="text-primary"
+              />
+              <RadialStat
+                label="معدل التأخير"
+                percent={monthly.total_orders > 0 ? (monthly.delayed_orders / monthly.total_orders) * 100 : 0}
+                colorClassName="text-warning"
+              />
+            </CardContent>
+          </Card>
         </TabsContent>
 
-        <TabsContent value="drivers" className="pt-4">
+        <TabsContent value="drivers" className="space-y-3 pt-4">
+          {driverPerf.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">عدد الأوردرات لكل مندوب</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <BarList
+                  items={driverPerf.map((d) => ({ label: d.full_name, value: d.total_orders }))}
+                  colorClassName="bg-primary"
+                />
+              </CardContent>
+            </Card>
+          )}
+          {driverPerf.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">نسبة التسليم في الموعد لكل مندوب</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <BarList
+                  items={driverPerf.map((d) => ({ label: d.full_name, value: Math.round(d.on_time_rate ?? 0) }))}
+                  colorClassName="bg-success"
+                  max={100}
+                  formatValue={(v) => `${v}%`}
+                />
+              </CardContent>
+            </Card>
+          )}
           <Card>
             <CardContent className="p-0">
               {driverPerf.length === 0 ? (
@@ -153,21 +206,15 @@ export default async function ReportsPage() {
             <CardHeader>
               <CardTitle className="text-base">عدد الأوردرات حسب المنطقة</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2">
-              {topRegions.map((r) => (
-                <div key={r.region_name} className="flex items-center gap-3">
-                  <span className="w-32 shrink-0 text-sm">{r.region_name}</span>
-                  <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
-                    <div
-                      className="h-full bg-primary"
-                      style={{
-                        width: `${Math.min(100, (r.order_count / (topRegions[0]?.order_count || 1)) * 100)}%`,
-                      }}
-                    />
-                  </div>
-                  <span className="w-10 text-end text-sm tabular-nums text-muted-foreground">{r.order_count}</span>
-                </div>
-              ))}
+            <CardContent>
+              {topRegions.length === 0 ? (
+                <EmptyState icon={BarChart3} title="لا يوجد بيانات مناطق بعد" />
+              ) : (
+                <BarList
+                  items={topRegions.map((r) => ({ label: r.region_name, value: r.order_count }))}
+                  colorClassName="bg-primary"
+                />
+              )}
             </CardContent>
           </Card>
         </TabsContent>
