@@ -5,24 +5,13 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { createClient } from "@/lib/supabase/client";
-import {
-  loginSchema,
-  phoneLookupSchema,
-  setInitialPasswordSchema,
-  phoneLoginSchema,
-  type LoginValues,
-} from "@/lib/domain/validators";
-import {
-  checkPhoneAction,
-  setInitialPasswordAction,
-  phoneLoginAction,
-} from "@/lib/actions/staff-auth";
+import Link from "next/link";
+import { phoneLookupSchema, setInitialPasswordSchema, phoneLoginSchema } from "@/lib/domain/validators";
+import { checkPhoneAction, setInitialPasswordAction, phoneLoginAction } from "@/lib/actions/staff-auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2, ArrowRight } from "lucide-react";
 
@@ -51,22 +40,13 @@ function LoginPageInner() {
               <AlertDescription>هذا الحساب غير مفعّل. تواصل مع صاحب النظام.</AlertDescription>
             </Alert>
           )}
-          <Tabs defaultValue="phone">
-            <TabsList className="mb-4 w-full">
-              <TabsTrigger value="phone" className="flex-1">
-                رقم الهاتف
-              </TabsTrigger>
-              <TabsTrigger value="email" className="flex-1">
-                البريد الإلكتروني
-              </TabsTrigger>
-            </TabsList>
-            <TabsContent value="phone">
-              <PhoneLoginFlow />
-            </TabsContent>
-            <TabsContent value="email">
-              <EmailLoginForm />
-            </TabsContent>
-          </Tabs>
+          <PhoneLoginFlow />
+          <p className="mt-4 text-center text-xs text-muted-foreground">
+            أول مرة تستخدم النظام؟{" "}
+            <Link href="/setup" className="underline underline-offset-2">
+              إعداد حساب صاحب النظام
+            </Link>
+          </p>
         </CardContent>
       </Card>
     </main>
@@ -76,7 +56,9 @@ function LoginPageInner() {
 /**
  * Two steps: enter phone number, then either create a password (first-ever
  * login) or enter the one already set — checkPhoneAction tells us which
- * without ever sending the account's real email to the browser.
+ * without ever sending the account's real (internal, synthetic) email to
+ * the browser. This is the only login path in the system — no email/password
+ * form exists anywhere, including for the Owner (see /setup for bootstrap).
  */
 function PhoneLoginFlow() {
   const router = useRouter();
@@ -246,71 +228,6 @@ function PhoneLoginFlow() {
         <Button type="button" variant="ghost" className="w-full" onClick={backToPhone} disabled={submitting}>
           <ArrowRight className="size-4" />
           رقم هاتف آخر
-        </Button>
-      </form>
-    </Form>
-  );
-}
-
-/** Kept mainly for the Owner's initial account, created directly in Supabase with an email. */
-function EmailLoginForm() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const [submitting, setSubmitting] = useState(false);
-
-  const form = useForm<LoginValues>({
-    resolver: zodResolver(loginSchema),
-    defaultValues: { email: "", password: "" },
-  });
-
-  async function onSubmit(values: LoginValues) {
-    setSubmitting(true);
-    const supabase = createClient();
-    const { error } = await supabase.auth.signInWithPassword(values);
-    setSubmitting(false);
-
-    if (error) {
-      toast.error("فشل تسجيل الدخول", { description: "تأكد من البريد الإلكتروني وكلمة المرور" });
-      return;
-    }
-
-    toast.success("تم تسجيل الدخول بنجاح");
-    router.replace(searchParams.get("next") || "/");
-    router.refresh();
-  }
-
-  return (
-    <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-        <FormField
-          control={form.control}
-          name="email"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>البريد الإلكتروني</FormLabel>
-              <FormControl>
-                <Input type="email" dir="ltr" placeholder="name@example.com" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="password"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>كلمة المرور</FormLabel>
-              <FormControl>
-                <Input type="password" dir="ltr" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <Button type="submit" className="w-full" disabled={submitting}>
-          {submitting && <Loader2 className="animate-spin" />}
-          تسجيل الدخول
         </Button>
       </form>
     </Form>

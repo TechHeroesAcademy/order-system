@@ -16,7 +16,7 @@ const AREA_ALLOWED_ROLES: { prefix: string; roles: UserRole[] }[] = [
   { prefix: "/factory", roles: ["owner", "factory"] },
 ];
 
-const PUBLIC_PATHS = ["/", "/login", "/track"];
+const PUBLIC_PATHS = ["/", "/login", "/track", "/setup"];
 
 /**
  * Runs on every request (see `proxy.ts`). Refreshes the Supabase session
@@ -86,7 +86,7 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  if (pathname === "/login") {
+  if (pathname === "/login" || pathname === "/setup") {
     const url = request.nextUrl.clone();
     url.pathname = ROLE_HOME[role];
     return NextResponse.redirect(url);

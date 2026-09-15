@@ -66,13 +66,6 @@ export const regionNameSchema = z.object({
   name: z.string().trim().min(2, "اسم المنطقة قصير جدًا").max(100),
 });
 
-export const loginSchema = z.object({
-  email: z.string().trim().email("بريد إلكتروني غير صالح"),
-  password: z.string().min(6, "كلمة المرور قصيرة جدًا"),
-});
-
-export type LoginValues = z.infer<typeof loginSchema>;
-
 export const createStaffAccountSchema = z.object({
   full_name: z.string().trim().min(2, "الاسم قصير جدًا").max(120),
   phone: z
@@ -115,3 +108,21 @@ export const phoneLoginSchema = z.object({
   phone: z.string().trim(),
   password: z.string().min(1, "أدخل كلمة المرور"),
 });
+
+/** First-run self-service Owner setup — no email, no dashboard step. */
+export const bootstrapOwnerSchema = z
+  .object({
+    full_name: z.string().trim().min(2, "الاسم قصير جدًا").max(120),
+    phone: z
+      .string()
+      .trim()
+      .refine((v) => v.replace(/\D/g, "").length >= 8, "رقم الهاتف غير صالح"),
+    password: newPasswordField,
+    confirmPassword: z.string(),
+  })
+  .refine((v) => v.password === v.confirmPassword, {
+    message: "كلمتا المرور غير متطابقتين",
+    path: ["confirmPassword"],
+  });
+
+export type BootstrapOwnerValues = z.infer<typeof bootstrapOwnerSchema>;
