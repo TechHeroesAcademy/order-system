@@ -1,37 +1,35 @@
-import { test, expect, type APIRequestContext } from "@playwright/test";
+import { test, expect } from "@playwright/test";
 
 /**
- * Public, unauthenticated pages — the customer-facing surface of the spec
- * (section 2's "Website" order channel, section 15's tracking page) plus
- * the staff login screen. Most of this runs against any running instance,
- * even one wired to a placeholder Supabase project — but /order/new does
- * one real data read (the region list) to render its form, so the tests
- * that submit that form check reachability first and skip themselves with
- * a clear message if this instance has no live backend, rather than
- * failing with a confusing timeout.
+ * Public, unauthenticated pages — the customer-facing surface of the app
+ * (section 15's tracking page) plus the staff login screen. Order creation
+ * used to be open to anonymous customers too (spec section 2's "Website"
+ * channel via /order/new), but that was later replaced by a product
+ * decision: every order now goes through a signed-in team member instead
+ * (/moderator/orders/new). /order/new is kept as a redirect rather than
+ * deleted, so an old bookmark/link still lands somewhere useful — see
+ * src/app/order/new/page.tsx.
  *
  * Two of these are regression tests for real bugs this suite caught:
- *  - "customer can reach /order/new without being redirected to staff
- *    login" — was broken (see git history on src/lib/supabase/middleware.ts,
- *    PUBLIC_PATHS) until this suite's first run caught it.
+ *  - "/order/new sends an anonymous visitor to sign in, not the old public
+ *    form" — this is the *current* intended behavior (the opposite of an
+ *    earlier version of this test, back when anonymous order creation was
+ *    still the design).
  *  - "login form is present in the server-rendered HTML, not just after
  *    client hydration" — /login was bailing out to client-side-only
  *    rendering (a Next.js quirk with useSearchParams on a statically
  *    rendered page) and shipping a blank page on first paint.
  */
 
-async function isLive(request: APIRequestContext, path: string) {
-  const res = await request.get(path).catch(() => null);
-  return res !== null && res.status() < 500;
-}
-
 test.describe("homepage", () => {
-  test("renders the two customer entry points and the staff login link", async ({ page }) => {
+  test("renders the tracking entry point and the staff sign-in entry point", async ({ page }) => {
     await page.goto("/");
     await expect(page.getByRole("heading", { name: "شركة المجد" })).toBeVisible();
-    await expect(page.getByRole("link", { name: "إنشاء أوردر" })).toBeVisible();
     await expect(page.getByRole("link", { name: "تتبع الأوردر" })).toBeVisible();
-    await expect(page.getByRole("link", { name: /تسجيل دخول فريق العمل/ })).toBeVisible();
+    await expect(page.getByRole("link", { name: "تسجيل الدخول" })).toBeVisible();
+    // Order creation is not a public action anymore — no standalone
+    // "إنشاء أوردر" entry point on the homepage.
+    await expect(page.getByRole("link", { name: "إنشاء أوردر", exact: true })).toHaveCount(0);
   });
 
   test("the tracking entry point navigates to /track", async ({ page }) => {
@@ -40,45 +38,17 @@ test.describe("homepage", () => {
     await expect(page).toHaveURL(/\/track$/);
   });
 
-  test("the order-creation entry point navigates to /order/new", async ({ page, request }) => {
-    test.skip(!(await isLive(request, "/order/new")), "No live backend — see e2e/README.md");
+  test("the sign-in entry point navigates to /login", async ({ page }) => {
     await page.goto("/");
-    await page.getByRole("link", { name: "إنشاء أوردر" }).click();
-    await expect(page).toHaveURL(/\/order\/new$/);
+    await page.getByRole("link", { name: "تسجيل الدخول" }).click();
+    await expect(page).toHaveURL(/\/login$/);
   });
 });
 
-test.describe("public order creation (/order/new)", () => {
-  test("is reachable by an anonymous visitor — not redirected to staff login", async ({ page }) => {
-    const response = await page.goto("/order/new");
-    // Regression test: this route was missing from the middleware's public
-    // path list and silently bounced every visitor to /login?next=... —
-    // meaning no customer could ever create an order from the website, the
-    // spec's first of only two order-intake channels. This holds even
-    // without a live backend, since the redirect happens in middleware
-    // before the page (and its data fetch) ever runs.
-    expect(page.url()).not.toContain("/login");
-    expect(response?.status()).not.toBe(307);
-  });
-
-  test("rejects an empty submission with client-side validation, no server round trip", async ({ page, request }) => {
-    test.skip(!(await isLive(request, "/order/new")), "No live backend — see e2e/README.md");
+test.describe("/order/new (retired public form)", () => {
+  test("sends an anonymous visitor to sign in, pointed at the real order form", async ({ page }) => {
     await page.goto("/order/new");
-    const submit = page.getByRole("button", { name: "إنشاء الأوردر" });
-    await submit.click();
-    // react-hook-form + zod should block submission and show field errors
-    // without ever calling the server action.
-    await expect(page.getByText("الاسم قصير جدًا")).toBeVisible();
-  });
-
-  test("rejects an invalid phone number", async ({ page, request }) => {
-    test.skip(!(await isLive(request, "/order/new")), "No live backend — see e2e/README.md");
-    await page.goto("/order/new");
-    await page.getByLabel("اسم العميل").fill("أحمد");
-    await page.getByLabel("رقم الهاتف").fill("123");
-    await page.getByLabel("العنوان").fill("١٢٣ شارع التجربة");
-    await page.getByRole("button", { name: "إنشاء الأوردر" }).click();
-    await expect(page.getByText("رقم الهاتف غير صالح")).toBeVisible();
+    await expect(page).toHaveURL(/\/login\?next=%2Fmoderator%2Forders%2Fnew/);
   });
 });
 
