@@ -107,7 +107,8 @@ function TrackForm() {
           {order === null && (
             <div className="flex flex-col items-center gap-2 py-8 text-center text-muted-foreground">
               <PackageX className="size-10" />
-              <p>لم يتم العثور على أوردر بهذه البيانات</p>
+              <p>لا يوجد أوردر بهذه البيانات</p>
+              <p className="text-sm">حاول التواصل مع الشخص الذي استلم أوردرك للتأكد من رقم الأوردر ورقم الهاتف</p>
             </div>
           )}
 
