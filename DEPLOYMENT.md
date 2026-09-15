@@ -23,8 +23,11 @@ must run. Two ways to apply them:
 
 Open **SQL Editor** in the Supabase dashboard and run each file in
 `supabase/migrations/` **in numeric order**, one at a time, from
-`0001_extensions_and_enums.sql` through `0011_table_grants.sql`. Wait for
-each to succeed before running the next — later files depend on earlier ones.
+`0001_extensions_and_enums.sql` through the highest-numbered file in that
+folder. Wait for each to succeed before running the next — later files
+depend on earlier ones. Every migration is safe to re-run from a clean
+database in order (each one that redefines a function drops it first where
+Postgres requires that).
 
 ### Option B — Supabase CLI
 
@@ -51,15 +54,23 @@ demos.
 
 ## 4. Configure Supabase Auth
 
-In **Authentication → Providers**, keep only **Email** enabled — there is no
-public sign-up flow in this app, all accounts are created by the Owner from
-`/owner/team`, which triggers `resetPasswordForEmail` so new team members set
-their own password on first login.
+Everyone signs in with a phone number and a password they set themselves —
+there is no email/password login anywhere in the app, not even for the
+Owner. Every Supabase Auth user still technically has an email under the
+hood (the Auth Admin API requires one), but it's a synthetic internal
+address like `owner-<uuid>@workers.internal` that's never shown to anyone
+or used for sign-in — all lookups go through `phone` on the `profiles`
+table via the service-role client.
+
+In **Authentication → Providers**, keep only **Email** enabled (it's the
+underlying mechanism Supabase Auth itself needs — end users never see it).
+No SMS/OTP provider is needed; this isn't OTP-based, it's a normal
+password login keyed by phone number instead of email.
 
 In **Authentication → URL Configuration**, set:
 - **Site URL** → your production URL (e.g. `https://orders.yourbusiness.com`)
 - **Redirect URLs** → add the same URL (and your Vercel preview domain
-  pattern if you want password-reset links to work on preview deployments too)
+  pattern if you use preview deployments)
 
 ## 5. Deploy to Vercel
 
@@ -75,16 +86,19 @@ In **Authentication → URL Configuration**, set:
 
 ## 6. Create the first Owner account
 
-There is no bootstrap UI for the very first account (by design — every other
-account is created by an Owner). Create it directly in Supabase once:
+No Supabase dashboard step needed — visit `/setup` on the live site once.
+It's a self-service bootstrap page: enter a name, phone number, and a
+password, and it creates the Owner account and signs you straight in. It's
+gated server-side (both at the page level and inside the Server Action) on
+"does a `profiles` row with `role = 'owner'` already exist" — once one does,
+`/setup` just shows a link to `/login` instead of the form, so it can't be
+used to create a second Owner or be left reachable as an open door.
 
-1. **Authentication → Users → Add user** in the Supabase dashboard. Set an
-   email and password, and enable **Auto Confirm User**.
-2. Go to **Table Editor → profiles**, find the row created automatically for
-   that user (via the `handle_new_user` trigger), and set `role` to `owner`
-   and `is_active` to `true`.
-3. Log in at `/login` with that email/password — you now have full Owner
-   access and can create every other account from `/owner/team`.
+If an Owner account was already created the old way (directly in the
+Supabase dashboard, before this flow existed) it won't have a `phone` set
+and won't work with phone login — either set its `phone` column manually in
+**Table Editor → profiles**, or just use `/setup` fresh on a project that
+has no Owner yet.
 
 ## 7. Post-deploy checklist
 
