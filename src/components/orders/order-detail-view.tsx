@@ -28,6 +28,7 @@ export function OrderDetailView({
   history,
   region,
   assignedDriverName,
+  assignedFactoryName,
   viewerProfile,
   canManageDistribution,
   drivers = [],
@@ -36,6 +37,7 @@ export function OrderDetailView({
   history: OrderHistoryEntry[];
   region: Region | null;
   assignedDriverName: string | null;
+  assignedFactoryName?: string | null;
   viewerProfile: Profile;
   canManageDistribution: boolean;
   /** Active drivers, for the "change driver" control below — only needed when canManageDistribution. */
@@ -80,6 +82,10 @@ export function OrderDetailView({
               <div>
                 <dt className="text-xs text-muted-foreground">المندوب المسؤول</dt>
                 <dd className="text-sm">{assignedDriverName ?? "لم يُسند بعد"}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-muted-foreground">المصنع المخصص</dt>
+                <dd className="text-sm">{assignedFactoryName ?? "بدون تحديد — يظهر لكل المصانع"}</dd>
               </div>
             </dl>
 

@@ -8,17 +8,19 @@ export default async function ModeratorOrderDetailPage({ params }: { params: Pro
   const { id } = await params;
   const profile = await requireRole("owner", "moderator");
 
-  const [order, history, regions, drivers] = await Promise.all([
+  const [order, history, regions, drivers, factories] = await Promise.all([
     getOrderById(id),
     getOrderHistory(id),
     listRegions(),
     listStaff("driver"),
+    listStaff("factory"),
   ]);
 
   if (!order) notFound();
 
   const region = regions.find((r) => r.id === order.region_id) ?? null;
   const assignedDriver = drivers.find((d) => d.id === order.assigned_driver_id) ?? null;
+  const assignedFactory = factories.find((f) => f.id === order.assigned_factory_id) ?? null;
 
   return (
     <OrderDetailView
@@ -26,6 +28,7 @@ export default async function ModeratorOrderDetailPage({ params }: { params: Pro
       history={history}
       region={region}
       assignedDriverName={assignedDriver?.full_name ?? null}
+      assignedFactoryName={assignedFactory?.full_name ?? null}
       viewerProfile={profile}
       canManageDistribution
       drivers={drivers}

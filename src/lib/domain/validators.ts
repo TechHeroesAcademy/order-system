@@ -29,6 +29,7 @@ export const orderFormSchema = z.object({
   color: z.string().trim().max(100).optional().nullable(),
   work_required: z.string().trim().max(500).optional().nullable(),
   customer_notes: z.string().trim().max(1000).optional().nullable(),
+  factory_id: z.string().uuid().optional().nullable(),
 });
 
 export type OrderFormValues = z.infer<typeof orderFormSchema>;

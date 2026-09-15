@@ -62,6 +62,7 @@ export interface Order {
   suggested_driver_id: string | null;
   distribution_approved_at: string | null;
   distribution_approved_by: string | null;
+  assigned_factory_id: string | null;
 
   collected_at: string | null;
   factory_received_at: string | null;
@@ -119,6 +120,8 @@ export interface FactoryOrderRow {
   work_required: string | null;
   assigned_driver_id: string | null;
   assigned_driver_name: string | null;
+  assigned_factory_id: string | null;
+  assigned_factory_name: string | null;
   collected_at: string | null;
   factory_received_at: string | null;
   factory_ready_at: string | null;

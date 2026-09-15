@@ -34,6 +34,7 @@ export async function createPublicOrderAction(
     p_color: parsed.data.color ?? null,
     p_work_required: parsed.data.work_required ?? null,
     p_customer_notes: parsed.data.customer_notes ?? null,
+    p_factory_id: parsed.data.factory_id ?? null,
   });
 
   if (error) return fail(toErrorMessage(error, "تعذر إنشاء الأوردر"));
@@ -62,6 +63,7 @@ export async function createModeratorOrderAction(
     p_color: parsed.data.color ?? null,
     p_work_required: parsed.data.work_required ?? null,
     p_customer_notes: parsed.data.customer_notes ?? null,
+    p_factory_id: parsed.data.factory_id ?? null,
   });
 
   if (error) return fail(toErrorMessage(error, "تعذر إنشاء الأوردر"));

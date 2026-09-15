@@ -13,15 +13,18 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card, CardContent } from "@/components/ui/card";
-import type { Region, NewOrderResult } from "@/types/database";
+import type { Region, Profile, NewOrderResult } from "@/types/database";
 import type { ActionResult } from "@/lib/actions/types";
 
 export function OrderForm({
   regions,
+  factories = [],
   action,
   submitLabel = "إنشاء الأوردر",
 }: {
   regions: Region[];
+  /** Active factory accounts, for the optional "route to factory" field below — leave the field unassigned and it stays visible to every factory account. */
+  factories?: Profile[];
   action: (values: OrderFormValues) => Promise<ActionResult<NewOrderResult>>;
   submitLabel?: string;
 }) {
@@ -40,6 +43,7 @@ export function OrderForm({
       color: "",
       work_required: "",
       customer_notes: "",
+      factory_id: null,
     },
   });
 
@@ -174,6 +178,37 @@ export function OrderForm({
             )}
           />
         </div>
+
+        {factories.length > 0 && (
+          <FormField
+            control={form.control}
+            name="factory_id"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>المصنع (اختياري)</FormLabel>
+                <Select
+                  value={field.value ?? "unassigned"}
+                  onValueChange={(v) => field.onChange(v === "unassigned" ? null : v)}
+                >
+                  <FormControl>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="بدون تحديد — يظهر لكل المصانع" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value="unassigned">بدون تحديد — يظهر لكل المصانع</SelectItem>
+                    {factories.map((f) => (
+                      <SelectItem key={f.id} value={f.id}>
+                        {f.full_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
 
         <div className="grid gap-4 sm:grid-cols-2">
           <FormField
