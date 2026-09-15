@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { Loader2, MapPin, Plus, UserPlus, Users } from "lucide-react";
+import { Loader2, MapPin, Plus, UserPlus, Users, KeyRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -39,6 +39,7 @@ import {
   createRegionAction,
   setStaffActiveAction,
   setDriverRegionsAction,
+  resetStaffPasswordAction,
 } from "@/lib/actions/admin";
 import { createStaffAccountSchema, regionNameSchema } from "@/lib/domain/validators";
 import type { Profile, Region, UserRole } from "@/types/database";
@@ -139,15 +140,18 @@ export function TeamManager({
                       {isModerator && !["driver", "factory"].includes(member.role) ? (
                         <span className="text-xs text-muted-foreground">—</span>
                       ) : (
-                        <ToggleActiveButton
-                          userId={member.id}
-                          isActive={member.is_active}
-                          onToggled={(isActive) =>
-                            setStaffList((prev) =>
-                              prev.map((m) => (m.id === member.id ? { ...m, is_active: isActive } : m)),
-                            )
-                          }
-                        />
+                        <div className="flex gap-2">
+                          <ToggleActiveButton
+                            userId={member.id}
+                            isActive={member.is_active}
+                            onToggled={(isActive) =>
+                              setStaffList((prev) =>
+                                prev.map((m) => (m.id === member.id ? { ...m, is_active: isActive } : m)),
+                              )
+                            }
+                          />
+                          <ResetPasswordButton userId={member.id} />
+                        </div>
                       )}
                     </TableCell>
                   </TableRow>
@@ -188,6 +192,33 @@ function ToggleActiveButton({
     <Button size="sm" variant={isActive ? "outline" : "default"} onClick={toggle} disabled={pending}>
       {pending && <Loader2 className="animate-spin" />}
       {isActive ? "إيقاف" : "تفعيل"}
+    </Button>
+  );
+}
+
+/**
+ * Invalidates the old password immediately and flips the account back to
+ * "needs to set a password" — the worker just signs in with their phone
+ * number as usual and is prompted to create a new one, no temp password to
+ * relay over the phone.
+ */
+function ResetPasswordButton({ userId }: { userId: string }) {
+  const [pending, startTransition] = useTransition();
+
+  function reset() {
+    startTransition(async () => {
+      const res = await resetStaffPasswordAction(userId);
+      if (!res.ok) {
+        toast.error(res.error);
+        return;
+      }
+      toast.success("تم إعادة تعيين كلمة المرور — سيقوم بإنشاء كلمة مرور جديدة عند تسجيل الدخول برقم هاتفه");
+    });
+  }
+
+  return (
+    <Button size="sm" variant="outline" onClick={reset} disabled={pending} title="إعادة تعيين كلمة المرور">
+      {pending ? <Loader2 className="animate-spin" /> : <KeyRound className="size-4" />}
     </Button>
   );
 }
@@ -247,6 +278,15 @@ function DriverRegionsCell({
         </DialogHeader>
         <div className="max-h-64 space-y-2 overflow-y-auto">
           {regions.length === 0 && <p className="text-sm text-muted-foreground">لا يوجد مناطق مضافة بعد.</p>}
+          {regions.length > 0 && (
+            <label className="flex items-center gap-2 border-b pb-2 text-sm font-medium">
+              <Checkbox
+                checked={selected.length === regions.length}
+                onCheckedChange={(checked) => setSelected(checked === true ? regions.map((r) => r.id) : [])}
+              />
+              تحديد الكل
+            </label>
+          )}
           {regions.map((r) => (
             <label key={r.id} className="flex items-center gap-2 text-sm">
               <Checkbox
@@ -364,8 +404,8 @@ function AddStaffDialog({
   function submit() {
     const parsed = createStaffAccountSchema.safeParse({
       full_name: fullName,
-      phone: phone || undefined,
-      email,
+      phone,
+      email: email || undefined,
       role,
       region_ids: role === "driver" ? regionIds : [],
     });
@@ -383,14 +423,15 @@ function AddStaffDialog({
       onCreated({
         id: res.data.userId,
         full_name: parsed.data.full_name,
-        phone: parsed.data.phone ?? null,
+        phone: parsed.data.phone,
         role: parsed.data.role,
         region_id: null,
         is_active: true,
+        password_set: false,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       });
-      toast.success("تم إنشاء الحساب — تم إرسال رابط تعيين كلمة المرور للبريد الإلكتروني");
+      toast.success("تم إنشاء الحساب — يمكنه تسجيل الدخول برقم هاتفه وإنشاء كلمة مرور لأول مرة");
       reset();
       setOpen(false);
     });
@@ -413,7 +454,7 @@ function AddStaffDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>إضافة عضو فريق</DialogTitle>
-          <DialogDescription>سيتم إرسال رابط تعيين كلمة مرور إلى بريده الإلكتروني.</DialogDescription>
+          <DialogDescription>يسجل دخوله برقم هاتفه، وينشئ كلمة مرور بنفسه أول مرة يدخل بها.</DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
           <div className="space-y-1.5">
@@ -421,12 +462,13 @@ function AddStaffDialog({
             <Input id="staff-name" value={fullName} onChange={(e) => setFullName(e.target.value)} />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="staff-email">البريد الإلكتروني</Label>
-            <Input id="staff-email" type="email" dir="ltr" value={email} onChange={(e) => setEmail(e.target.value)} />
+            <Label htmlFor="staff-phone">رقم الهاتف</Label>
+            <Input id="staff-phone" dir="ltr" placeholder="01xxxxxxxxx" value={phone} onChange={(e) => setPhone(e.target.value)} />
+            <p className="text-xs text-muted-foreground">هذا هو رقم تسجيل الدخول — لازم يكون صحيحًا.</p>
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="staff-phone">رقم الهاتف (اختياري)</Label>
-            <Input id="staff-phone" dir="ltr" value={phone} onChange={(e) => setPhone(e.target.value)} />
+            <Label htmlFor="staff-email">البريد الإلكتروني (اختياري)</Label>
+            <Input id="staff-email" type="email" dir="ltr" value={email} onChange={(e) => setEmail(e.target.value)} />
           </div>
           <div className="space-y-1.5">
             <Label>الدور</Label>
@@ -448,6 +490,15 @@ function AddStaffDialog({
               <Label>المناطق التي يغطيها</Label>
               <div className="max-h-40 space-y-2 overflow-y-auto rounded-md border p-2">
                 {regions.length === 0 && <p className="text-sm text-muted-foreground">لا يوجد مناطق مضافة بعد.</p>}
+                {regions.length > 0 && (
+                  <label className="flex items-center gap-2 border-b pb-2 text-sm font-medium">
+                    <Checkbox
+                      checked={regionIds.length === regions.length}
+                      onCheckedChange={(checked) => setRegionIds(checked === true ? regions.map((r) => r.id) : [])}
+                    />
+                    تحديد الكل
+                  </label>
+                )}
                 {regions.map((r) => (
                   <label key={r.id} className="flex items-center gap-2 text-sm">
                     <Checkbox

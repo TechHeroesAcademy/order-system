@@ -3,6 +3,7 @@ import {
   getMonthlyReport,
   getDriverPerformance,
   getTopRegions,
+  getDelayedOrders,
 } from "@/lib/data/orders";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,14 +18,16 @@ import {
 import { StatCard } from "@/components/shared/stat-card";
 import { formatHours, formatPercent } from "@/lib/domain/format";
 import { EmptyState } from "@/components/shared/empty-state";
-import { BarChart3, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { OrderStatusBadge } from "@/components/orders/order-status-badge";
+import { BarChart3, TrendingUp, TrendingDown, Minus, AlertTriangle } from "lucide-react";
 
 export default async function ReportsPage() {
-  const [daily, monthly, driverPerf, topRegions] = await Promise.all([
+  const [daily, monthly, driverPerf, topRegions, delayedOrders] = await Promise.all([
     getDailyReport(),
     getMonthlyReport(),
     getDriverPerformance(),
     getTopRegions(),
+    getDelayedOrders(),
   ]);
 
   return (
@@ -37,6 +40,7 @@ export default async function ReportsPage() {
           <TabsTrigger value="monthly">تقرير الشهر</TabsTrigger>
           <TabsTrigger value="drivers">أداء المندوبين</TabsTrigger>
           <TabsTrigger value="regions">المناطق الأكثر طلبًا</TabsTrigger>
+          <TabsTrigger value="delayed">الأوردرات المتأخرة</TabsTrigger>
         </TabsList>
 
         <TabsContent value="daily" className="space-y-3 pt-4">
@@ -117,6 +121,7 @@ export default async function ReportsPage() {
                       <TableHead>متأخرة</TableHead>
                       <TableHead>رفض استلام</TableHead>
                       <TableHead>متوسط مدة التنفيذ</TableHead>
+                      <TableHead>نسبة التسليم في الموعد</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -133,6 +138,7 @@ export default async function ReportsPage() {
                           {d.refusal_count}
                         </TableCell>
                         <TableCell>{formatHours(d.avg_completion_hours)}</TableCell>
+                        <TableCell>{formatPercent(d.on_time_rate)}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -162,6 +168,45 @@ export default async function ReportsPage() {
                   <span className="w-10 text-end text-sm tabular-nums text-muted-foreground">{r.order_count}</span>
                 </div>
               ))}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="delayed" className="pt-4">
+          <Card>
+            <CardContent className="p-0">
+              {delayedOrders.length === 0 ? (
+                <EmptyState icon={AlertTriangle} title="لا يوجد أوردرات متأخرة حاليًا" />
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>رقم الأوردر</TableHead>
+                      <TableHead>العميل</TableHead>
+                      <TableHead>المنطقة</TableHead>
+                      <TableHead>المندوب</TableHead>
+                      <TableHead>الحالة</TableHead>
+                      <TableHead>مدة التأخير</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {delayedOrders.map((o) => (
+                      <TableRow key={o.id}>
+                        <TableCell className="font-medium" dir="ltr">
+                          {o.order_number}
+                        </TableCell>
+                        <TableCell>{o.customer_name}</TableCell>
+                        <TableCell>{o.region_name ?? "—"}</TableCell>
+                        <TableCell>{o.driver_name ?? "—"}</TableCell>
+                        <TableCell>
+                          <OrderStatusBadge status={o.status} />
+                        </TableCell>
+                        <TableCell className="text-destructive">{formatHours(o.hours_open)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

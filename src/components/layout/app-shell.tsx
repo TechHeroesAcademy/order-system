@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
 import { NotificationBell } from "./notification-bell";
 import { SignOutButton } from "./sign-out-button";
+import { IdleLogoutWatcher } from "./idle-logout-watcher";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -48,6 +49,7 @@ export async function AppShell({
 
   return (
     <div className="flex min-h-screen flex-col">
+      <IdleLogoutWatcher />
       <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/80">
         <div className="flex h-14 items-center gap-3 px-4">
           <p className="font-bold whitespace-nowrap">{title}</p>

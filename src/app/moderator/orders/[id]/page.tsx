@@ -28,6 +28,7 @@ export default async function ModeratorOrderDetailPage({ params }: { params: Pro
       assignedDriverName={assignedDriver?.full_name ?? null}
       viewerProfile={profile}
       canManageDistribution
+      drivers={drivers}
     />
   );
 }

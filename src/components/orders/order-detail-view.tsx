@@ -2,6 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { OrderStatusBadge } from "./order-status-badge";
 import { OrderTimeline } from "./order-timeline";
 import { DistributionPanel } from "./distribution-panel";
+import { ChangeDriverButton } from "./change-driver-button";
 import { CancelOrderButton } from "./cancel-order-button";
 import { Badge } from "@/components/ui/badge";
 import { formatDateTime } from "@/lib/domain/format";
@@ -26,6 +27,7 @@ export function OrderDetailView({
   assignedDriverName,
   viewerProfile,
   canManageDistribution,
+  drivers = [],
 }: {
   order: Order;
   history: OrderHistoryEntry[];
@@ -33,6 +35,8 @@ export function OrderDetailView({
   assignedDriverName: string | null;
   viewerProfile: Profile;
   canManageDistribution: boolean;
+  /** Active drivers, for the "change driver" control below — only needed when canManageDistribution. */
+  drivers?: Profile[];
 }) {
   const delayed = isOrderDelayed(order.status, order.created_at);
   const isTerminal = ["delivered", "refused", "cancelled"].includes(order.status);
@@ -107,6 +111,14 @@ export function OrderDetailView({
             assignedDriverName={assignedDriverName}
             canApprove={viewerProfile.role === "owner"}
           />
+        )}
+
+        {canManageDistribution && !isTerminal && order.status !== "new" && (
+          <Card>
+            <CardContent className="pt-6">
+              <ChangeDriverButton orderId={order.id} currentDriverId={order.assigned_driver_id} drivers={drivers} />
+            </CardContent>
+          </Card>
         )}
 
         {canManageDistribution && !isTerminal && (

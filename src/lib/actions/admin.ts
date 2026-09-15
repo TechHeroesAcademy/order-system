@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireRole } from "@/lib/auth";
 import { createStaffAccountSchema, regionNameSchema } from "@/lib/domain/validators";
+import { normalizePhone } from "@/lib/domain/phone";
 import { ok, fail, toErrorMessage, type ActionResult } from "./types";
 import type { z } from "zod";
 
@@ -27,15 +28,28 @@ export async function createStaffAccountAction(
   }
 
   const admin = createAdminClient();
-  const tempPassword = crypto.randomUUID().slice(0, 12);
+  const normalizedPhone = normalizePhone(parsed.data.phone);
+
+  const { data: existingPhone } = await admin
+    .from("profiles")
+    .select("id")
+    .eq("phone", normalizedPhone)
+    .maybeSingle();
+  if (existingPhone) return fail("رقم الهاتف مستخدم بالفعل لحساب آخر");
+
+  // Staff sign in with their phone number and a password they set themselves
+  // on first login (see staff-auth.ts) — email is optional and, when left
+  // blank, this internal address is never shown to them or used for login.
+  const email = parsed.data.email?.trim() || `staff-${crypto.randomUUID()}@workers.internal`;
+  const temporaryPassword = crypto.randomUUID();
 
   const { data, error } = await admin.auth.admin.createUser({
-    email: parsed.data.email,
-    password: tempPassword,
+    email,
+    password: temporaryPassword,
     email_confirm: true,
     user_metadata: {
       full_name: parsed.data.full_name,
-      phone: parsed.data.phone ?? null,
+      phone: normalizedPhone,
       role: parsed.data.role,
     },
   });
@@ -44,6 +58,11 @@ export async function createStaffAccountAction(
     return fail(toErrorMessage(error, "تعذر إنشاء الحساب"));
   }
 
+  // handle_new_user() defaults password_set to true (it doesn't know this
+  // account's password is a random one nobody will ever use) — mark it
+  // false so the phone-login flow makes the new hire set their own.
+  await admin.from("profiles").update({ password_set: false }).eq("id", data.user.id);
+
   if (parsed.data.role === "driver" && parsed.data.region_ids.length > 0) {
     const rows = parsed.data.region_ids.map((region_id) => ({ driver_id: data.user!.id, region_id }));
     const { error: regionError } = await admin.from("driver_regions").insert(rows);
@@ -51,10 +70,6 @@ export async function createStaffAccountAction(
       return fail(toErrorMessage(regionError, "تم إنشاء الحساب لكن فشل ربط المناطق"));
     }
   }
-
-  // Trigger a password-recovery email so the new team member can set their own
-  // password on first login instead of an Owner sharing a temp one manually.
-  await admin.auth.resetPasswordForEmail(parsed.data.email);
 
   revalidatePath("/owner/team");
   revalidatePath("/moderator/team");
@@ -74,6 +89,36 @@ export async function setStaffActiveAction(userId: string, isActive: boolean): P
 
   const { error } = await supabase.from("profiles").update({ is_active: isActive }).eq("id", userId);
   if (error) return fail(toErrorMessage(error));
+  revalidatePath("/owner/team");
+  revalidatePath("/moderator/team");
+  return ok(undefined);
+}
+
+/**
+ * Owner/Moderator forces a password reset: the old password stops working
+ * immediately, and password_set flips back to false so the worker goes
+ * through the "create your password" step again next time they sign in
+ * with their phone number (see staff-auth.ts) — no temp password to relay.
+ */
+export async function resetStaffPasswordAction(userId: string): Promise<ActionResult> {
+  const me = await requireRole("owner", "moderator");
+  const supabase = await createClient();
+
+  if (me.role === "moderator") {
+    const { data: target } = await supabase.from("profiles").select("role").eq("id", userId).single();
+    if (!target || !["driver", "factory"].includes(target.role)) {
+      return fail("لا يمكنك إعادة تعيين كلمة مرور هذا الحساب");
+    }
+  }
+
+  const admin = createAdminClient();
+  const { error } = await admin.auth.admin.updateUserById(userId, {
+    password: crypto.randomUUID(),
+  });
+  if (error) return fail(toErrorMessage(error));
+
+  await admin.from("profiles").update({ password_set: false }).eq("id", userId);
+
   revalidatePath("/owner/team");
   revalidatePath("/moderator/team");
   return ok(undefined);

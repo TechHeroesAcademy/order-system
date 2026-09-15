@@ -158,41 +158,13 @@ end;
 $$;
 
 -- Per-driver performance.
-create or replace function public.driver_performance_report()
-returns table (
-  driver_id uuid,
-  full_name text,
-  total_orders bigint,
-  completed_orders bigint,
-  delayed_orders bigint,
-  active_orders bigint,
-  avg_completion_hours numeric,
-  refusal_count bigint
-)
-language plpgsql
-security definer
-set search_path = public
-as $$
-begin
-  if not public.is_owner_or_moderator() then raise exception 'غير مصرح' using errcode = '42501'; end if;
-
-  return query
-    select
-      p.id,
-      p.full_name,
-      count(o.id),
-      count(o.id) filter (where o.status = 'delivered'),
-      count(o.id) filter (where public.is_order_delayed(o.*)),
-      count(o.id) filter (where o.status not in ('delivered', 'cancelled', 'refused')),
-      round(avg(extract(epoch from (o.delivered_at - o.created_at)) / 3600.0) filter (where o.status = 'delivered'), 1),
-      count(o.id) filter (where o.status = 'refused')
-    from public.profiles p
-    left join public.orders o on o.assigned_driver_id = p.id
-    where p.role = 'driver'
-    group by p.id, p.full_name
-    order by p.full_name;
-end;
-$$;
+-- Defined in 0013_driver_reassignment_and_login.sql instead of here: its
+-- return type changed once already (an on_time_rate column was added), and
+-- CREATE OR REPLACE can't change a function's return type — same
+-- drop-and-recreate hazard as daily_report/monthly_report above, so it gets
+-- the same fix, which is to have exactly one file define it. Defining it a
+-- second time here (even identically) would recreate that hazard the next
+-- time either file changes.
 
 -- Currently delayed orders, with enough context for the Owner to act.
 create or replace function public.delayed_orders_report()
@@ -244,16 +216,17 @@ begin
 end;
 $$;
 
+-- driver_performance_report's own revoke/grant now live in 0013 alongside
+-- its definition (see the comment above) — it doesn't exist yet at this
+-- point on a fresh run, so granting on it here would fail.
 revoke all on function public.dashboard_stats() from public;
 revoke all on function public.daily_report(date) from public;
 revoke all on function public.monthly_report(date) from public;
-revoke all on function public.driver_performance_report() from public;
 revoke all on function public.delayed_orders_report() from public;
 revoke all on function public.top_regions_report() from public;
 
 grant execute on function public.dashboard_stats() to authenticated;
 grant execute on function public.daily_report(date) to authenticated;
 grant execute on function public.monthly_report(date) to authenticated;
-grant execute on function public.driver_performance_report() to authenticated;
 grant execute on function public.delayed_orders_report() to authenticated;
 grant execute on function public.top_regions_report() to authenticated;

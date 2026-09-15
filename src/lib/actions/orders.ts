@@ -134,6 +134,21 @@ export async function approveDistributionAction(orderId: string): Promise<Action
   return ok(undefined);
 }
 
+/** Change the responsible driver at any point before the order is closed. */
+export async function reassignOrderDriverAction(orderId: string, newDriverId: string): Promise<ActionResult> {
+  await requireRole("owner", "moderator");
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("reassign_order_driver", {
+    p_order_id: orderId,
+    p_new_driver_id: newDriverId,
+  });
+  if (error) return fail(toErrorMessage(error));
+  revalidatePath("/owner");
+  revalidatePath("/moderator");
+  revalidatePath("/driver");
+  return ok(undefined);
+}
+
 export async function cancelOrderAction(orderId: string, reason: string): Promise<ActionResult> {
   await requireRole("owner", "moderator");
   const supabase = await createClient();

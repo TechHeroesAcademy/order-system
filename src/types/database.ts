@@ -26,6 +26,7 @@ export interface Profile {
   role: UserRole;
   region_id: string | null;
   is_active: boolean;
+  password_set: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -169,6 +170,7 @@ export interface DriverPerformanceRow {
   delayed_orders: number;
   active_orders: number;
   avg_completion_hours: number | null;
+  on_time_rate: number | null;
   refusal_count: number;
 }
 

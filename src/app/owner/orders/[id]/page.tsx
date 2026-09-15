@@ -28,6 +28,7 @@ export default async function OwnerOrderDetailPage({ params }: { params: Promise
       assignedDriverName={assignedDriver?.full_name ?? null}
       viewerProfile={profile}
       canManageDistribution
+      drivers={drivers}
     />
   );
 }

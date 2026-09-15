@@ -75,8 +75,43 @@ export type LoginValues = z.infer<typeof loginSchema>;
 
 export const createStaffAccountSchema = z.object({
   full_name: z.string().trim().min(2, "الاسم قصير جدًا").max(120),
-  phone: z.string().trim().optional().nullable(),
-  email: z.string().trim().email("بريد إلكتروني غير صالح"),
+  phone: z
+    .string()
+    .trim()
+    .regex(phoneRegex, "رقم الهاتف غير صالح")
+    .refine((v) => v.replace(/\D/g, "").length >= 8, "رقم الهاتف غير صالح"),
+  // Optional: most staff (drivers/factory workers especially) sign in with
+  // their phone number and never need an email. When left blank we generate
+  // an internal one — it's never shown to them or used for login.
+  email: z.string().trim().email("بريد إلكتروني غير صالح").optional().or(z.literal("")),
   role: z.enum(["owner", "moderator", "driver", "factory"]),
   region_ids: z.array(z.string().uuid()).optional().default([]),
+});
+
+/** Step 1 of the phone-based login: just the phone number. */
+export const phoneLookupSchema = z.object({
+  phone: z
+    .string()
+    .trim()
+    .refine((v) => v.replace(/\D/g, "").length >= 8, "رقم الهاتف غير صالح"),
+});
+
+const newPasswordField = z.string().min(6, "كلمة المرور 6 أحرف على الأقل").max(72);
+
+/** Step 2a: first-ever login — the worker creates their own password. */
+export const setInitialPasswordSchema = z
+  .object({
+    phone: z.string().trim(),
+    password: newPasswordField,
+    confirmPassword: z.string(),
+  })
+  .refine((v) => v.password === v.confirmPassword, {
+    message: "كلمتا المرور غير متطابقتين",
+    path: ["confirmPassword"],
+  });
+
+/** Step 2b: returning login — phone + the password they already set. */
+export const phoneLoginSchema = z.object({
+  phone: z.string().trim(),
+  password: z.string().min(1, "أدخل كلمة المرور"),
 });
