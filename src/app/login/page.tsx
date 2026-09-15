@@ -5,7 +5,6 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import Link from "next/link";
 import { phoneLookupSchema, setInitialPasswordSchema, phoneLoginSchema } from "@/lib/domain/validators";
 import { checkPhoneAction, setInitialPasswordAction, phoneLoginAction } from "@/lib/actions/staff-auth";
 import { Button } from "@/components/ui/button";
@@ -41,12 +40,6 @@ function LoginPageInner() {
             </Alert>
           )}
           <PhoneLoginFlow />
-          <p className="mt-4 text-center text-xs text-muted-foreground">
-            أول مرة تستخدم النظام؟{" "}
-            <Link href="/setup" className="underline underline-offset-2">
-              إعداد حساب صاحب النظام
-            </Link>
-          </p>
         </CardContent>
       </Card>
     </main>

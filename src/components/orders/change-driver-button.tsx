@@ -18,10 +18,12 @@ import { reassignOrderDriverAction } from "@/lib/actions/orders";
 import type { Profile } from "@/types/database";
 
 /**
- * Lets the Owner/Moderator change who's responsible for an order at any
- * point before it's closed — not just before distribution is approved
- * (that earlier stage is handled by <DistributionPanel>). Useful when a
- * driver calls in sick, quits mid-route, etc.
+ * Lets the Owner/Moderator add or change who's responsible for an order at
+ * any point before it's closed — on a brand-new order with nobody assigned
+ * yet just as much as one already in progress (that's on top of, not
+ * instead of, the suggest-then-approve flow in <DistributionPanel> for new
+ * orders). Useful for assigning quickly, or when a driver calls in sick,
+ * quits mid-route, etc.
  */
 export function ChangeDriverButton({
   orderId,
@@ -35,6 +37,7 @@ export function ChangeDriverButton({
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<string>("");
   const [pending, startTransition] = useTransition();
+  const hasDriver = Boolean(currentDriverId);
 
   const options = drivers.filter((d) => d.is_active && d.id !== currentDriverId);
 
@@ -46,7 +49,7 @@ export function ChangeDriverButton({
         toast.error(res.error);
         return;
       }
-      toast.success("تم تغيير المندوب المسؤول");
+      toast.success(hasDriver ? "تم تغيير المندوب المسؤول" : "تم تعيين المندوب");
       setOpen(false);
       setSelected("");
     });
@@ -57,13 +60,15 @@ export function ChangeDriverButton({
       <DialogTrigger asChild>
         <Button variant="outline" size="sm" className="w-full">
           <UserCog className="size-4" />
-          تغيير المندوب
+          {hasDriver ? "تغيير المندوب" : "تعيين مندوب"}
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>تغيير المندوب المسؤول</DialogTitle>
-          <DialogDescription>سيتم إشعار المندوب الحالي (إن وجد) والمندوب الجديد.</DialogDescription>
+          <DialogTitle>{hasDriver ? "تغيير المندوب المسؤول" : "تعيين مندوب للأوردر"}</DialogTitle>
+          <DialogDescription>
+            {hasDriver ? "سيتم إشعار المندوب الحالي والمندوب الجديد." : "سيتم إشعار المندوب المعيّن."}
+          </DialogDescription>
         </DialogHeader>
         {options.length === 0 ? (
           <p className="text-sm text-muted-foreground">لا يوجد مندوبون نشطون آخرون متاحون حاليًا.</p>

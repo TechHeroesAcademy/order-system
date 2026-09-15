@@ -113,7 +113,7 @@ export function OrderDetailView({
           />
         )}
 
-        {canManageDistribution && !isTerminal && order.status !== "new" && (
+        {canManageDistribution && !isTerminal && (
           <Card>
             <CardContent className="pt-6">
               <ChangeDriverButton orderId={order.id} currentDriverId={order.assigned_driver_id} drivers={drivers} />
