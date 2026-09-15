@@ -32,7 +32,10 @@ export function SetupForm() {
     }
 
     toast.success("تم إنشاء حساب صاحب النظام وتسجيل الدخول");
-    router.replace("/");
+    // Straight to the Owner dashboard — bootstrapOwnerAction always creates
+    // an owner, and the homepage no longer auto-redirects signed-in users
+    // (see src/app/page.tsx), so this can't rely on "/" bouncing us there.
+    router.replace("/owner");
     router.refresh();
   }
 

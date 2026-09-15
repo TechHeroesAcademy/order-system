@@ -10,6 +10,7 @@ import {
 } from "@/lib/domain/validators";
 import { ok, fail, type ActionResult } from "./types";
 import type { z } from "zod";
+import type { UserRole } from "@/types/database";
 
 const GENERIC_NOT_FOUND = "رقم الهاتف غير مسجل أو الحساب موقوف";
 
@@ -39,7 +40,7 @@ export async function checkPhoneAction(
 /** Step 2a: first-ever login — set a password, then actually sign in. */
 export async function setInitialPasswordAction(
   input: z.infer<typeof setInitialPasswordSchema>,
-): Promise<ActionResult> {
+): Promise<ActionResult<{ role: UserRole }>> {
   const parsed = setInitialPasswordSchema.safeParse(input);
   if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? "بيانات غير صالحة");
 
@@ -47,7 +48,7 @@ export async function setInitialPasswordAction(
   const normalized = normalizePhone(parsed.data.phone);
   const { data: profile } = await admin
     .from("profiles")
-    .select("id, is_active, password_set")
+    .select("id, role, is_active, password_set")
     .eq("phone", normalized)
     .maybeSingle();
 
@@ -71,13 +72,13 @@ export async function setInitialPasswordAction(
   });
   if (signInErr) return fail("تم تعيين كلمة المرور، لكن فشل تسجيل الدخول التلقائي — حاول تسجيل الدخول من جديد");
 
-  return ok(undefined);
+  return ok({ role: profile.role as UserRole });
 }
 
 /** Step 2b: returning login with an already-set password. */
 export async function phoneLoginAction(
   input: z.infer<typeof phoneLoginSchema>,
-): Promise<ActionResult> {
+): Promise<ActionResult<{ role: UserRole }>> {
   const parsed = phoneLoginSchema.safeParse(input);
   if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? "بيانات غير صالحة");
 
@@ -85,7 +86,7 @@ export async function phoneLoginAction(
   const normalized = normalizePhone(parsed.data.phone);
   const { data: profile } = await admin
     .from("profiles")
-    .select("id, is_active, password_set")
+    .select("id, role, is_active, password_set")
     .eq("phone", normalized)
     .maybeSingle();
 
@@ -102,5 +103,5 @@ export async function phoneLoginAction(
   });
   if (error) return fail("رقم الهاتف أو كلمة المرور غير صحيحة");
 
-  return ok(undefined);
+  return ok({ role: profile.role as UserRole });
 }

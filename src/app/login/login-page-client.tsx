@@ -102,7 +102,10 @@ function PhoneLoginFlow() {
       return;
     }
     toast.success("تم إنشاء كلمة المرور وتسجيل الدخول");
-    router.replace(searchParams.get("next") || "/");
+    // Straight to the role's own dashboard — the homepage no longer
+    // auto-redirects signed-in visitors (it always shows the main page now,
+    // per request), so login can't rely on "/" bouncing us there anymore.
+    router.replace(searchParams.get("next") || `/${res.data.role}`);
     router.refresh();
   }
 
@@ -115,7 +118,7 @@ function PhoneLoginFlow() {
       return;
     }
     toast.success("تم تسجيل الدخول بنجاح");
-    router.replace(searchParams.get("next") || "/");
+    router.replace(searchParams.get("next") || `/${res.data.role}`);
     router.refresh();
   }
 
