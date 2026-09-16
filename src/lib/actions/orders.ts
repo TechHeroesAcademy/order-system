@@ -42,14 +42,28 @@ export async function createPublicOrderAction(
   return ok(data as NewOrderResult);
 }
 
-/** Moderator/Owner creating an order sourced from a Messenger conversation. */
+/**
+ * Moderator/Owner creating an order sourced from a Messenger conversation.
+ *
+ * Driver + factory are mandatory here for a Moderator specifically — not for
+ * Owner, who can still leave them for the separate distribution flow. This
+ * is a role-based UI rule rather than something the shared orderFormSchema
+ * can express (both roles submit through the same <OrderForm>), so it's
+ * enforced here, server-side, in addition to OrderForm's own client-side
+ * check (defense in depth — a Moderator could otherwise call this action
+ * directly, bypassing the form).
+ */
 export async function createModeratorOrderAction(
   input: OrderFormInput,
 ): Promise<ActionResult<NewOrderResult>> {
-  await requireRole("owner", "moderator");
+  const me = await requireRole("owner", "moderator");
   const parsed = orderFormSchema.safeParse(input);
   if (!parsed.success) {
     return fail(parsed.error.issues[0]?.message ?? "بيانات غير صالحة");
+  }
+
+  if (me.role === "moderator" && (!parsed.data.driver_id || !parsed.data.factory_id)) {
+    return fail("يجب اختيار المندوب والمصنع عند إنشاء الأوردر");
   }
 
   const supabase = await createClient();
@@ -64,12 +78,29 @@ export async function createModeratorOrderAction(
     p_work_required: parsed.data.work_required ?? null,
     p_customer_notes: parsed.data.customer_notes ?? null,
     p_factory_id: parsed.data.factory_id ?? null,
+    p_driver_id: parsed.data.driver_id ?? null,
   });
 
   if (error) return fail(toErrorMessage(error, "تعذر إنشاء الأوردر"));
   revalidatePath("/owner");
   revalidatePath("/moderator");
   return ok(data as NewOrderResult);
+}
+
+/**
+ * Owner/Moderator looking up an order's plaintext delivery code after the
+ * fact (e.g. the customer lost their paper receipt). The code is normally
+ * only ever shown once, right at creation — see get_order_delivery_code()
+ * in migration 0016 for why it's kept out of reach of everyone else
+ * (drivers in particular, for whom seeing it in advance would defeat its
+ * whole purpose as delivery proof).
+ */
+export async function getOrderDeliveryCodeAction(orderId: string): Promise<ActionResult<{ code: string | null }>> {
+  await requireRole("owner", "moderator");
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("get_order_delivery_code", { p_order_id: orderId });
+  if (error) return fail(toErrorMessage(error, "تعذر جلب كود التسليم"));
+  return ok({ code: (data as string | null) ?? null });
 }
 
 export async function trackOrderAction(

@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatDateTime } from "@/lib/domain/format";
 import { isOrderDelayed } from "@/lib/domain/order-status";
+import { googleMapsSearchUrl } from "@/lib/domain/maps";
 
 export default async function DriverOrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -87,7 +88,7 @@ export default async function DriverOrderDetailPage({ params }: { params: Promis
               اتصال بالعميل
             </a>
             <a
-              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(order.customer_address)}`}
+              href={googleMapsSearchUrl(order.customer_address)}
               target="_blank"
               rel="noopener noreferrer"
               className="block rounded-lg border bg-accent/40 p-3 text-center text-sm font-medium hover:bg-accent"
@@ -100,7 +101,16 @@ export default async function DriverOrderDetailPage({ params }: { params: Promis
 
       <DriverOrderActions
         order={order}
-        factory={assignedFactory ? { full_name: assignedFactory.full_name, address: assignedFactory.address } : null}
+        factory={
+          assignedFactory
+            ? {
+                full_name: assignedFactory.full_name,
+                address: assignedFactory.address,
+                lat: assignedFactory.lat,
+                lng: assignedFactory.lng,
+              }
+            : null
+        }
       />
 
       <Card>

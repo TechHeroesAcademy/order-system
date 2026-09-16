@@ -19,12 +19,18 @@ import type { ActionResult } from "@/lib/actions/types";
 export function OrderForm({
   regions,
   factories = [],
+  drivers = [],
+  requireDriverAndFactory = false,
   action,
   submitLabel = "إنشاء الأوردر",
 }: {
   regions: Region[];
-  /** Active factory accounts, for the optional "route to factory" field below — leave the field unassigned and it stays visible to every factory account. */
+  /** Active factory accounts, for the "route to factory" field below — leave the field unassigned and it stays visible to every factory account (unless requireDriverAndFactory). */
   factories?: Profile[];
+  /** Active driver accounts, for the "assign a driver" field below. */
+  drivers?: Profile[];
+  /** Moderator creating an order must pick both a driver and a factory up front — Owner can still leave them for the separate distribution flow. See createModeratorOrderAction. */
+  requireDriverAndFactory?: boolean;
   action: (values: OrderFormValues) => Promise<ActionResult<NewOrderResult>>;
   submitLabel?: string;
 }) {
@@ -44,10 +50,27 @@ export function OrderForm({
       work_required: "",
       customer_notes: "",
       factory_id: null,
+      driver_id: null,
     },
   });
 
   async function onSubmit(values: OrderFormValues) {
+    if (requireDriverAndFactory) {
+      let missing = false;
+      if (!values.driver_id) {
+        form.setError("driver_id", { message: "اختر المندوب" });
+        missing = true;
+      }
+      if (!values.factory_id) {
+        form.setError("factory_id", { message: "اختر المصنع" });
+        missing = true;
+      }
+      if (missing) {
+        toast.error("يجب اختيار المندوب والمصنع لهذا الأوردر");
+        return;
+      }
+    }
+
     setSubmitting(true);
     const res = await action(values);
     setSubmitting(false);
@@ -179,32 +202,79 @@ export function OrderForm({
           />
         </div>
 
-        {factories.length > 0 && (
+        {(factories.length > 0 || requireDriverAndFactory) && (
           <FormField
             control={form.control}
             name="factory_id"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>المصنع (اختياري)</FormLabel>
-                <Select
-                  value={field.value ?? "unassigned"}
-                  onValueChange={(v) => field.onChange(v === "unassigned" ? null : v)}
-                >
-                  <FormControl>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="بدون تحديد — يظهر لكل المصانع" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    <SelectItem value="unassigned">بدون تحديد — يظهر لكل المصانع</SelectItem>
-                    {factories.map((f) => (
-                      <SelectItem key={f.id} value={f.id}>
-                        {f.full_name}
-                        {f.address ? ` — ${f.address}` : ""}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <FormLabel>{requireDriverAndFactory ? "المصنع" : "المصنع (اختياري)"}</FormLabel>
+                {factories.length > 0 ? (
+                  <Select
+                    value={field.value ?? "unassigned"}
+                    onValueChange={(v) => field.onChange(v === "unassigned" ? null : v)}
+                  >
+                    <FormControl>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="بدون تحديد — يظهر لكل المصانع" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {!requireDriverAndFactory && (
+                        <SelectItem value="unassigned">بدون تحديد — يظهر لكل المصانع</SelectItem>
+                      )}
+                      {factories.map((f) => (
+                        <SelectItem key={f.id} value={f.id}>
+                          {f.full_name}
+                          {f.address ? ` — ${f.address}` : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <p className="text-sm text-destructive">
+                    لا يوجد حساب مصنع مفعّل — أضف واحدًا من إدارة الفريق أولًا
+                  </p>
+                )}
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
+
+        {(drivers.length > 0 || requireDriverAndFactory) && (
+          <FormField
+            control={form.control}
+            name="driver_id"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{requireDriverAndFactory ? "المندوب" : "المندوب (اختياري)"}</FormLabel>
+                {drivers.length > 0 ? (
+                  <Select
+                    value={field.value ?? "unassigned"}
+                    onValueChange={(v) => field.onChange(v === "unassigned" ? null : v)}
+                  >
+                    <FormControl>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="بدون تحديد — يُسند لاحقًا من التوزيع" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {!requireDriverAndFactory && (
+                        <SelectItem value="unassigned">بدون تحديد — يُسند لاحقًا من التوزيع</SelectItem>
+                      )}
+                      {drivers.map((d) => (
+                        <SelectItem key={d.id} value={d.id}>
+                          {d.full_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <p className="text-sm text-destructive">
+                    لا يوجد مندوب مفعّل — أضف واحدًا من إدارة الفريق أولًا
+                  </p>
+                )}
                 <FormMessage />
               </FormItem>
             )}

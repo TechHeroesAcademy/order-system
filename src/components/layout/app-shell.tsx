@@ -91,7 +91,11 @@ export function AppShell({
           ))}
         </nav>
       </header>
-      <main className="mx-auto w-full max-w-6xl flex-1 p-4">{children}</main>
+      {/* Full-width instead of a boxed max-w-6xl column — on a wide monitor
+          the old cap left large empty margins on both sides; the generous
+          responsive gutters below keep long lines/tables from stretching
+          edge-to-edge while still using the whole screen. */}
+      <main className="w-full flex-1 p-4 sm:px-6 lg:px-10 xl:px-16">{children}</main>
     </div>
   );
 }

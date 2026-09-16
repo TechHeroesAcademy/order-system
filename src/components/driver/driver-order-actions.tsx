@@ -27,26 +27,28 @@ import {
 } from "@/lib/actions/orders";
 import { deliveryCodeSchema, refusalReasonSchema } from "@/lib/domain/validators";
 import { formatDateTime } from "@/lib/domain/format";
+import { mapsUrlFor } from "@/lib/domain/maps";
 import type { Order } from "@/types/database";
 
-type FactoryInfo = { full_name: string; address: string | null } | null;
+type FactoryInfo = { full_name: string; address: string | null; lat?: number | null; lng?: number | null } | null;
 
 /** Small "which factory / where" strip shown alongside every factory-related step below. */
 function FactoryLocationNote({ factory }: { factory: FactoryInfo }) {
+  const mapsUrl = factory ? mapsUrlFor(factory) : null;
   return (
     <div className="mb-3 flex items-start gap-2 rounded-lg border bg-accent/40 p-3 text-sm">
       <Factory className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
       <div className="min-w-0 flex-1">
         <p className="font-medium">{factory?.full_name ?? "لم يُحدد مصنع لهذا الأوردر"}</p>
-        {factory?.address ? (
+        {mapsUrl ? (
           <a
-            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(factory.address)}`}
+            href={mapsUrl}
             target="_blank"
             rel="noopener noreferrer"
             className="mt-0.5 flex items-center gap-1 text-muted-foreground hover:text-foreground hover:underline"
           >
             <MapPin className="size-3.5 shrink-0" />
-            {factory.address}
+            {factory?.address ?? "فتح الموقع في خرائط جوجل"}
           </a>
         ) : (
           factory && <p className="mt-0.5 text-xs text-muted-foreground">لا يوجد عنوان مسجل لهذا المصنع بعد</p>

@@ -6,16 +6,19 @@ import { ChangeDriverButton } from "./change-driver-button";
 import { CancelOrderButton } from "./cancel-order-button";
 import { ConfirmActionButton } from "@/components/shared/confirm-action-button";
 import { factoryConfirmReceiptAction, factoryMarkReadyAction } from "@/lib/actions/orders";
+import { DeliveryCodeReveal } from "./delivery-code-reveal";
 import { Badge } from "@/components/ui/badge";
 import { formatDateTime } from "@/lib/domain/format";
 import { isOrderDelayed } from "@/lib/domain/order-status";
-import { PackageCheck, CheckCircle2 } from "lucide-react";
+import { googleMapsSearchUrl, mapsUrlFor } from "@/lib/domain/maps";
+import { PackageCheck, CheckCircle2, MapPin } from "lucide-react";
 import type { Order, OrderHistoryEntry, Region, Profile } from "@/types/database";
 
+// customer_address is rendered separately below (with a Maps link), not
+// through this generic loop.
 const FIELD_LABELS: { key: keyof Order; label: string }[] = [
   { key: "customer_name", label: "اسم العميل" },
   { key: "customer_phone", label: "رقم الهاتف" },
-  { key: "customer_address", label: "العنوان" },
   { key: "pieces_count", label: "عدد القطع" },
   { key: "piece_details", label: "تفاصيل القطع" },
   { key: "color", label: "اللون" },
@@ -30,6 +33,8 @@ export function OrderDetailView({
   assignedDriverName,
   assignedFactoryName,
   assignedFactoryAddress,
+  assignedFactoryLat,
+  assignedFactoryLng,
   viewerProfile,
   canManageDistribution,
   drivers = [],
@@ -40,6 +45,8 @@ export function OrderDetailView({
   assignedDriverName: string | null;
   assignedFactoryName?: string | null;
   assignedFactoryAddress?: string | null;
+  assignedFactoryLat?: number | null;
+  assignedFactoryLng?: number | null;
   viewerProfile: Profile;
   canManageDistribution: boolean;
   /** Active drivers, for the "change driver" control below — only needed when canManageDistribution. */
@@ -67,6 +74,34 @@ export function OrderDetailView({
           </CardHeader>
           <CardContent>
             <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
+              <div>
+                <dt className="text-xs text-muted-foreground">اسم العميل</dt>
+                <dd className="text-sm">{order.customer_name}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-muted-foreground">رقم الهاتف</dt>
+                <dd className="text-sm">{order.customer_phone}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-muted-foreground">العنوان</dt>
+                <dd className="text-sm">
+                  {order.customer_address}
+                  {(() => {
+                    const url = googleMapsSearchUrl(order.customer_address);
+                    return (
+                      <a
+                        href={url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground hover:underline"
+                      >
+                        <MapPin className="size-3" />
+                        فتح في خرائط جوجل
+                      </a>
+                    );
+                  })()}
+                </dd>
+              </div>
               {FIELD_LABELS.map(({ key, label }) => {
                 const value = order[key];
                 if (!value) return null;
@@ -92,6 +127,22 @@ export function OrderDetailView({
                   {assignedFactoryName && assignedFactoryAddress && (
                     <span className="block text-xs text-muted-foreground">{assignedFactoryAddress}</span>
                   )}
+                  {assignedFactoryName &&
+                    (() => {
+                      const url = mapsUrlFor({ address: assignedFactoryAddress, lat: assignedFactoryLat, lng: assignedFactoryLng });
+                      if (!url) return null;
+                      return (
+                        <a
+                          href={url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground hover:underline"
+                        >
+                          <MapPin className="size-3" />
+                          فتح في خرائط جوجل
+                        </a>
+                      );
+                    })()}
                 </dd>
               </div>
             </dl>
@@ -120,6 +171,17 @@ export function OrderDetailView({
       </div>
 
       <div className="space-y-4">
+        {canManageDistribution && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">كود التسليم</CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <DeliveryCodeReveal orderId={order.id} />
+            </CardContent>
+          </Card>
+        )}
+
         {canManageDistribution && order.status === "new" && (
           <DistributionPanel
             orderId={order.id}

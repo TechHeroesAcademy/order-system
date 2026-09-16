@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireRole } from "@/lib/auth";
-import { createStaffAccountSchema, regionNameSchema, updateStaffAddressSchema } from "@/lib/domain/validators";
+import { createStaffAccountSchema, regionNameSchema, updateStaffLocationSchema } from "@/lib/domain/validators";
 import { normalizePhone } from "@/lib/domain/phone";
 import { ok, fail, toErrorMessage, type ActionResult } from "./types";
 import type { z } from "zod";
@@ -52,6 +52,8 @@ export async function createStaffAccountAction(
       phone: normalizedPhone,
       role: parsed.data.role,
       address: parsed.data.role === "factory" ? (parsed.data.address?.trim() || null) : null,
+      lat: parsed.data.role === "factory" ? (parsed.data.lat ?? null) : null,
+      lng: parsed.data.role === "factory" ? (parsed.data.lng ?? null) : null,
     },
   });
 
@@ -143,19 +145,19 @@ export async function setDriverRegionsAction(driverId: string, regionIds: string
   return ok(undefined);
 }
 
-/** Owner/Moderator fixing or filling in a factory account's location later. */
-export async function updateStaffAddressAction(
+/** Owner/Moderator fixing or filling in a factory account's location later — address text and/or the map-picked coordinates. */
+export async function updateStaffLocationAction(
   userId: string,
-  input: z.infer<typeof updateStaffAddressSchema>,
+  input: z.infer<typeof updateStaffLocationSchema>,
 ): Promise<ActionResult> {
   const me = await requireRole("owner", "moderator");
-  const parsed = updateStaffAddressSchema.safeParse(input);
+  const parsed = updateStaffLocationSchema.safeParse(input);
   if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? "بيانات غير صالحة");
 
   const supabase = await createClient();
   const { data: target } = await supabase.from("profiles").select("role").eq("id", userId).single();
   if (!target || target.role !== "factory") {
-    return fail("العنوان متاح فقط لحسابات المصنع");
+    return fail("الموقع متاح فقط لحسابات المصنع");
   }
   if (me.role === "moderator" && target.role !== "factory") {
     return fail("لا يمكنك تعديل هذا الحساب");
@@ -163,7 +165,11 @@ export async function updateStaffAddressAction(
 
   const { error } = await supabase
     .from("profiles")
-    .update({ address: parsed.data.address?.trim() || null })
+    .update({
+      address: parsed.data.address?.trim() || null,
+      lat: parsed.data.lat,
+      lng: parsed.data.lng,
+    })
     .eq("id", userId);
   if (error) return fail(toErrorMessage(error));
 

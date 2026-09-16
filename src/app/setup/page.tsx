@@ -3,13 +3,20 @@ import { ownerExists } from "@/lib/actions/setup";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { SetupForm } from "@/components/auth/setup-form";
+import { ShippingIllustration } from "@/components/home/shipping-illustration";
 
 export default async function SetupPage() {
   const alreadySetUp = await ownerExists();
 
   return (
-    <main className="flex min-h-screen items-center justify-center p-6">
-      <Card className="w-full max-w-sm">
+    <main className="relative flex min-h-screen items-center justify-center overflow-hidden p-6">
+      <ShippingIllustration className="pointer-events-none absolute inset-x-0 bottom-0 h-40 w-full select-none opacity-70 sm:h-56 md:h-64" />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-background to-transparent"
+      />
+
+      <Card className="relative z-10 w-full max-w-sm">
         <CardHeader>
           <CardTitle>إعداد حساب صاحب النظام</CardTitle>
           <CardDescription>خطوة تُنفَّذ مرة واحدة فقط عند أول استخدام للنظام</CardDescription>

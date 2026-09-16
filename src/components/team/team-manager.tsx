@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
+import dynamic from "next/dynamic";
 import { toast } from "sonner";
-import { Loader2, MapPin, Plus, UserPlus, Users, KeyRound, Factory } from "lucide-react";
+import { Loader2, MapPin, Plus, UserPlus, Users, KeyRound, Factory, Map as MapIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -40,10 +41,24 @@ import {
   setStaffActiveAction,
   setDriverRegionsAction,
   resetStaffPasswordAction,
-  updateStaffAddressAction,
+  updateStaffLocationAction,
 } from "@/lib/actions/admin";
-import { createStaffAccountSchema, regionNameSchema, updateStaffAddressSchema } from "@/lib/domain/validators";
+import { createStaffAccountSchema, regionNameSchema, updateStaffLocationSchema } from "@/lib/domain/validators";
+import { mapsUrlFor } from "@/lib/domain/maps";
 import type { Profile, Region, UserRole } from "@/types/database";
+import type { FactoryPin } from "@/components/maps/factories-overview-map";
+
+// Leaflet touches `window` at render time, so these load client-only —
+// dynamic(..., { ssr: false }) is how a "use client" component still opts a
+// child out of any server render pass.
+const LocationPickerMap = dynamic(
+  () => import("@/components/maps/location-picker-map").then((m) => m.LocationPickerMap),
+  { ssr: false, loading: () => <div className="h-[220px] animate-pulse rounded-lg border bg-muted" /> },
+);
+const FactoriesOverviewMap = dynamic(
+  () => import("@/components/maps/factories-overview-map").then((m) => m.FactoriesOverviewMap),
+  { ssr: false, loading: () => <div className="h-[280px] animate-pulse rounded-lg border bg-muted" /> },
+);
 
 const ROLE_LABELS_AR: Record<UserRole, string> = {
   owner: "صاحب النظام",
@@ -71,6 +86,14 @@ export function TeamManager({
   const [regionsByDriver, setRegionsByDriver] = useState(driverRegionsMap);
   const isModerator = viewerRole === "moderator";
 
+  const factoryPins: FactoryPin[] = useMemo(
+    () =>
+      staffList
+        .filter((m): m is Profile & { lat: number; lng: number } => m.role === "factory" && m.lat != null && m.lng != null)
+        .map((m) => ({ id: m.id, full_name: m.full_name, address: m.address, lat: m.lat, lng: m.lng })),
+    [staffList],
+  );
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -88,6 +111,20 @@ export function TeamManager({
           />
         </div>
       </div>
+
+      {factoryPins.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <MapIcon className="size-4" />
+              خريطة المصانع ({factoryPins.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <FactoriesOverviewMap factories={factoryPins} />
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
@@ -127,11 +164,13 @@ export function TeamManager({
                           onSaved={(ids) => setRegionsByDriver((prev) => ({ ...prev, [member.id]: ids }))}
                         />
                       ) : member.role === "factory" ? (
-                        <FactoryAddressCell
+                        <FactoryLocationCell
                           factoryId={member.id}
                           address={member.address}
-                          onSaved={(address) =>
-                            setStaffList((prev) => prev.map((m) => (m.id === member.id ? { ...m, address } : m)))
+                          lat={member.lat}
+                          lng={member.lng}
+                          onSaved={(next) =>
+                            setStaffList((prev) => prev.map((m) => (m.id === member.id ? { ...m, ...next } : m)))
                           }
                         />
                       ) : (
@@ -320,68 +359,87 @@ function DriverRegionsCell({
   );
 }
 
-function FactoryAddressCell({
+function FactoryLocationCell({
   factoryId,
   address,
+  lat,
+  lng,
   onSaved,
 }: {
   factoryId: string;
   address: string | null;
-  onSaved: (address: string | null) => void;
+  lat: number | null;
+  lng: number | null;
+  onSaved: (next: { address: string | null; lat: number | null; lng: number | null }) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState(address ?? "");
+  const [pin, setPin] = useState<{ lat: number; lng: number } | null>(lat != null && lng != null ? { lat, lng } : null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   function save() {
-    const parsed = updateStaffAddressSchema.safeParse({ address: value });
+    const parsed = updateStaffLocationSchema.safeParse({ address: value, lat: pin?.lat ?? null, lng: pin?.lng ?? null });
     if (!parsed.success) {
       setError(parsed.error.issues[0]?.message ?? "بيانات غير صالحة");
       return;
     }
     setError(null);
     startTransition(async () => {
-      const res = await updateStaffAddressAction(factoryId, parsed.data);
+      const res = await updateStaffLocationAction(factoryId, parsed.data);
       if (!res.ok) {
         setError(res.error);
         return;
       }
-      onSaved(parsed.data.address?.trim() || null);
-      toast.success("تم تحديث عنوان المصنع");
+      onSaved({ address: parsed.data.address?.trim() || null, lat: parsed.data.lat, lng: parsed.data.lng });
+      toast.success("تم تحديث موقع المصنع");
       setOpen(false);
     });
   }
+
+  const mapsUrl = mapsUrlFor({ address, lat, lng });
 
   return (
     <Dialog
       open={open}
       onOpenChange={(next) => {
         setOpen(next);
-        if (next) setValue(address ?? "");
+        if (next) {
+          setValue(address ?? "");
+          setPin(lat != null && lng != null ? { lat, lng } : null);
+        }
       }}
     >
       <DialogTrigger asChild>
         <button className="flex items-center gap-1 text-start text-sm hover:underline">
           <Factory className="size-3.5 text-muted-foreground" />
-          {address || "تحديد الموقع"}
+          {address || (mapsUrl ? "موقع محدد بدون عنوان" : "تحديد الموقع")}
+          {mapsUrl && <MapPin className="size-3 text-primary" />}
         </button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>موقع المصنع</DialogTitle>
           <DialogDescription>
-            يظهر هذا العنوان للمندوب عند تسليم أو استلام أوردر مرتبط بهذا المصنع.
+            يظهر هذا العنوان والموقع للمندوب عند تسليم أو استلام أوردر مرتبط بهذا المصنع. انقر على الخريطة لتحديد الموقع
+            بدقة، أو اسحب العلامة لتعديله.
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-1.5">
-          <Label htmlFor={`factory-address-${factoryId}`}>العنوان</Label>
-          <Input
-            id={`factory-address-${factoryId}`}
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            placeholder="مثال: المنطقة الصناعية، مدينة نصر، مبنى 12"
-          />
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <Label htmlFor={`factory-address-${factoryId}`}>العنوان (نصي)</Label>
+            <Input
+              id={`factory-address-${factoryId}`}
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              placeholder="مثال: المنطقة الصناعية، مدينة نصر، مبنى 12"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label>الموقع على الخريطة {pin && <span className="text-xs font-normal text-muted-foreground">(انقر لتغييره)</span>}</Label>
+            <LocationPickerMap lat={pin?.lat ?? null} lng={pin?.lng ?? null} onChange={(la, ln) => setPin({ lat: la, lng: ln })} />
+            {!pin && <p className="text-xs text-muted-foreground">انقر في أي مكان على الخريطة لتحديد موقع المصنع بدقة.</p>}
+          </div>
           {error && <p className="text-sm text-destructive">{error}</p>}
         </div>
         <DialogFooter>
@@ -473,6 +531,7 @@ function AddStaffDialog({
   const [role, setRole] = useState<UserRole>(roleOptions[0]);
   const [regionIds, setRegionIds] = useState<string[]>([]);
   const [address, setAddress] = useState("");
+  const [pin, setPin] = useState<{ lat: number; lng: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -483,6 +542,7 @@ function AddStaffDialog({
     setRole(roleOptions[0]);
     setRegionIds([]);
     setAddress("");
+    setPin(null);
     setError(null);
   }
 
@@ -498,6 +558,8 @@ function AddStaffDialog({
       role,
       region_ids: role === "driver" ? regionIds : [],
       address: role === "factory" ? address : undefined,
+      lat: role === "factory" ? (pin?.lat ?? null) : undefined,
+      lng: role === "factory" ? (pin?.lng ?? null) : undefined,
     });
     if (!parsed.success) {
       setError(parsed.error.issues[0]?.message ?? "بيانات غير صالحة");
@@ -517,6 +579,8 @@ function AddStaffDialog({
         role: parsed.data.role,
         region_id: null,
         address: parsed.data.role === "factory" ? (parsed.data.address?.trim() || null) : null,
+        lat: parsed.data.role === "factory" ? (parsed.data.lat ?? null) : null,
+        lng: parsed.data.role === "factory" ? (parsed.data.lng ?? null) : null,
         is_active: true,
         password_set: false,
         created_at: new Date().toISOString(),
@@ -577,15 +641,22 @@ function AddStaffDialog({
             </Select>
           </div>
           {role === "factory" && (
-            <div className="space-y-1.5">
-              <Label htmlFor="staff-address">عنوان المصنع (اختياري)</Label>
-              <Input
-                id="staff-address"
-                value={address}
-                onChange={(e) => setAddress(e.target.value)}
-                placeholder="مثال: المنطقة الصناعية، مدينة نصر، مبنى 12"
-              />
-              <p className="text-xs text-muted-foreground">يظهر هذا العنوان للمندوب عند تسليم أو استلام أوردر من هذا المصنع.</p>
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="staff-address">عنوان المصنع (اختياري)</Label>
+                <Input
+                  id="staff-address"
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                  placeholder="مثال: المنطقة الصناعية، مدينة نصر، مبنى 12"
+                />
+                <p className="text-xs text-muted-foreground">يظهر هذا العنوان للمندوب عند تسليم أو استلام أوردر من هذا المصنع.</p>
+              </div>
+              <div className="space-y-1.5">
+                <Label>الموقع على الخريطة (اختياري)</Label>
+                <LocationPickerMap lat={pin?.lat ?? null} lng={pin?.lng ?? null} onChange={(la, ln) => setPin({ lat: la, lng: ln })} />
+                <p className="text-xs text-muted-foreground">انقر على الخريطة لتحديد موقع المصنع بدقة — يمكن إضافته لاحقًا أيضًا.</p>
+              </div>
             </div>
           )}
           {role === "driver" && (

@@ -30,6 +30,12 @@ export const orderFormSchema = z.object({
   work_required: z.string().trim().max(500).optional().nullable(),
   customer_notes: z.string().trim().max(1000).optional().nullable(),
   factory_id: z.string().uuid().optional().nullable(),
+  // Optional at the schema level — Owner can still leave these unassigned
+  // (handled later through the separate distribution flow). Moderator is
+  // required to pick both, but that's a role-based UI rule, not something
+  // this shared schema can express; see OrderForm's requireDriverAndFactory
+  // prop and createModeratorOrderAction's own server-side check.
+  driver_id: z.string().uuid().optional().nullable(),
 });
 
 export type OrderFormValues = z.infer<typeof orderFormSchema>;
@@ -85,11 +91,17 @@ export const createStaffAccountSchema = z.object({
   // existing flow that doesn't collect it yet (or a factory added before a
   // location is known) still works; it can be filled in later.
   address: z.string().trim().max(500).optional().nullable(),
+  // Precise coordinates from the map picker, alongside the free-text
+  // address above — also optional/fill-in-later for the same reason.
+  lat: z.number().min(-90).max(90).optional().nullable(),
+  lng: z.number().min(-180).max(180).optional().nullable(),
 });
 
 /** Owner/Moderator editing an existing factory account's location. */
-export const updateStaffAddressSchema = z.object({
+export const updateStaffLocationSchema = z.object({
   address: z.string().trim().max(500).nullable(),
+  lat: z.number().min(-90).max(90).nullable(),
+  lng: z.number().min(-180).max(180).nullable(),
 });
 
 /** Step 1 of the phone-based login: just the phone number. */

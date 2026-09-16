@@ -30,6 +30,8 @@ export default async function ModeratorOrderDetailPage({ params }: { params: Pro
       assignedDriverName={assignedDriver?.full_name ?? null}
       assignedFactoryName={assignedFactory?.full_name ?? null}
       assignedFactoryAddress={assignedFactory?.address ?? null}
+      assignedFactoryLat={assignedFactory?.lat ?? null}
+      assignedFactoryLng={assignedFactory?.lng ?? null}
       viewerProfile={profile}
       canManageDistribution
       drivers={drivers}
