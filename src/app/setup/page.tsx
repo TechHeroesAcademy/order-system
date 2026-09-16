@@ -3,20 +3,16 @@ import { ownerExists } from "@/lib/actions/setup";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { SetupForm } from "@/components/auth/setup-form";
-import { ShippingIllustration } from "@/components/home/shipping-illustration";
+import { HeroBackground } from "@/components/shared/hero-background";
 
 export default async function SetupPage() {
   const alreadySetUp = await ownerExists();
 
   return (
     <main className="relative flex min-h-screen items-center justify-center overflow-hidden p-6">
-      <ShippingIllustration className="pointer-events-none absolute inset-x-0 bottom-0 h-64 w-full select-none opacity-90 sm:h-80 md:h-96" />
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-background to-transparent"
-      />
+      <HeroBackground />
 
-      <Card className="relative z-10 w-full max-w-sm">
+      <Card className="relative z-10 w-full max-w-sm border-0 bg-white shadow-2xl">
         <CardHeader>
           <CardTitle>إعداد حساب المدير</CardTitle>
           <CardDescription>خطوة تُنفَّذ مرة واحدة فقط عند أول استخدام للنظام</CardDescription>

@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { ShippingIllustration } from "@/components/home/shipping-illustration";
+import { HeroBackground } from "@/components/shared/hero-background";
 import { Loader2, ArrowRight } from "lucide-react";
 
 export function LoginPageClient() {
@@ -29,15 +29,11 @@ function LoginPageInner() {
 
   return (
     <main className="relative flex min-h-screen items-center justify-center overflow-hidden p-6">
-      {/* Same warm-fade background as the homepage, so signing in doesn't
-          feel like a bare, disconnected screen — see ShippingIllustration. */}
-      <ShippingIllustration className="pointer-events-none absolute inset-x-0 bottom-0 h-64 w-full select-none opacity-90 sm:h-80 md:h-96" />
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-background to-transparent"
-      />
+      {/* Same professional photo background as the homepage, so signing in
+          doesn't feel like a bare, disconnected screen — see HeroBackground. */}
+      <HeroBackground />
 
-      <Card className="relative z-10 w-full max-w-sm">
+      <Card className="relative z-10 w-full max-w-sm border-0 bg-white shadow-2xl">
         <CardHeader>
           <CardTitle>تسجيل دخول فريق العمل</CardTitle>
           <CardDescription>للمدير والموديريتور والمندوبين والمصنع</CardDescription>

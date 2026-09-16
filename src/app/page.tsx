@@ -2,7 +2,7 @@ import Link from "next/link";
 import { getCurrentProfile } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ShippingIllustration } from "@/components/home/shipping-illustration";
+import { HeroBackground } from "@/components/shared/hero-background";
 import { Search, LogIn, LayoutDashboard } from "lucide-react";
 
 const ROLE_HOME: Record<string, string> = {
@@ -31,23 +31,21 @@ export default async function HomePage() {
   const dashboardHref = profile?.is_active ? (ROLE_HOME[profile.role] ?? null) : null;
 
   return (
-    <main className="relative flex min-h-screen flex-col items-center justify-center gap-8 overflow-hidden p-6">
-      {/* decorative cartoon background — purely visual, see the component */}
-      <ShippingIllustration className="pointer-events-none absolute inset-x-0 bottom-0 h-72 w-full select-none opacity-95 sm:h-96 md:h-[30rem] lg:h-[36rem]" />
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-background to-transparent"
-      />
+    <main className="relative flex min-h-screen flex-col items-center justify-center gap-10 overflow-hidden p-6">
+      <HeroBackground />
 
-      <div className="relative z-10 text-center space-y-2 animate-fade-in-up">
-        <h1 className="text-2xl font-bold">شركة المجد</h1>
-        <p className="text-muted-foreground">تابع حالة أوردر موجود، أو سجّل دخولك كفريق عمل لإنشاء ومتابعة الأوردرات</p>
+      <div className="relative z-10 text-center space-y-3 animate-fade-in-up">
+        <span className="inline-flex items-center rounded-full bg-primary px-3 py-1 text-xs font-bold tracking-wide text-primary-foreground">
+          إدارة وتوزيع الأوردرات
+        </span>
+        <h1 className="text-3xl font-extrabold text-white drop-shadow-sm sm:text-4xl">شركة المجد</h1>
+        <p className="text-white/85">تابع حالة أوردر موجود، أو سجّل دخولك كفريق عمل لإنشاء ومتابعة الأوردرات</p>
       </div>
 
       <div className="relative z-10 grid w-full max-w-3xl gap-4 sm:grid-cols-2">
         {dashboardHref ? (
           <Card
-            className="animate-fade-in-up border-2 bg-primary text-primary-foreground transition-[transform,box-shadow] hover:-translate-y-0.5 hover:shadow-lg"
+            className="animate-fade-in-up border-0 bg-primary text-primary-foreground shadow-xl transition-[transform,box-shadow] hover:-translate-y-0.5 hover:shadow-2xl"
             style={{ animationDelay: "80ms" }}
           >
             <CardHeader>
@@ -70,7 +68,7 @@ export default async function HomePage() {
           // (Owner/Moderator, at /moderator/orders/new) instead of an open
           // public form — this card replaces the old "إنشاء أوردر" one.
           <Card
-            className="animate-fade-in-up border-2 bg-primary text-primary-foreground transition-[transform,box-shadow] hover:-translate-y-0.5 hover:shadow-lg"
+            className="animate-fade-in-up border-0 bg-primary text-primary-foreground shadow-xl transition-[transform,box-shadow] hover:-translate-y-0.5 hover:shadow-2xl"
             style={{ animationDelay: "80ms" }}
           >
             <CardHeader>
@@ -91,7 +89,7 @@ export default async function HomePage() {
         )}
 
         <Card
-          className="animate-fade-in-up border-2 transition-[transform,box-shadow] hover:-translate-y-0.5 hover:shadow-lg"
+          className="animate-fade-in-up border-0 bg-white shadow-xl transition-[transform,box-shadow] hover:-translate-y-0.5 hover:shadow-2xl"
           style={{ animationDelay: "160ms" }}
         >
           <CardHeader>
