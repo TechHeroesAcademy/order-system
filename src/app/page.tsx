@@ -33,7 +33,7 @@ export default async function HomePage() {
   return (
     <main className="relative flex min-h-screen flex-col items-center justify-center gap-8 overflow-hidden p-6">
       {/* decorative cartoon background — purely visual, see the component */}
-      <ShippingIllustration className="pointer-events-none absolute inset-x-0 bottom-0 h-48 w-full select-none opacity-95 sm:h-64 md:h-80 lg:h-[26rem]" />
+      <ShippingIllustration className="pointer-events-none absolute inset-x-0 bottom-0 h-72 w-full select-none opacity-95 sm:h-96 md:h-[30rem] lg:h-[36rem]" />
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-background to-transparent"

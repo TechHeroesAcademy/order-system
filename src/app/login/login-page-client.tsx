@@ -31,7 +31,7 @@ function LoginPageInner() {
     <main className="relative flex min-h-screen items-center justify-center overflow-hidden p-6">
       {/* Same warm-fade background as the homepage, so signing in doesn't
           feel like a bare, disconnected screen — see ShippingIllustration. */}
-      <ShippingIllustration className="pointer-events-none absolute inset-x-0 bottom-0 h-40 w-full select-none opacity-70 sm:h-56 md:h-64" />
+      <ShippingIllustration className="pointer-events-none absolute inset-x-0 bottom-0 h-64 w-full select-none opacity-90 sm:h-80 md:h-96" />
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-background to-transparent"

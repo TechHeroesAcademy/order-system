@@ -10,7 +10,7 @@ export default async function SetupPage() {
 
   return (
     <main className="relative flex min-h-screen items-center justify-center overflow-hidden p-6">
-      <ShippingIllustration className="pointer-events-none absolute inset-x-0 bottom-0 h-40 w-full select-none opacity-70 sm:h-56 md:h-64" />
+      <ShippingIllustration className="pointer-events-none absolute inset-x-0 bottom-0 h-64 w-full select-none opacity-90 sm:h-80 md:h-96" />
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-background to-transparent"

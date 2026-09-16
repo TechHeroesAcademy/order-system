@@ -45,24 +45,22 @@ export async function createPublicOrderAction(
 /**
  * Moderator/Owner creating an order sourced from a Messenger conversation.
  *
- * Driver + factory are mandatory here for a Moderator specifically — not for
- * Owner, who can still leave them for the separate distribution flow. This
- * is a role-based UI rule rather than something the shared orderFormSchema
- * can express (both roles submit through the same <OrderForm>), so it's
+ * Driver + factory are mandatory for both roles. This is a UI/product rule
+ * rather than something the shared orderFormSchema can express, so it's
  * enforced here, server-side, in addition to OrderForm's own client-side
- * check (defense in depth — a Moderator could otherwise call this action
- * directly, bypassing the form).
+ * check (defense in depth — this action could otherwise be called directly,
+ * bypassing the form).
  */
 export async function createModeratorOrderAction(
   input: OrderFormInput,
 ): Promise<ActionResult<NewOrderResult>> {
-  const me = await requireRole("owner", "moderator");
+  await requireRole("owner", "moderator");
   const parsed = orderFormSchema.safeParse(input);
   if (!parsed.success) {
     return fail(parsed.error.issues[0]?.message ?? "بيانات غير صالحة");
   }
 
-  if (me.role === "moderator" && (!parsed.data.driver_id || !parsed.data.factory_id)) {
+  if (!parsed.data.driver_id || !parsed.data.factory_id) {
     return fail("يجب اختيار المندوب والمصنع عند إنشاء الأوردر");
   }
 
