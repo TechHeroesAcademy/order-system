@@ -1,10 +1,14 @@
 "use client";
 
-import { useMemo } from "react";
-import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
+import { useMemo, useRef } from "react";
+import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from "react-leaflet";
+import type { Marker as LeafletMarker } from "leaflet";
 import { createPinIcon } from "./pin-icon";
 
+// Cairo — a reasonable default center when nothing is plotted yet (this
+// app's regions are all Egyptian, see supabase/migrations/0012).
 const DEFAULT_CENTER: [number, number] = [30.0444, 31.2357];
+const SELECTED_COLOR = "#2563eb";
 
 export interface FactoryPin {
   id: string;
@@ -14,32 +18,97 @@ export interface FactoryPin {
   lng: number;
 }
 
+function ClickToPlace({ onPick }: { onPick?: (lat: number, lng: number) => void }) {
+  useMapEvents({
+    click(e) {
+      onPick?.(e.latlng.lat, e.latlng.lng);
+    },
+  });
+  return null;
+}
+
 /**
- * One map, every factory account that has a pin set — a quick "where are
- * our factories" overview for Team management. Factories without
- * coordinates yet just don't show up here (nothing to plot); the table
- * below this map is still the way to set one.
+ * The one general factories map (Team management, Factories tab) — every
+ * factory with a saved pin, plus a distinct-colored, draggable marker for
+ * whichever factory is currently selected in <FactoriesMapPanel>. Clicking
+ * any pin selects that factory (onSelectPin — the caller opens its inline
+ * edit card); clicking empty map space while a factory is selected
+ * places/moves that factory's pin (onPinChange). A factory with no
+ * coordinates yet gets one the same way: select it (from its marker if it
+ * has one, or from the table if it doesn't), then click its spot here.
+ *
+ * Loaded via `next/dynamic({ ssr: false })` from its callers — Leaflet
+ * touches `window` and can't render on the server.
  */
-export function FactoriesOverviewMap({ factories }: { factories: FactoryPin[] }) {
-  const icon = useMemo(() => createPinIcon(), []);
-  const center: [number, number] =
-    factories.length > 0 ? [factories[0].lat, factories[0].lng] : DEFAULT_CENTER;
+export function FactoriesMap({
+  factories,
+  selectedId = null,
+  selectedPin = null,
+  onSelectPin,
+  onPinChange,
+}: {
+  /** Every factory that already has a saved pin (the selected one is drawn separately, see selectedPin). */
+  factories: FactoryPin[];
+  selectedId?: string | null;
+  /** The selected factory's current (possibly unsaved/not-yet-saved) pin position — drives the draggable highlighted marker. */
+  selectedPin?: { lat: number; lng: number } | null;
+  onSelectPin?: (id: string) => void;
+  onPinChange?: (lat: number, lng: number) => void;
+}) {
+  const defaultIcon = useMemo(() => createPinIcon(), []);
+  const selectedIcon = useMemo(() => createPinIcon(SELECTED_COLOR), []);
+  const markerRef = useRef<LeafletMarker | null>(null);
+
+  const others = factories.filter((f) => f.id !== selectedId);
+  const hasAnyPin = others.length > 0 || Boolean(selectedPin);
+  const center: [number, number] = selectedPin
+    ? [selectedPin.lat, selectedPin.lng]
+    : others.length > 0
+      ? [others[0].lat, others[0].lng]
+      : DEFAULT_CENTER;
 
   return (
     <div className="overflow-hidden rounded-lg border">
-      <MapContainer center={center} zoom={factories.length > 0 ? 7 : 6} style={{ height: 280, width: "100%" }} scrollWheelZoom={false}>
+      <MapContainer
+        center={center}
+        zoom={hasAnyPin ? 7 : 6}
+        style={{ height: 360, width: "100%" }}
+        scrollWheelZoom={false}
+      >
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
-        {factories.map((f) => (
-          <Marker key={f.id} position={[f.lat, f.lng]} icon={icon}>
+        <ClickToPlace onPick={selectedId ? onPinChange : undefined} />
+        {others.map((f) => (
+          <Marker
+            key={f.id}
+            position={[f.lat, f.lng]}
+            icon={defaultIcon}
+            eventHandlers={{ click: () => onSelectPin?.(f.id) }}
+          >
             <Popup>
               <p className="font-medium">{f.full_name}</p>
               {f.address && <p className="text-xs text-muted-foreground">{f.address}</p>}
             </Popup>
           </Marker>
         ))}
+        {selectedId && selectedPin && (
+          <Marker
+            position={[selectedPin.lat, selectedPin.lng]}
+            icon={selectedIcon}
+            draggable
+            ref={markerRef}
+            eventHandlers={{
+              dragend: () => {
+                const marker = markerRef.current;
+                if (!marker) return;
+                const pos = marker.getLatLng();
+                onPinChange?.(pos.lat, pos.lng);
+              },
+            }}
+          />
+        )}
       </MapContainer>
     </div>
   );

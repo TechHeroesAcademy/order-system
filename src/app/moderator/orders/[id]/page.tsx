@@ -37,6 +37,7 @@ export default async function ModeratorOrderDetailPage({ params }: { params: Pro
       canManageDistribution
       drivers={drivers}
       factories={factories}
+      regions={regions}
     />
   );
 }

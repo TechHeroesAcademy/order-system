@@ -37,6 +37,7 @@ export default async function OwnerOrderDetailPage({ params }: { params: Promise
       canManageDistribution
       drivers={drivers}
       factories={factories}
+      regions={regions}
     />
   );
 }

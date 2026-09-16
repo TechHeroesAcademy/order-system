@@ -5,6 +5,7 @@ import { DistributionPanel } from "./distribution-panel";
 import { ChangeDriverButton } from "./change-driver-button";
 import { ChangeFactoryButton } from "./change-factory-button";
 import { CancelOrderButton } from "./cancel-order-button";
+import { EditOrderDialog } from "./edit-order-dialog";
 import { OrderChat } from "./order-chat";
 import { ConfirmActionButton } from "@/components/shared/confirm-action-button";
 import { factoryConfirmReceiptAction, factoryMarkReadyAction } from "@/lib/actions/orders";
@@ -42,6 +43,7 @@ export function OrderDetailView({
   canManageDistribution,
   drivers = [],
   factories = [],
+  regions = [],
 }: {
   order: Order;
   history: OrderHistoryEntry[];
@@ -58,6 +60,8 @@ export function OrderDetailView({
   drivers?: Profile[];
   /** Active factories, for the "change factory" control below — only needed when canManageDistribution. */
   factories?: Profile[];
+  /** All regions, for the edit-order dialog's region picker — only needed when canManageDistribution. */
+  regions?: Region[];
 }) {
   const delayed = isOrderDelayed(order.status, order.created_at);
   const isTerminal = ["delivered", "refused", "cancelled"].includes(order.status);
@@ -77,6 +81,7 @@ export function OrderDetailView({
             <div className="flex items-center gap-2">
               {delayed && <Badge variant="warning">متأخر</Badge>}
               <OrderStatusBadge status={order.status} />
+              {canManageDistribution && <EditOrderDialog order={order} regions={regions} />}
             </div>
           </CardHeader>
           <CardContent>

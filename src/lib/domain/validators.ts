@@ -62,6 +62,16 @@ export const orderFormSchema = z.object({
 
 export type OrderFormValues = z.infer<typeof orderFormSchema>;
 
+/**
+ * Owner/Moderator editing an *existing* order's details after creation
+ * (updateOrderDetailsAction / update_order_details). Every field an order
+ * carries about the customer/job is editable this way; only the
+ * distribution fields (factory_id/driver_id — reassigned through their own
+ * dedicated flow, see ChangeDriverButton/ChangeFactoryButton) are excluded.
+ */
+export const editOrderSchema = orderFormSchema.omit({ factory_id: true, driver_id: true });
+export type EditOrderValues = z.infer<typeof editOrderSchema>;
+
 export const trackOrderSchema = z.object({
   order_number: z
     .string()

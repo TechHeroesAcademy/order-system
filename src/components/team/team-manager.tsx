@@ -1,9 +1,8 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import dynamic from "next/dynamic";
 import { toast } from "sonner";
-import { Loader2, MapPin, Plus, UserPlus, Users, KeyRound, Factory, Map as MapIcon } from "lucide-react";
+import { Loader2, MapPin, Plus, UserPlus, Users, Factory } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -39,27 +38,12 @@ import { EmptyState } from "@/components/shared/empty-state";
 import {
   createStaffAccountAction,
   createRegionAction,
-  setStaffActiveAction,
   setDriverRegionsAction,
-  resetStaffPasswordAction,
-  updateStaffLocationAction,
 } from "@/lib/actions/admin";
-import { createStaffAccountSchema, regionNameSchema, updateStaffLocationSchema } from "@/lib/domain/validators";
-import { mapsUrlFor } from "@/lib/domain/maps";
+import { createStaffAccountSchema, regionNameSchema } from "@/lib/domain/validators";
+import { ToggleActiveButton, ResetPasswordButton } from "./staff-actions";
+import { FactoriesMapPanel } from "./factories-map-panel";
 import type { Profile, Region, UserRole } from "@/types/database";
-import type { FactoryPin } from "@/components/maps/factories-overview-map";
-
-// Leaflet touches `window` at render time, so these load client-only —
-// dynamic(..., { ssr: false }) is how a "use client" component still opts a
-// child out of any server render pass.
-const LocationPickerMap = dynamic(
-  () => import("@/components/maps/location-picker-map").then((m) => m.LocationPickerMap),
-  { ssr: false, loading: () => <div className="h-[220px] animate-pulse rounded-lg border bg-muted" /> },
-);
-const FactoriesOverviewMap = dynamic(
-  () => import("@/components/maps/factories-overview-map").then((m) => m.FactoriesOverviewMap),
-  { ssr: false, loading: () => <div className="h-[280px] animate-pulse rounded-lg border bg-muted" /> },
-);
 
 const ROLE_LABELS_AR: Record<UserRole, string> = {
   owner: "مدير",
@@ -89,14 +73,6 @@ export function TeamManager({
 
   const workers = useMemo(() => staffList.filter((m) => m.role !== "factory"), [staffList]);
   const factories = useMemo(() => staffList.filter((m) => m.role === "factory"), [staffList]);
-
-  const factoryPins: FactoryPin[] = useMemo(
-    () =>
-      factories
-        .filter((m): m is Profile & { lat: number; lng: number } => m.lat != null && m.lng != null)
-        .map((m) => ({ id: m.id, full_name: m.full_name, address: m.address, lat: m.lat, lng: m.lng })),
-    [factories],
-  );
 
   function updateMember(id: string, patch: Partial<Profile>) {
     setStaffList((prev) => prev.map((m) => (m.id === id ? { ...m, ...patch } : m)));
@@ -208,141 +184,15 @@ export function TeamManager({
           </Card>
         </TabsContent>
 
-        <TabsContent value="factories" className="space-y-4">
-          {factoryPins.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <MapIcon className="size-4" />
-                  خريطة المصانع ({factoryPins.length})
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <FactoriesOverviewMap factories={factoryPins} />
-              </CardContent>
-            </Card>
-          )}
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">المصانع ({factories.length})</CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-              {factories.length === 0 ? (
-                <EmptyState icon={Factory} title="لا يوجد حساب مصنع بعد" />
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>الاسم</TableHead>
-                      <TableHead>الهاتف</TableHead>
-                      <TableHead>الموقع</TableHead>
-                      <TableHead>الحالة</TableHead>
-                      <TableHead />
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {factories.map((member) => (
-                      <TableRow key={member.id}>
-                        <TableCell className="font-medium">{member.full_name}</TableCell>
-                        <TableCell className="text-muted-foreground" dir="ltr">
-                          {member.phone ?? "—"}
-                        </TableCell>
-                        <TableCell>
-                          <FactoryLocationCell
-                            factoryId={member.id}
-                            address={member.address}
-                            lat={member.lat}
-                            lng={member.lng}
-                            mapsUrl={member.maps_url}
-                            onSaved={(next) => updateMember(member.id, next)}
-                          />
-                        </TableCell>
-                        <TableCell>
-                          {member.is_active ? (
-                            <Badge variant="success">نشط</Badge>
-                          ) : (
-                            <Badge variant="destructive">موقوف</Badge>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex gap-2">
-                            <ToggleActiveButton
-                              userId={member.id}
-                              isActive={member.is_active}
-                              onToggled={(isActive) => toggleActive(member.id, isActive)}
-                            />
-                            <ResetPasswordButton userId={member.id} />
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
+        <TabsContent value="factories">
+          <FactoriesMapPanel
+            factories={factories}
+            onSaved={(id, next) => updateMember(id, next)}
+            onToggled={(id, isActive) => toggleActive(id, isActive)}
+          />
         </TabsContent>
       </Tabs>
     </div>
-  );
-}
-
-function ToggleActiveButton({
-  userId,
-  isActive,
-  onToggled,
-}: {
-  userId: string;
-  isActive: boolean;
-  onToggled: (isActive: boolean) => void;
-}) {
-  const [pending, startTransition] = useTransition();
-
-  function toggle() {
-    startTransition(async () => {
-      const res = await setStaffActiveAction(userId, !isActive);
-      if (!res.ok) {
-        toast.error(res.error);
-        return;
-      }
-      onToggled(!isActive);
-      toast.success(!isActive ? "تم تفعيل الحساب" : "تم إيقاف الحساب");
-    });
-  }
-
-  return (
-    <Button size="sm" variant={isActive ? "outline" : "default"} onClick={toggle} disabled={pending}>
-      {pending && <Loader2 className="animate-spin" />}
-      {isActive ? "إيقاف" : "تفعيل"}
-    </Button>
-  );
-}
-
-/**
- * Invalidates the old password immediately and flips the account back to
- * "needs to set a password" — the worker just signs in with their phone
- * number as usual and is prompted to create a new one, no temp password to
- * relay over the phone.
- */
-function ResetPasswordButton({ userId }: { userId: string }) {
-  const [pending, startTransition] = useTransition();
-
-  function reset() {
-    startTransition(async () => {
-      const res = await resetStaffPasswordAction(userId);
-      if (!res.ok) {
-        toast.error(res.error);
-        return;
-      }
-      toast.success("تم إعادة تعيين كلمة المرور — سيقوم بإنشاء كلمة مرور جديدة عند تسجيل الدخول برقم هاتفه");
-    });
-  }
-
-  return (
-    <Button size="sm" variant="outline" onClick={reset} disabled={pending} title="إعادة تعيين كلمة المرور">
-      {pending ? <Loader2 className="animate-spin" /> : <KeyRound className="size-4" />}
-    </Button>
   );
 }
 
@@ -434,130 +284,6 @@ function DriverRegionsCell({
   );
 }
 
-function FactoryLocationCell({
-  factoryId,
-  address,
-  lat,
-  lng,
-  mapsUrl: savedMapsUrl,
-  onSaved,
-}: {
-  factoryId: string;
-  address: string | null;
-  lat: number | null;
-  lng: number | null;
-  mapsUrl: string | null;
-  onSaved: (next: { address: string | null; lat: number | null; lng: number | null; maps_url: string | null }) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const [value, setValue] = useState(address ?? "");
-  const [mapsUrlValue, setMapsUrlValue] = useState(savedMapsUrl ?? "");
-  const [pin, setPin] = useState<{ lat: number; lng: number } | null>(lat != null && lng != null ? { lat, lng } : null);
-  const [error, setError] = useState<string | null>(null);
-  const [pending, startTransition] = useTransition();
-
-  function save() {
-    const parsed = updateStaffLocationSchema.safeParse({
-      address: value,
-      maps_url: mapsUrlValue,
-      lat: pin?.lat ?? null,
-      lng: pin?.lng ?? null,
-    });
-    if (!parsed.success) {
-      setError(parsed.error.issues[0]?.message ?? "بيانات غير صالحة");
-      return;
-    }
-    setError(null);
-    startTransition(async () => {
-      const res = await updateStaffLocationAction(factoryId, parsed.data);
-      if (!res.ok) {
-        setError(res.error);
-        return;
-      }
-      onSaved({
-        address: parsed.data.address?.trim() || null,
-        lat: parsed.data.lat,
-        lng: parsed.data.lng,
-        maps_url: parsed.data.maps_url?.trim() || null,
-      });
-      toast.success("تم تحديث موقع المصنع");
-      setOpen(false);
-    });
-  }
-
-  const mapsUrl = mapsUrlFor({ maps_url: savedMapsUrl, address, lat, lng });
-
-  return (
-    <Dialog
-      open={open}
-      onOpenChange={(next) => {
-        setOpen(next);
-        if (next) {
-          setValue(address ?? "");
-          setMapsUrlValue(savedMapsUrl ?? "");
-          setPin(lat != null && lng != null ? { lat, lng } : null);
-        }
-      }}
-    >
-      <DialogTrigger asChild>
-        <button className="flex items-center gap-1 text-start text-sm hover:underline">
-          <Factory className="size-3.5 text-muted-foreground" />
-          {address || (mapsUrl ? "موقع محدد بدون عنوان" : "تحديد الموقع")}
-          {mapsUrl && <MapPin className="size-3 text-primary" />}
-        </button>
-      </DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>موقع المصنع</DialogTitle>
-          <DialogDescription>
-            يظهر هذا العنوان والموقع للمندوب عند تسليم أو استلام أوردر مرتبط بهذا المصنع. انقر على الخريطة لتحديد الموقع
-            بدقة، أو اسحب العلامة لتعديله.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-3">
-          <div className="space-y-1.5">
-            <Label htmlFor={`factory-address-${factoryId}`}>العنوان (نصي)</Label>
-            <Input
-              id={`factory-address-${factoryId}`}
-              value={value}
-              onChange={(e) => setValue(e.target.value)}
-              placeholder="مثال: المنطقة الصناعية، مدينة نصر، مبنى 12"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor={`factory-maps-url-${factoryId}`}>رابط خرائط جوجل (اختياري)</Label>
-            <Input
-              id={`factory-maps-url-${factoryId}`}
-              dir="ltr"
-              value={mapsUrlValue}
-              onChange={(e) => setMapsUrlValue(e.target.value)}
-              placeholder="https://www.google.com/maps/place/..."
-            />
-            <p className="text-xs text-muted-foreground">
-              إن وُجد، يُستخدم هذا الرابط مباشرة بدلًا من العنوان النصي أو تحديد الخريطة أدناه — أدق وأسرع للمندوب.
-            </p>
-          </div>
-          <div className="space-y-1.5">
-            <Label>الموقع على الخريطة {pin && <span className="text-xs font-normal text-muted-foreground">(انقر لتغييره)</span>}</Label>
-            <LocationPickerMap lat={pin?.lat ?? null} lng={pin?.lng ?? null} onChange={(la, ln) => setPin({ lat: la, lng: ln })} />
-            {!pin && <p className="text-xs text-muted-foreground">انقر في أي مكان على الخريطة لتحديد موقع المصنع بدقة.</p>}
-          </div>
-          {error && <p className="text-sm text-destructive">{error}</p>}
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => setOpen(false)} disabled={pending}>
-            تراجع
-          </Button>
-          <Button onClick={save} disabled={pending}>
-            {pending && <Loader2 className="animate-spin" />}
-            حفظ
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
 function AddRegionDialog({ onCreated }: { onCreated: (region: Region) => void }) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
@@ -634,7 +360,6 @@ function AddStaffDialog({
   const [regionIds, setRegionIds] = useState<string[]>([]);
   const [address, setAddress] = useState("");
   const [mapsUrl, setMapsUrl] = useState("");
-  const [pin, setPin] = useState<{ lat: number; lng: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -646,7 +371,6 @@ function AddStaffDialog({
     setRegionIds([]);
     setAddress("");
     setMapsUrl("");
-    setPin(null);
     setError(null);
   }
 
@@ -662,8 +386,6 @@ function AddStaffDialog({
       role,
       region_ids: role === "driver" ? regionIds : [],
       address: role === "factory" ? address : undefined,
-      lat: role === "factory" ? (pin?.lat ?? null) : undefined,
-      lng: role === "factory" ? (pin?.lng ?? null) : undefined,
       maps_url: role === "factory" ? mapsUrl : undefined,
     });
     if (!parsed.success) {
@@ -684,8 +406,10 @@ function AddStaffDialog({
         role: parsed.data.role,
         region_id: null,
         address: parsed.data.role === "factory" ? (parsed.data.address?.trim() || null) : null,
-        lat: parsed.data.role === "factory" ? (parsed.data.lat ?? null) : null,
-        lng: parsed.data.role === "factory" ? (parsed.data.lng ?? null) : null,
+        // No pin yet — a brand-new factory gets one afterwards from the one
+        // general map in the Factories tab (select it, then click its spot).
+        lat: null,
+        lng: null,
         maps_url: parsed.data.role === "factory" ? (parsed.data.maps_url?.trim() || null) : null,
         is_active: true,
         password_set: false,
@@ -769,11 +493,10 @@ function AddStaffDialog({
                 />
                 <p className="text-xs text-muted-foreground">إن وُجد، يُستخدم مباشرة بدلًا من العنوان النصي أو تحديد الخريطة — أدق وأسرع للمندوب.</p>
               </div>
-              <div className="space-y-1.5">
-                <Label>الموقع على الخريطة (اختياري)</Label>
-                <LocationPickerMap lat={pin?.lat ?? null} lng={pin?.lng ?? null} onChange={(la, ln) => setPin({ lat: la, lng: ln })} />
-                <p className="text-xs text-muted-foreground">انقر على الخريطة لتحديد موقع المصنع بدقة — يمكن إضافته لاحقًا أيضًا.</p>
-              </div>
+              <p className="text-xs text-muted-foreground">
+                يمكن تحديد موقع المصنع بدقة على الخريطة بعد إنشاء الحساب — من تبويب المصانع، اختره من الجدول ثم انقر
+                على مكانه على الخريطة العامة.
+              </p>
             </div>
           )}
           {role === "driver" && (

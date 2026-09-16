@@ -102,6 +102,7 @@ export const EVENT_TYPE_LABELS_AR: Record<string, string> = {
   delivered: "تم التسليم للعميل",
   refused: "رفض العميل الاستلام",
   cancelled: "تم إلغاء الأوردر",
+  details_edited: "تم تعديل بيانات الأوردر",
 };
 
 export function eventTypeLabel(eventType: string): string {

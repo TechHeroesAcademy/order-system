@@ -27,7 +27,7 @@ export interface Profile {
   region_id: string | null;
   /** Free-text location/address. Only meaningful (and only shown) for role="factory" today. */
   address: string | null;
-  /** Precise coordinates alongside `address` — only meaningful for role="factory". Null until set via the location picker (see LocationPickerMap). Powers the exact-location Maps link and the Leaflet map/pin, instead of a text-address search. */
+  /** Precise coordinates alongside `address` — only meaningful for role="factory". Null until set by clicking the factory's pin on the one general map (see FactoriesMapPanel / FactoriesMap). Powers the exact-location Maps link and the Leaflet map/pin, instead of a text-address search. */
   lat: number | null;
   lng: number | null;
   /** Optional pasted Google Maps link (a Maps "share" link) — only meaningful for role="factory". Takes priority over lat/lng and address in mapsUrlFor() whenever present. */

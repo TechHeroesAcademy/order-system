@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth";
-import { orderFormSchema, trackOrderSchema } from "@/lib/domain/validators";
+import { orderFormSchema, editOrderSchema, trackOrderSchema } from "@/lib/domain/validators";
 import { ok, fail, toErrorMessage, type ActionResult } from "./types";
 import type {
   NewOrderResult,
@@ -87,6 +87,44 @@ export async function createModeratorOrderAction(
   revalidatePath("/owner");
   revalidatePath("/moderator");
   return ok(data as NewOrderResult);
+}
+
+/**
+ * Owner/Moderator correcting/updating any customer/order-detail field on an
+ * *existing* order (customer name/phone/address, Google Maps link, region,
+ * pieces count, piece details, color, work required, notes). Distribution
+ * fields (factory_id/driver_id) are excluded — those go through their own
+ * dedicated reassignment flow. See update_order_details() in migration 0021.
+ */
+export async function updateOrderDetailsAction(
+  orderId: string,
+  input: z.infer<typeof editOrderSchema>,
+): Promise<ActionResult> {
+  await requireRole("owner", "moderator");
+  const parsed = editOrderSchema.safeParse(input);
+  if (!parsed.success) {
+    return fail(parsed.error.issues[0]?.message ?? "بيانات غير صالحة");
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("update_order_details", {
+    p_order_id: orderId,
+    p_customer_name: parsed.data.customer_name,
+    p_customer_phone: parsed.data.customer_phone,
+    p_customer_address: parsed.data.customer_address,
+    p_customer_maps_url: parsed.data.customer_maps_url?.trim() || null,
+    p_region_id: parsed.data.region_id,
+    p_pieces_count: parsed.data.pieces_count,
+    p_piece_details: parsed.data.piece_details ?? null,
+    p_color: parsed.data.color ?? null,
+    p_work_required: parsed.data.work_required ?? null,
+    p_customer_notes: parsed.data.customer_notes ?? null,
+  });
+
+  if (error) return fail(toErrorMessage(error, "تعذر تعديل بيانات الأوردر"));
+  revalidatePath(`/owner/orders/${orderId}`);
+  revalidatePath(`/moderator/orders/${orderId}`);
+  return ok(undefined);
 }
 
 /**
