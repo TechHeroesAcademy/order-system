@@ -114,7 +114,7 @@ export default async function DriverOrderDetailPage({ params }: { params: Promis
         }
       />
 
-      <OrderChat orderId={order.id} viewerId={profile.id} />
+      <OrderChat orderId={order.id} channel="driver" viewerId={profile.id} />
 
       <Card>
         <CardHeader>

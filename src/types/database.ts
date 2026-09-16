@@ -228,10 +228,19 @@ export interface NewOrderResult {
   delivery_code: string;
 }
 
-/** One message in a per-order chat thread between the assigned driver and Owner/Moderator. See migration 0018. */
+/** Which per-order conversation a message belongs to — see migration 0019. */
+export type OrderChatChannel = "driver" | "factory";
+
+/**
+ * One message in a per-order chat thread. Two independent channels per
+ * order: 'driver' (driver <-> Owner/Moderator, migration 0018) and
+ * 'factory' (factory <-> Owner/Moderator, migration 0019) — genuinely
+ * separate conversations, never shared.
+ */
 export interface OrderMessage {
   id: string;
   order_id: string;
+  channel: OrderChatChannel;
   sender_id: string;
   sender_role: UserRole;
   body: string;

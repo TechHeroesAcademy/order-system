@@ -1,6 +1,7 @@
 "use client";
 
 import { useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -12,16 +13,32 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { formatRelative } from "@/lib/domain/format";
 import { markAllNotificationsReadAction, markNotificationReadAction } from "@/lib/actions/notifications";
-import type { AppNotification } from "@/types/database";
+import type { AppNotification, UserRole } from "@/types/database";
+
+/** Where each role's own order-detail page lives — used to open the right screen when a notification carrying an order_id is clicked. */
+const ORDER_DETAIL_BASE: Record<UserRole, string> = {
+  owner: "/owner/orders",
+  moderator: "/moderator/orders",
+  driver: "/driver/orders",
+  factory: "/factory/orders",
+};
 
 export function NotificationBell({
   notifications,
   unreadCount,
+  role,
 }: {
   notifications: AppNotification[];
   unreadCount: number;
+  role: UserRole;
 }) {
   const [pending, startTransition] = useTransition();
+  const router = useRouter();
+
+  function openNotification(n: AppNotification) {
+    if (!n.is_read) startTransition(() => { void markNotificationReadAction(n.id); });
+    if (n.order_id) router.push(`${ORDER_DETAIL_BASE[role]}/${n.order_id}`);
+  }
 
   return (
     <Popover>
@@ -60,10 +77,8 @@ export function NotificationBell({
               {notifications.map((n) => (
                 <li
                   key={n.id}
-                  className={`cursor-pointer border-b p-3 text-sm last:border-0 hover:bg-accent ${!n.is_read ? "bg-accent/50" : ""}`}
-                  onClick={() => {
-                    if (!n.is_read) startTransition(() => { void markNotificationReadAction(n.id); });
-                  }}
+                  className={`cursor-pointer border-b p-3 text-sm transition-colors last:border-0 hover:bg-accent ${!n.is_read ? "bg-accent/50" : ""}`}
+                  onClick={() => openNotification(n)}
                 >
                   <p className="font-medium">{n.title}</p>
                   {n.body && <p className="text-muted-foreground">{n.body}</p>}

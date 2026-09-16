@@ -7,6 +7,7 @@ import { orderFormSchema, trackOrderSchema } from "@/lib/domain/validators";
 import { ok, fail, toErrorMessage, type ActionResult } from "./types";
 import type {
   NewOrderResult,
+  OrderChatChannel,
   OrderMessage,
   SuggestedDriverRow,
   TrackedOrder,
@@ -305,29 +306,43 @@ export async function factoryMarkReadyAction(orderId: string): Promise<ActionRes
   return ok(undefined);
 }
 
-// ---------- Per-order chat (driver <-> Owner/Moderator) ----------
-// No requireRole() gate here on purpose — send_order_message() and the
-// order_messages RLS policy (migration 0018) are the real authorization
-// boundary (assigned driver, or Owner/Moderator; a factory account gets a
-// clean "غير مصرح" from the RPC and an empty result from a direct select),
-// exactly like every other RPC-backed action in this file.
+// ---------- Per-order chat — two independent channels ----------
+// 'driver' (driver <-> Owner/Moderator) and 'factory' (factory <->
+// Owner/Moderator), migrations 0018/0019. No requireRole() gate here on
+// purpose — send_order_message() and the order_messages RLS policy are the
+// real authorization boundary (assigned driver on the driver channel,
+// assigned factory on the factory channel, or Owner/Moderator on either;
+// anyone else gets a clean "غير مصرح" from the RPC and an empty result from
+// a direct select), exactly like every other RPC-backed action in this file.
 
-export async function listOrderMessagesAction(orderId: string): Promise<ActionResult<OrderMessage[]>> {
+export async function listOrderMessagesAction(
+  orderId: string,
+  channel: OrderChatChannel,
+): Promise<ActionResult<OrderMessage[]>> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("order_messages")
     .select("*, sender:profiles!order_messages_sender_id_fkey(full_name)")
     .eq("order_id", orderId)
+    .eq("channel", channel)
     .order("created_at", { ascending: true });
   if (error) return fail(toErrorMessage(error, "تعذر تحميل الرسائل"));
   return ok((data as unknown as OrderMessage[]) ?? []);
 }
 
-export async function sendOrderMessageAction(orderId: string, body: string): Promise<ActionResult<OrderMessage>> {
+export async function sendOrderMessageAction(
+  orderId: string,
+  channel: OrderChatChannel,
+  body: string,
+): Promise<ActionResult<OrderMessage>> {
   const trimmed = body.trim();
   if (!trimmed) return fail("اكتب رسالة قبل الإرسال");
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc("send_order_message", { p_order_id: orderId, p_body: trimmed });
+  const { data, error } = await supabase.rpc("send_order_message", {
+    p_order_id: orderId,
+    p_channel: channel,
+    p_body: trimmed,
+  });
   if (error) return fail(toErrorMessage(error, "تعذر إرسال الرسالة"));
   return ok(data as OrderMessage);
 }

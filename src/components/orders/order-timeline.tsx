@@ -1,4 +1,4 @@
-import { CheckCircle2, XCircle, Circle } from "lucide-react";
+import { CheckCircle2, XCircle } from "lucide-react";
 import { eventTypeLabel } from "@/lib/domain/order-status";
 import { formatDateTime } from "@/lib/domain/format";
 import type { OrderHistoryEntry } from "@/types/database";
@@ -14,8 +14,11 @@ export function OrderTimeline({ entries }: { entries: OrderHistoryEntry[] }) {
     <ol className="space-y-4">
       {entries.map((entry, idx) => {
         const isNegative = NEGATIVE_EVENTS.has(entry.event_type);
-        const isLast = idx === entries.length - 1;
-        const Icon = isNegative ? XCircle : isLast ? CheckCircle2 : Circle;
+        // Every row here already happened — it's a log of completed steps,
+        // not a plan of upcoming ones — so every non-negative entry gets the
+        // "done" checkmark, not just the most recent one ("the steps
+        // happened should be marked done with the right sign").
+        const Icon = isNegative ? XCircle : CheckCircle2;
         return (
           <li
             key={entry.id}
@@ -25,11 +28,7 @@ export function OrderTimeline({ entries }: { entries: OrderHistoryEntry[] }) {
             <div className="flex flex-col items-center">
               <Icon
                 className={
-                  (isNegative
-                    ? "size-5 text-destructive"
-                    : isLast
-                      ? "size-5 text-success"
-                      : "size-5 text-muted-foreground") + " animate-pop-in"
+                  (isNegative ? "size-5 text-destructive" : "size-5 text-success") + " animate-pop-in"
                 }
                 style={{ animationDelay: `${Math.min(idx, 10) * 60 + 120}ms` }}
               />

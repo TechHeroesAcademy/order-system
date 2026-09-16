@@ -8,30 +8,52 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { listOrderMessagesAction, sendOrderMessageAction } from "@/lib/actions/orders";
 import { formatRelative } from "@/lib/domain/format";
-import type { OrderMessage } from "@/types/database";
+import type { OrderChatChannel, OrderMessage } from "@/types/database";
 
 const ROLE_LABELS_AR: Record<string, string> = {
   owner: "مدير",
   moderator: "موديريتور",
   driver: "مندوب",
+  factory: "مصنع",
+};
+
+const CHANNEL_TITLES_AR: Record<OrderChatChannel, string> = {
+  driver: "دردشة المندوب",
+  factory: "دردشة المصنع",
 };
 
 const POLL_INTERVAL_MS = 4000;
 
 /**
- * Per-order chat between the assigned driver and Owner/Moderator (migration
- * 0018 — order_messages + send_order_message()). No realtime channel: this
- * app doesn't use Supabase Realtime anywhere else, so a short poll while the
- * panel is open follows the same architecture as the rest of the app
- * (RPC writes, revalidated/refetched reads) instead of introducing a new
- * pattern that nothing here has been verified against.
+ * One of the two independent per-order chat channels (migrations
+ * 0018/0019 — order_messages + send_order_message()): 'driver' (the
+ * assigned driver <-> Owner/Moderator) or 'factory' (the assigned factory
+ * <-> Owner/Moderator). No realtime channel: this app doesn't use Supabase
+ * Realtime anywhere else, so a short poll while the panel is open follows
+ * the same architecture as the rest of the app (RPC writes,
+ * revalidated/refetched reads) instead of introducing a new pattern that
+ * nothing here has been verified against. Polling pauses while the tab is
+ * hidden (document.visibilitychange) and catches up immediately when it
+ * becomes visible again, instead of burning a request every 4s in a
+ * background tab nobody is looking at.
  *
- * Rendered for Owner/Moderator on the order-detail page (always — they can
- * always message, even before a driver is assigned) and for the assigned
- * driver on their own order page. A factory account never sees this, by
- * design — see the RPC's own authorization.
+ * Rendered for Owner/Moderator on the order-detail page (both channels,
+ * always — they can always message either side, even before a driver or
+ * factory is assigned), for the assigned driver on their own order page
+ * (driver channel only), and for the assigned factory on their own order
+ * page (factory channel only). The two channels are genuinely separate
+ * conversations — a driver can never see the factory channel and vice
+ * versa, enforced by the RPC/RLS, not just by what this component renders.
  */
-export function OrderChat({ orderId, viewerId }: { orderId: string; viewerId: string }) {
+export function OrderChat({
+  orderId,
+  channel,
+  viewerId,
+}: {
+  orderId: string;
+  channel: OrderChatChannel;
+  viewerId: string;
+}) {
   const [messages, setMessages] = useState<OrderMessage[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [draft, setDraft] = useState("");
@@ -43,7 +65,8 @@ export function OrderChat({ orderId, viewerId }: { orderId: string; viewerId: st
     let cancelled = false;
 
     async function poll() {
-      const res = await listOrderMessagesAction(orderId);
+      if (document.hidden) return;
+      const res = await listOrderMessagesAction(orderId, channel);
       if (cancelled || !res.ok) return;
       setMessages(res.data);
       setLoaded(true);
@@ -51,11 +74,13 @@ export function OrderChat({ orderId, viewerId }: { orderId: string; viewerId: st
 
     poll();
     const interval = setInterval(poll, POLL_INTERVAL_MS);
+    document.addEventListener("visibilitychange", poll);
     return () => {
       cancelled = true;
       clearInterval(interval);
+      document.removeEventListener("visibilitychange", poll);
     };
-  }, [orderId]);
+  }, [orderId, channel]);
 
   useEffect(() => {
     if (messages.length !== lastCountRef.current) {
@@ -68,7 +93,7 @@ export function OrderChat({ orderId, viewerId }: { orderId: string; viewerId: st
     const body = draft.trim();
     if (!body || pending) return;
     startTransition(async () => {
-      const res = await sendOrderMessageAction(orderId, body);
+      const res = await sendOrderMessageAction(orderId, channel, body);
       if (!res.ok) {
         toast.error(res.error);
         return;
@@ -91,7 +116,7 @@ export function OrderChat({ orderId, viewerId }: { orderId: string; viewerId: st
       <CardHeader>
         <CardTitle className="flex items-center gap-1.5 text-base">
           <MessageCircle className="size-4" />
-          الدردشة
+          {CHANNEL_TITLES_AR[channel]}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3 pt-0">

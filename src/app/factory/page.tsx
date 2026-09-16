@@ -70,7 +70,7 @@ function OrderGrid({ orders }: { orders: Awaited<ReturnType<typeof listFactoryOr
     return <EmptyState icon={PackageSearch} title="لا يوجد أوردرات هنا حاليًا" />;
   }
   return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+    <div className="stagger-children grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
       {orders.map((order) => (
         <FactoryOrderCard key={order.id} order={order} />
       ))}

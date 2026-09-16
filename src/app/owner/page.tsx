@@ -30,7 +30,7 @@ export default async function OwnerDashboardPage() {
         </Button>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="stagger-children grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="إجمالي الأوردرات" value={stats.total_orders} icon={PackageCheck} />
         <StatCard label="جديدة (بانتظار التوزيع)" value={stats.new_orders} icon={PackagePlus} />
         <StatCard label="مع المندوبين" value={stats.assigned_orders + stats.collected_orders + stats.with_driver_orders} icon={Truck} />

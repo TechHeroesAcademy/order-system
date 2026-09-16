@@ -14,25 +14,43 @@ export function ShippingIllustration({ className = "" }: { className?: string })
       preserveAspectRatio="xMidYMax slice"
       className={className}
     >
-      {/* sky glow behind the sun */}
-      <circle cx="1040" cy="90" r="140" fill="#FFE9A8" opacity="0.35" />
+      {/* sky glow behind the sun — a slow pulse. transformBox/transformOrigin
+          so the CSS scale grows from the circle's own center, not the SVG
+          viewport's origin. */}
+      <circle
+        cx="1040"
+        cy="90"
+        r="140"
+        fill="#FFE9A8"
+        opacity="0.35"
+        className="animate-sun-glow"
+        style={{ transformBox: "fill-box", transformOrigin: "center" }}
+      />
       <circle cx="1040" cy="90" r="46" fill="#FFDD66" />
 
-      {/* clouds */}
+      {/* clouds — each sits in its own non-animated <g transform="translate(...)">
+          (its base position) wrapped in an outer <g> that carries only the
+          CSS drift animation, so the two transforms never fight each other. */}
       <g fill="#FFFFFF" opacity="0.9">
-        <g transform="translate(120,70)">
-          <ellipse cx="0" cy="20" rx="42" ry="22" />
-          <ellipse cx="34" cy="8" rx="30" ry="20" />
-          <ellipse cx="-34" cy="10" rx="26" ry="17" />
+        <g className="animate-cloud-drift">
+          <g transform="translate(120,70)">
+            <ellipse cx="0" cy="20" rx="42" ry="22" />
+            <ellipse cx="34" cy="8" rx="30" ry="20" />
+            <ellipse cx="-34" cy="10" rx="26" ry="17" />
+          </g>
         </g>
-        <g transform="translate(430,40)" opacity="0.8">
-          <ellipse cx="0" cy="16" rx="34" ry="17" />
-          <ellipse cx="26" cy="6" rx="22" ry="15" />
-          <ellipse cx="-24" cy="8" rx="20" ry="13" />
+        <g className="animate-cloud-drift" style={{ animationDelay: "-3s", animationDuration: "11s" }} opacity="0.8">
+          <g transform="translate(430,40)">
+            <ellipse cx="0" cy="16" rx="34" ry="17" />
+            <ellipse cx="26" cy="6" rx="22" ry="15" />
+            <ellipse cx="-24" cy="8" rx="20" ry="13" />
+          </g>
         </g>
-        <g transform="translate(820,55)" opacity="0.7">
-          <ellipse cx="0" cy="16" rx="30" ry="15" />
-          <ellipse cx="22" cy="6" rx="18" ry="13" />
+        <g className="animate-cloud-drift" style={{ animationDelay: "-6s", animationDuration: "13s" }} opacity="0.7">
+          <g transform="translate(820,55)">
+            <ellipse cx="0" cy="16" rx="30" ry="15" />
+            <ellipse cx="22" cy="6" rx="18" ry="13" />
+          </g>
         </g>
       </g>
 
@@ -44,31 +62,42 @@ export function ShippingIllustration({ className = "" }: { className?: string })
       {/* road */}
       <rect x="0" y="308" width="1200" height="92" fill="#3A3F4B" />
       <rect x="0" y="308" width="1200" height="6" fill="#4A5063" />
-      {Array.from({ length: 12 }).map((_, i) => (
-        <rect key={i} x={1150 - i * 110} y="350" width="46" height="10" rx="5" fill="#F4F4F4" opacity="0.85" />
-      ))}
+      {/* dashes scroll leftward on a loop exactly one dash-spacing (110px)
+          wide, so the pattern seams perfectly — the svg root clips anything
+          that drifts past the viewBox, same as it always has. */}
+      <g className="animate-road-scroll">
+        {Array.from({ length: 12 }).map((_, i) => (
+          <rect key={i} x={1150 - i * 110} y="350" width="46" height="10" rx="5" fill="#F4F4F4" opacity="0.85" />
+        ))}
+      </g>
 
-      {/* motion lines trailing behind the truck (it's heading left) */}
-      <g stroke="#C7CBD1" strokeWidth="6" strokeLinecap="round" opacity="0.8">
+      {/* motion lines trailing behind the truck (it's heading left) — reuse
+          the shimmer pulse so they read as flickering speed lines */}
+      <g stroke="#C7CBD1" strokeWidth="6" strokeLinecap="round" opacity="0.8" className="animate-shimmer">
         <line x1="915" y1="230" x2="975" y2="230" />
         <line x1="930" y1="255" x2="1010" y2="255" />
         <line x1="915" y1="280" x2="965" y2="280" />
       </g>
 
-      {/* a couple of parcels waiting on the roadside */}
-      <g transform="translate(1080,255)">
-        <rect x="-28" y="-28" width="56" height="56" rx="6" fill="#D9B27C" stroke="#8A6A3E" strokeWidth="3" />
-        <line x1="-28" y1="0" x2="28" y2="0" stroke="#8A6A3E" strokeWidth="4" />
-        <line x1="0" y1="-28" x2="0" y2="28" stroke="#8A6A3E" strokeWidth="4" />
+      {/* a couple of parcels waiting on the roadside, gently bobbing */}
+      <g className="animate-float">
+        <g transform="translate(1080,255)">
+          <rect x="-28" y="-28" width="56" height="56" rx="6" fill="#D9B27C" stroke="#8A6A3E" strokeWidth="3" />
+          <line x1="-28" y1="0" x2="28" y2="0" stroke="#8A6A3E" strokeWidth="4" />
+          <line x1="0" y1="-28" x2="0" y2="28" stroke="#8A6A3E" strokeWidth="4" />
+        </g>
       </g>
-      <g transform="translate(1030,272) scale(0.7)">
-        <rect x="-28" y="-28" width="56" height="56" rx="6" fill="#EFC98F" stroke="#8A6A3E" strokeWidth="3" />
-        <line x1="-28" y1="0" x2="28" y2="0" stroke="#8A6A3E" strokeWidth="4" />
-        <line x1="0" y1="-28" x2="0" y2="28" stroke="#8A6A3E" strokeWidth="4" />
+      <g className="animate-float" style={{ animationDelay: "-1.5s" }}>
+        <g transform="translate(1030,272) scale(0.7)">
+          <rect x="-28" y="-28" width="56" height="56" rx="6" fill="#EFC98F" stroke="#8A6A3E" strokeWidth="3" />
+          <line x1="-28" y1="0" x2="28" y2="0" stroke="#8A6A3E" strokeWidth="4" />
+          <line x1="0" y1="-28" x2="0" y2="28" stroke="#8A6A3E" strokeWidth="4" />
+        </g>
       </g>
 
-      {/* ===== truck (heading left) ===== */}
-      <g>
+      {/* ===== truck (heading left) — no attribute transform of its own, so
+          the bounce animation can go straight on this outer <g> ===== */}
+      <g className="animate-truck-bounce">
         {/* shadow under the truck */}
         <ellipse cx="690" cy="313" rx="230" ry="14" fill="#20242C" opacity="0.18" />
 

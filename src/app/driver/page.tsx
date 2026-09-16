@@ -33,13 +33,13 @@ export default async function DriverOrdersPage() {
           {active.length === 0 ? (
             <EmptyState icon={PackageSearch} title="لا يوجد أوردرات نشطة حاليًا" />
           ) : (
-            <ul className="space-y-2">
+            <ul className="stagger-children space-y-2">
               {active.map((order) => {
                 const delayed = isOrderDelayed(order.status, order.created_at);
                 return (
                   <li key={order.id}>
                     <Link href={`/driver/orders/${order.id}`}>
-                      <Card className="transition-colors hover:bg-accent/40">
+                      <Card className="transition-[transform,box-shadow,background-color] duration-200 hover:-translate-y-0.5 hover:bg-accent/40 hover:shadow-md">
                         <CardContent className="flex items-center justify-between gap-3 py-3">
                           <div className="min-w-0">
                             <div className="flex items-center gap-1.5">
@@ -66,11 +66,11 @@ export default async function DriverOrdersPage() {
           {completed.length === 0 ? (
             <EmptyState icon={PackageSearch} title="لا يوجد أوردرات مكتملة بعد" />
           ) : (
-            <ul className="space-y-2">
+            <ul className="stagger-children space-y-2">
               {completed.slice(0, 30).map((order) => (
                 <li key={order.id}>
                   <Link href={`/driver/orders/${order.id}`}>
-                    <Card className="transition-colors hover:bg-accent/40">
+                    <Card className="transition-[transform,box-shadow,background-color] duration-200 hover:-translate-y-0.5 hover:bg-accent/40 hover:shadow-md">
                       <CardContent className="flex items-center justify-between gap-3 py-3">
                         <div className="min-w-0">
                           <span className="font-medium">{order.order_number}</span>

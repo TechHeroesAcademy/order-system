@@ -8,6 +8,7 @@ import type {
   MonthlyReport,
   DailyReport,
   Order,
+  OrderChatChannel,
   OrderHistoryEntry,
   OrderMessage,
   OrderStatus,
@@ -118,19 +119,21 @@ export async function getOrderDeliveryCodesMap(orderIds: string[]): Promise<Reco
 }
 
 /**
- * A per-order chat thread between the assigned driver and Owner/Moderator.
- * Reads go straight through RLS (order_messages_select, migration 0018) —
+ * One of the two per-order chat threads — 'driver' (driver <-> Owner/
+ * Moderator, migration 0018) or 'factory' (factory <-> Owner/Moderator,
+ * migration 0019). Reads go straight through RLS (order_messages_select) —
  * same pattern as orders/order_history/notifications — so this is just a
  * plain select, gated by whether the current user is even allowed to see
  * any rows at all (an unauthorized caller simply gets an empty array back,
  * not an error, since RLS filters rather than rejects on SELECT).
  */
-export async function getOrderMessages(orderId: string): Promise<OrderMessage[]> {
+export async function getOrderMessages(orderId: string, channel: OrderChatChannel): Promise<OrderMessage[]> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("order_messages")
     .select("*, sender:profiles!order_messages_sender_id_fkey(full_name)")
     .eq("order_id", orderId)
+    .eq("channel", channel)
     .order("created_at", { ascending: true });
   if (error) throw error;
   return (data as unknown as OrderMessage[]) ?? [];
@@ -176,6 +179,23 @@ export async function getFactoryOrderByNumber(orderNumber: string): Promise<Fact
     .select("*")
     .eq("order_number", orderNumber.trim().toUpperCase())
     .maybeSingle();
+  if (error) throw error;
+  return (data as FactoryOrderRow) ?? null;
+}
+
+/**
+ * A single order for the factory's own detail page (new — supports the
+ * factory chat channel and the "open this order" notification click-through).
+ * Goes through factory_orders_view, same as the rest of the factory
+ * dashboard, so visibility matches exactly: only orders in
+ * collected/at_factory/ready, and only ones assigned to this factory (or
+ * unassigned). An order the factory was involved with earlier but that has
+ * since moved on (e.g. delivered) correctly stops resolving here — same as
+ * it already disappears from their dashboard tabs.
+ */
+export async function getFactoryOrderById(id: string): Promise<FactoryOrderRow | null> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("factory_orders_view").select("*").eq("id", id).maybeSingle();
   if (error) throw error;
   return (data as FactoryOrderRow) ?? null;
 }

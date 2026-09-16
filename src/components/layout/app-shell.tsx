@@ -55,7 +55,7 @@ export function AppShell({
           <div className="flex-1" />
           <div className="[&_button]:text-primary-foreground [&_button]:hover:bg-primary-foreground/10">
             <Suspense fallback={<NotificationBellSkeleton />}>
-              <NotificationBellSlot profileId={profile.id} />
+              <NotificationBellSlot profileId={profile.id} role={profile.role} />
             </Suspense>
           </div>
           <DropdownMenu>

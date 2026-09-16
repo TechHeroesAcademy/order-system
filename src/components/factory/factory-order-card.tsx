@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { PackageCheck, CheckCircle2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -14,10 +15,12 @@ export function FactoryOrderCard({ order }: { order: FactoryOrderRow }) {
   const delayed = isOrderDelayed(order.status, order.created_at);
 
   return (
-    <Card>
+    <Card className="transition-[transform,box-shadow] duration-200 hover:-translate-y-0.5 hover:shadow-md">
       <CardContent className="space-y-3 py-4">
         <div className="flex items-center justify-between">
-          <span className="font-bold">{order.order_number}</span>
+          <Link href={`/factory/orders/${order.id}`} className="font-bold hover:underline">
+            {order.order_number}
+          </Link>
           <div className="flex items-center gap-1.5">
             {delayed && <Badge variant="warning">متأخر</Badge>}
             <OrderStatusBadge status={order.status} />

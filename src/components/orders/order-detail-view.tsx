@@ -248,7 +248,12 @@ export function OrderDetailView({
           </Card>
         )}
 
-        {canManageDistribution && <OrderChat orderId={order.id} viewerId={viewerProfile.id} />}
+        {canManageDistribution && (
+          <>
+            <OrderChat orderId={order.id} channel="driver" viewerId={viewerProfile.id} />
+            <OrderChat orderId={order.id} channel="factory" viewerId={viewerProfile.id} />
+          </>
+        )}
       </div>
     </div>
   );
