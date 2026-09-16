@@ -40,12 +40,12 @@ function LoginPageInner() {
       <Card className="relative z-10 w-full max-w-sm">
         <CardHeader>
           <CardTitle>تسجيل دخول فريق العمل</CardTitle>
-          <CardDescription>للـ Owner والموديريتور والمندوبين والمصنع</CardDescription>
+          <CardDescription>للمدير والموديريتور والمندوبين والمصنع</CardDescription>
         </CardHeader>
         <CardContent>
           {inactiveError && (
             <Alert variant="destructive" className="mb-4">
-              <AlertDescription>هذا الحساب غير مفعّل. تواصل مع صاحب النظام.</AlertDescription>
+              <AlertDescription>هذا الحساب غير مفعّل. تواصل مع المدير.</AlertDescription>
             </Alert>
           )}
           <PhoneLoginFlow />

@@ -18,14 +18,14 @@ export default async function SetupPage() {
 
       <Card className="relative z-10 w-full max-w-sm">
         <CardHeader>
-          <CardTitle>إعداد حساب صاحب النظام</CardTitle>
+          <CardTitle>إعداد حساب المدير</CardTitle>
           <CardDescription>خطوة تُنفَّذ مرة واحدة فقط عند أول استخدام للنظام</CardDescription>
         </CardHeader>
         <CardContent>
           {alreadySetUp ? (
             <div className="space-y-4 text-center">
               <p className="text-sm text-muted-foreground">
-                تم إعداد حساب صاحب النظام بالفعل. سجّل الدخول برقم هاتفك من صفحة الدخول.
+                تم إعداد حساب المدير بالفعل. سجّل الدخول برقم هاتفك من صفحة الدخول.
               </p>
               <Button asChild className="w-full">
                 <Link href="/login">الذهاب لصفحة الدخول</Link>

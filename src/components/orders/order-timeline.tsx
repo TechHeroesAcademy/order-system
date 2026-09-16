@@ -57,7 +57,7 @@ export function OrderTimeline({ entries }: { entries: OrderHistoryEntry[] }) {
 
 function roleLabel(role: string) {
   const labels: Record<string, string> = {
-    owner: "Owner",
+    owner: "مدير",
     moderator: "موديريتور",
     driver: "مندوب",
     factory: "مصنع",

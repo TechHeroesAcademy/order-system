@@ -35,7 +35,7 @@ export async function bootstrapOwnerAction(
   if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? "بيانات غير صالحة");
 
   if (await ownerExists()) {
-    return fail("تم إعداد حساب صاحب النظام بالفعل — سجّل الدخول من صفحة الدخول");
+    return fail("تم إعداد حساب المدير بالفعل — سجّل الدخول من صفحة الدخول");
   }
 
   const admin = createAdminClient();

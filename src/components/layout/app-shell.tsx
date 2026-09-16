@@ -22,7 +22,7 @@ export interface NavItem {
 }
 
 const ROLE_LABELS_AR: Record<string, string> = {
-  owner: "صاحب النظام",
+  owner: "مدير",
   moderator: "موديريتور",
   driver: "مندوب",
   factory: "المصنع",

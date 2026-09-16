@@ -51,7 +51,7 @@ export function DistributionPanel({
         toast.error(res.error);
         return;
       }
-      toast.success("تم تحديد المندوب — بانتظار اعتماد Owner");
+      toast.success("تم تحديد المندوب — بانتظار اعتماد المدير");
       router.refresh();
     });
   }

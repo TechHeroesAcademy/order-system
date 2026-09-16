@@ -33,7 +33,7 @@ export default async function ModeratorDashboardPage() {
 
       <div className="rounded-lg border bg-muted/40 p-4 text-sm text-muted-foreground">
         استخدم زر &quot;أوردر جديد&quot; لتسجيل أي طلب وارد عبر Messenger أو الهاتف. الأوردرات الواردة من الموقع تظهر تلقائيًا في
-        قائمة الأوردرات وبإمكانك اقتراح مندوب لها بانتظار اعتماد صاحب النظام.
+        قائمة الأوردرات وبإمكانك اقتراح مندوب لها بانتظار اعتماد المدير.
       </div>
     </div>
   );

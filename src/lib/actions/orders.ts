@@ -110,13 +110,17 @@ export async function trackOrderAction(
   }
 
   const supabase = await createClient();
+  // track_order returns setof (see migration 0017) — always a plain array,
+  // empty for "no order matches both the number and the phone", one row
+  // for a match. Never a shape that could be mistaken for a found order.
   const { data, error } = await supabase.rpc("track_order", {
     p_order_number: parsed.data.order_number,
     p_phone: parsed.data.phone,
   });
 
   if (error) return fail(toErrorMessage(error, "تعذر البحث عن الأوردر"));
-  return ok((data as TrackedOrder | null) ?? null);
+  const rows = (data as TrackedOrder[]) ?? [];
+  return ok(rows[0] ?? null);
 }
 
 // ---------- Owner: distribution ----------

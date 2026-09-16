@@ -13,7 +13,7 @@ const ROLE_HOME: Record<string, string> = {
 };
 
 const ROLE_LABEL_AR: Record<string, string> = {
-  owner: "صاحب النظام",
+  owner: "مدير",
   moderator: "المشرف",
   driver: "المندوب",
   factory: "المصنع",
@@ -79,7 +79,7 @@ export default async function HomePage() {
               </div>
               <CardTitle className="text-primary-foreground">تسجيل دخول فريق العمل</CardTitle>
               <CardDescription className="text-primary-foreground/80">
-                للموديريتور وOwner والمندوبين والمصنع — من هنا يتم إنشاء ومتابعة الأوردرات
+                للموديريتور والمدير والمندوبين والمصنع — من هنا يتم إنشاء ومتابعة الأوردرات
               </CardDescription>
             </CardHeader>
             <CardContent>
