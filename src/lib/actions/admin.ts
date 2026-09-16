@@ -54,6 +54,7 @@ export async function createStaffAccountAction(
       address: parsed.data.role === "factory" ? (parsed.data.address?.trim() || null) : null,
       lat: parsed.data.role === "factory" ? (parsed.data.lat ?? null) : null,
       lng: parsed.data.role === "factory" ? (parsed.data.lng ?? null) : null,
+      maps_url: parsed.data.role === "factory" ? (parsed.data.maps_url?.trim() || null) : null,
     },
   });
 
@@ -167,6 +168,7 @@ export async function updateStaffLocationAction(
     .from("profiles")
     .update({
       address: parsed.data.address?.trim() || null,
+      maps_url: parsed.data.maps_url?.trim() || null,
       lat: parsed.data.lat,
       lng: parsed.data.lng,
     })

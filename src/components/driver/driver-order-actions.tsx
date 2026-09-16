@@ -30,7 +30,13 @@ import { formatDateTime } from "@/lib/domain/format";
 import { mapsUrlFor } from "@/lib/domain/maps";
 import type { Order } from "@/types/database";
 
-type FactoryInfo = { full_name: string; address: string | null; lat?: number | null; lng?: number | null } | null;
+type FactoryInfo = {
+  full_name: string;
+  address: string | null;
+  lat?: number | null;
+  lng?: number | null;
+  maps_url?: string | null;
+} | null;
 
 /** Small "which factory / where" strip shown alongside every factory-related step below. */
 function FactoryLocationNote({ factory }: { factory: FactoryInfo }) {

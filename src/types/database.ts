@@ -30,6 +30,8 @@ export interface Profile {
   /** Precise coordinates alongside `address` — only meaningful for role="factory". Null until set via the location picker (see LocationPickerMap). Powers the exact-location Maps link and the Leaflet map/pin, instead of a text-address search. */
   lat: number | null;
   lng: number | null;
+  /** Optional pasted Google Maps link (a Maps "share" link) — only meaningful for role="factory". Takes priority over lat/lng and address in mapsUrlFor() whenever present. */
+  maps_url: string | null;
   is_active: boolean;
   password_set: boolean;
   created_at: string;
@@ -56,6 +58,8 @@ export interface Order {
   customer_name: string;
   customer_phone: string;
   customer_address: string;
+  /** Optional pasted Google Maps link (a Maps "share" link, e.g. .../maps/place/...) — takes priority over customer_address in mapsUrlFor() whenever present. */
+  customer_maps_url: string | null;
   region_id: string | null;
   pieces_count: number;
   piece_details: string | null;

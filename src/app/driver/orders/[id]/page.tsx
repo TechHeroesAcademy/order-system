@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatDateTime } from "@/lib/domain/format";
 import { isOrderDelayed } from "@/lib/domain/order-status";
-import { googleMapsSearchUrl } from "@/lib/domain/maps";
+import { mapsUrlFor } from "@/lib/domain/maps";
 
 export default async function DriverOrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -29,6 +29,12 @@ export default async function DriverOrderDetailPage({ params }: { params: Promis
   const region = regions.find((r) => r.id === order.region_id) ?? null;
   const assignedFactory = factories.find((f) => f.id === order.assigned_factory_id) ?? null;
   const delayed = isOrderDelayed(order.status, order.created_at);
+
+  // "Open" shows both legs of the trip: where to pick up/drop off from the
+  // customer, and — while a factory is assigned — where the factory is, so
+  // the driver never has to leave this page to navigate either leg.
+  const customerMapsUrl = mapsUrlFor({ maps_url: order.customer_maps_url, address: order.customer_address });
+  const factoryMapsUrl = assignedFactory ? mapsUrlFor(assignedFactory) : null;
 
   return (
     <div className="mx-auto max-w-xl space-y-4">
@@ -81,21 +87,33 @@ export default async function DriverOrderDetailPage({ params }: { params: Promis
             )}
           </dl>
 
-          <div className="grid grid-cols-2 gap-2">
+          <div className={`grid gap-2 ${factoryMapsUrl ? "grid-cols-3" : "grid-cols-2"}`}>
             <a
               href={`tel:${order.customer_phone}`}
               className="block rounded-lg border bg-accent/40 p-3 text-center text-sm font-medium hover:bg-accent"
             >
               اتصال بالعميل
             </a>
-            <a
-              href={googleMapsSearchUrl(order.customer_address)}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="block rounded-lg border bg-accent/40 p-3 text-center text-sm font-medium hover:bg-accent"
-            >
-              فتح الموقع على الخريطة
-            </a>
+            {customerMapsUrl && (
+              <a
+                href={customerMapsUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block rounded-lg border bg-accent/40 p-3 text-center text-sm font-medium hover:bg-accent"
+              >
+                موقع العميل
+              </a>
+            )}
+            {factoryMapsUrl && (
+              <a
+                href={factoryMapsUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block rounded-lg border bg-accent/40 p-3 text-center text-sm font-medium hover:bg-accent"
+              >
+                موقع المصنع
+              </a>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -109,6 +127,7 @@ export default async function DriverOrderDetailPage({ params }: { params: Promis
                 address: assignedFactory.address,
                 lat: assignedFactory.lat,
                 lng: assignedFactory.lng,
+                maps_url: assignedFactory.maps_url,
               }
             : null
         }

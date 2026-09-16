@@ -42,6 +42,24 @@ describe("orderFormSchema", () => {
     const result = orderFormSchema.safeParse({ ...base, region_id: null });
     expect(result.success).toBe(true);
   });
+
+  it("accepts a pasted Google Maps link for the customer", () => {
+    const result = orderFormSchema.safeParse({
+      ...base,
+      customer_maps_url: "https://www.google.com/maps/place/Nasr+City,+Cairo/@30.05,31.32,3052m",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("leaves customer_maps_url optional", () => {
+    expect(orderFormSchema.safeParse(base).success).toBe(true);
+    expect(orderFormSchema.safeParse({ ...base, customer_maps_url: "" }).success).toBe(true);
+  });
+
+  it("rejects a customer_maps_url that isn't a link", () => {
+    const result = orderFormSchema.safeParse({ ...base, customer_maps_url: "مدينة نصر" });
+    expect(result.success).toBe(false);
+  });
 });
 
 describe("trackOrderSchema", () => {

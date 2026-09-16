@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
   TableBody,
@@ -86,13 +87,24 @@ export function TeamManager({
   const [regionsByDriver, setRegionsByDriver] = useState(driverRegionsMap);
   const isModerator = viewerRole === "moderator";
 
+  const workers = useMemo(() => staffList.filter((m) => m.role !== "factory"), [staffList]);
+  const factories = useMemo(() => staffList.filter((m) => m.role === "factory"), [staffList]);
+
   const factoryPins: FactoryPin[] = useMemo(
     () =>
-      staffList
-        .filter((m): m is Profile & { lat: number; lng: number } => m.role === "factory" && m.lat != null && m.lng != null)
+      factories
+        .filter((m): m is Profile & { lat: number; lng: number } => m.lat != null && m.lng != null)
         .map((m) => ({ id: m.id, full_name: m.full_name, address: m.address, lat: m.lat, lng: m.lng })),
-    [staffList],
+    [factories],
   );
+
+  function updateMember(id: string, patch: Partial<Profile>) {
+    setStaffList((prev) => prev.map((m) => (m.id === id ? { ...m, ...patch } : m)));
+  }
+
+  function toggleActive(id: string, isActive: boolean) {
+    updateMember(id, { is_active: isActive });
+  }
 
   return (
     <div className="space-y-4">
@@ -112,103 +124,166 @@ export function TeamManager({
         </div>
       </div>
 
-      {factoryPins.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <MapIcon className="size-4" />
-              خريطة المصانع ({factoryPins.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <FactoriesOverviewMap factories={factoryPins} />
-          </CardContent>
-        </Card>
-      )}
+      <Tabs defaultValue="workers">
+        <TabsList>
+          <TabsTrigger value="workers">
+            <Users className="size-4" />
+            الموظفون ({workers.length})
+          </TabsTrigger>
+          <TabsTrigger value="factories">
+            <Factory className="size-4" />
+            المصانع ({factories.length})
+          </TabsTrigger>
+        </TabsList>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">أعضاء الفريق ({staffList.length})</CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          {staffList.length === 0 ? (
-            <EmptyState icon={Users} title="لا يوجد أعضاء بعد" />
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>الاسم</TableHead>
-                  <TableHead>الهاتف</TableHead>
-                  <TableHead>الدور</TableHead>
-                  <TableHead>المناطق / الموقع</TableHead>
-                  <TableHead>الحالة</TableHead>
-                  <TableHead />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {staffList.map((member) => (
-                  <TableRow key={member.id}>
-                    <TableCell className="font-medium">{member.full_name}</TableCell>
-                    <TableCell className="text-muted-foreground" dir="ltr">
-                      {member.phone ?? "—"}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{ROLE_LABELS_AR[member.role]}</Badge>
-                    </TableCell>
-                    <TableCell>
-                      {member.role === "driver" ? (
-                        <DriverRegionsCell
-                          driverId={member.id}
-                          regions={regionsList}
-                          assignedIds={regionsByDriver[member.id] ?? []}
-                          onSaved={(ids) => setRegionsByDriver((prev) => ({ ...prev, [member.id]: ids }))}
-                        />
-                      ) : member.role === "factory" ? (
-                        <FactoryLocationCell
-                          factoryId={member.id}
-                          address={member.address}
-                          lat={member.lat}
-                          lng={member.lng}
-                          onSaved={(next) =>
-                            setStaffList((prev) => prev.map((m) => (m.id === member.id ? { ...m, ...next } : m)))
-                          }
-                        />
-                      ) : (
-                        <span className="text-muted-foreground">—</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {member.is_active ? (
-                        <Badge variant="success">نشط</Badge>
-                      ) : (
-                        <Badge variant="destructive">موقوف</Badge>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {isModerator && !["driver", "factory"].includes(member.role) ? (
-                        <span className="text-xs text-muted-foreground">—</span>
-                      ) : (
-                        <div className="flex gap-2">
-                          <ToggleActiveButton
-                            userId={member.id}
-                            isActive={member.is_active}
-                            onToggled={(isActive) =>
-                              setStaffList((prev) =>
-                                prev.map((m) => (m.id === member.id ? { ...m, is_active: isActive } : m)),
-                              )
-                            }
-                          />
-                          <ResetPasswordButton userId={member.id} />
-                        </div>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+        <TabsContent value="workers" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">الموظفون ({workers.length})</CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              {workers.length === 0 ? (
+                <EmptyState icon={Users} title="لا يوجد موظفون بعد" />
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>الاسم</TableHead>
+                      <TableHead>الهاتف</TableHead>
+                      <TableHead>الدور</TableHead>
+                      <TableHead>المناطق</TableHead>
+                      <TableHead>الحالة</TableHead>
+                      <TableHead />
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {workers.map((member) => (
+                      <TableRow key={member.id}>
+                        <TableCell className="font-medium">{member.full_name}</TableCell>
+                        <TableCell className="text-muted-foreground" dir="ltr">
+                          {member.phone ?? "—"}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline">{ROLE_LABELS_AR[member.role]}</Badge>
+                        </TableCell>
+                        <TableCell>
+                          {member.role === "driver" ? (
+                            <DriverRegionsCell
+                              driverId={member.id}
+                              regions={regionsList}
+                              assignedIds={regionsByDriver[member.id] ?? []}
+                              onSaved={(ids) => setRegionsByDriver((prev) => ({ ...prev, [member.id]: ids }))}
+                            />
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {member.is_active ? (
+                            <Badge variant="success">نشط</Badge>
+                          ) : (
+                            <Badge variant="destructive">موقوف</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {isModerator && !["driver", "factory"].includes(member.role) ? (
+                            <span className="text-xs text-muted-foreground">—</span>
+                          ) : (
+                            <div className="flex gap-2">
+                              <ToggleActiveButton
+                                userId={member.id}
+                                isActive={member.is_active}
+                                onToggled={(isActive) => toggleActive(member.id, isActive)}
+                              />
+                              <ResetPasswordButton userId={member.id} />
+                            </div>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="factories" className="space-y-4">
+          {factoryPins.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <MapIcon className="size-4" />
+                  خريطة المصانع ({factoryPins.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <FactoriesOverviewMap factories={factoryPins} />
+              </CardContent>
+            </Card>
           )}
-        </CardContent>
-      </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">المصانع ({factories.length})</CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              {factories.length === 0 ? (
+                <EmptyState icon={Factory} title="لا يوجد حساب مصنع بعد" />
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>الاسم</TableHead>
+                      <TableHead>الهاتف</TableHead>
+                      <TableHead>الموقع</TableHead>
+                      <TableHead>الحالة</TableHead>
+                      <TableHead />
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {factories.map((member) => (
+                      <TableRow key={member.id}>
+                        <TableCell className="font-medium">{member.full_name}</TableCell>
+                        <TableCell className="text-muted-foreground" dir="ltr">
+                          {member.phone ?? "—"}
+                        </TableCell>
+                        <TableCell>
+                          <FactoryLocationCell
+                            factoryId={member.id}
+                            address={member.address}
+                            lat={member.lat}
+                            lng={member.lng}
+                            mapsUrl={member.maps_url}
+                            onSaved={(next) => updateMember(member.id, next)}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          {member.is_active ? (
+                            <Badge variant="success">نشط</Badge>
+                          ) : (
+                            <Badge variant="destructive">موقوف</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex gap-2">
+                            <ToggleActiveButton
+                              userId={member.id}
+                              isActive={member.is_active}
+                              onToggled={(isActive) => toggleActive(member.id, isActive)}
+                            />
+                            <ResetPasswordButton userId={member.id} />
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
@@ -364,22 +439,30 @@ function FactoryLocationCell({
   address,
   lat,
   lng,
+  mapsUrl: savedMapsUrl,
   onSaved,
 }: {
   factoryId: string;
   address: string | null;
   lat: number | null;
   lng: number | null;
-  onSaved: (next: { address: string | null; lat: number | null; lng: number | null }) => void;
+  mapsUrl: string | null;
+  onSaved: (next: { address: string | null; lat: number | null; lng: number | null; maps_url: string | null }) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState(address ?? "");
+  const [mapsUrlValue, setMapsUrlValue] = useState(savedMapsUrl ?? "");
   const [pin, setPin] = useState<{ lat: number; lng: number } | null>(lat != null && lng != null ? { lat, lng } : null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   function save() {
-    const parsed = updateStaffLocationSchema.safeParse({ address: value, lat: pin?.lat ?? null, lng: pin?.lng ?? null });
+    const parsed = updateStaffLocationSchema.safeParse({
+      address: value,
+      maps_url: mapsUrlValue,
+      lat: pin?.lat ?? null,
+      lng: pin?.lng ?? null,
+    });
     if (!parsed.success) {
       setError(parsed.error.issues[0]?.message ?? "بيانات غير صالحة");
       return;
@@ -391,13 +474,18 @@ function FactoryLocationCell({
         setError(res.error);
         return;
       }
-      onSaved({ address: parsed.data.address?.trim() || null, lat: parsed.data.lat, lng: parsed.data.lng });
+      onSaved({
+        address: parsed.data.address?.trim() || null,
+        lat: parsed.data.lat,
+        lng: parsed.data.lng,
+        maps_url: parsed.data.maps_url?.trim() || null,
+      });
       toast.success("تم تحديث موقع المصنع");
       setOpen(false);
     });
   }
 
-  const mapsUrl = mapsUrlFor({ address, lat, lng });
+  const mapsUrl = mapsUrlFor({ maps_url: savedMapsUrl, address, lat, lng });
 
   return (
     <Dialog
@@ -406,6 +494,7 @@ function FactoryLocationCell({
         setOpen(next);
         if (next) {
           setValue(address ?? "");
+          setMapsUrlValue(savedMapsUrl ?? "");
           setPin(lat != null && lng != null ? { lat, lng } : null);
         }
       }}
@@ -434,6 +523,19 @@ function FactoryLocationCell({
               onChange={(e) => setValue(e.target.value)}
               placeholder="مثال: المنطقة الصناعية، مدينة نصر، مبنى 12"
             />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor={`factory-maps-url-${factoryId}`}>رابط خرائط جوجل (اختياري)</Label>
+            <Input
+              id={`factory-maps-url-${factoryId}`}
+              dir="ltr"
+              value={mapsUrlValue}
+              onChange={(e) => setMapsUrlValue(e.target.value)}
+              placeholder="https://www.google.com/maps/place/..."
+            />
+            <p className="text-xs text-muted-foreground">
+              إن وُجد، يُستخدم هذا الرابط مباشرة بدلًا من العنوان النصي أو تحديد الخريطة أدناه — أدق وأسرع للمندوب.
+            </p>
           </div>
           <div className="space-y-1.5">
             <Label>الموقع على الخريطة {pin && <span className="text-xs font-normal text-muted-foreground">(انقر لتغييره)</span>}</Label>
@@ -531,6 +633,7 @@ function AddStaffDialog({
   const [role, setRole] = useState<UserRole>(roleOptions[0]);
   const [regionIds, setRegionIds] = useState<string[]>([]);
   const [address, setAddress] = useState("");
+  const [mapsUrl, setMapsUrl] = useState("");
   const [pin, setPin] = useState<{ lat: number; lng: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -542,6 +645,7 @@ function AddStaffDialog({
     setRole(roleOptions[0]);
     setRegionIds([]);
     setAddress("");
+    setMapsUrl("");
     setPin(null);
     setError(null);
   }
@@ -560,6 +664,7 @@ function AddStaffDialog({
       address: role === "factory" ? address : undefined,
       lat: role === "factory" ? (pin?.lat ?? null) : undefined,
       lng: role === "factory" ? (pin?.lng ?? null) : undefined,
+      maps_url: role === "factory" ? mapsUrl : undefined,
     });
     if (!parsed.success) {
       setError(parsed.error.issues[0]?.message ?? "بيانات غير صالحة");
@@ -581,6 +686,7 @@ function AddStaffDialog({
         address: parsed.data.role === "factory" ? (parsed.data.address?.trim() || null) : null,
         lat: parsed.data.role === "factory" ? (parsed.data.lat ?? null) : null,
         lng: parsed.data.role === "factory" ? (parsed.data.lng ?? null) : null,
+        maps_url: parsed.data.role === "factory" ? (parsed.data.maps_url?.trim() || null) : null,
         is_active: true,
         password_set: false,
         created_at: new Date().toISOString(),
@@ -651,6 +757,17 @@ function AddStaffDialog({
                   placeholder="مثال: المنطقة الصناعية، مدينة نصر، مبنى 12"
                 />
                 <p className="text-xs text-muted-foreground">يظهر هذا العنوان للمندوب عند تسليم أو استلام أوردر من هذا المصنع.</p>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="staff-maps-url">رابط خرائط جوجل (اختياري)</Label>
+                <Input
+                  id="staff-maps-url"
+                  dir="ltr"
+                  value={mapsUrl}
+                  onChange={(e) => setMapsUrl(e.target.value)}
+                  placeholder="https://www.google.com/maps/place/..."
+                />
+                <p className="text-xs text-muted-foreground">إن وُجد، يُستخدم مباشرة بدلًا من العنوان النصي أو تحديد الخريطة — أدق وأسرع للمندوب.</p>
               </div>
               <div className="space-y-1.5">
                 <Label>الموقع على الخريطة (اختياري)</Label>

@@ -3,6 +3,23 @@ import { z } from "zod";
 /** Egyptian-friendly loose phone validation: digits, spaces, +, - allowed, 8-15 digits total. */
 const phoneRegex = /^[\d+\-\s]{8,20}$/;
 
+/**
+ * A pasted Google Maps link — e.g. a "share link" copied from the Maps app
+ * (Share > Copy link), which can be a long .../maps/place/... URL carrying
+ * its own precise coordinates, or a shortened maps.app.goo.gl one. Loosely
+ * validated (just "looks like an http(s) URL") rather than with z.string().url()
+ * — Maps share links can be very long with unusual query characters, and the
+ * point here is just to catch an obvious typo/non-link paste, not to
+ * validate Google's URL format.
+ */
+const mapsUrlField = z
+  .string()
+  .trim()
+  .max(2000, "الرابط طويل جدًا")
+  .optional()
+  .nullable()
+  .refine((v) => !v || /^https?:\/\/\S+$/i.test(v), "الصق رابط خرائط جوجل كامل (يبدأ بـ http:// أو https://)");
+
 export const orderFormSchema = z.object({
   customer_name: z
     .string()
@@ -19,6 +36,11 @@ export const orderFormSchema = z.object({
     .trim()
     .min(5, "العنوان قصير جدًا")
     .max(500, "العنوان طويل جدًا"),
+  // Optional pasted Google Maps link for the customer's exact location —
+  // preferred over a text search of customer_address whenever present (see
+  // mapsUrlFor). Independent of customer_address, which stays required as
+  // the human-readable fallback and is always shown regardless.
+  customer_maps_url: mapsUrlField,
   region_id: z.string().uuid("اختر المنطقة").nullable(),
   pieces_count: z
     .number()
@@ -95,11 +117,15 @@ export const createStaffAccountSchema = z.object({
   // address above — also optional/fill-in-later for the same reason.
   lat: z.number().min(-90).max(90).optional().nullable(),
   lng: z.number().min(-180).max(180).optional().nullable(),
+  // Optional pasted Google Maps link — preferred over lat/lng/address in
+  // mapsUrlFor() whenever present, same idea as the order form's field above.
+  maps_url: mapsUrlField,
 });
 
 /** Owner/Moderator editing an existing factory account's location. */
 export const updateStaffLocationSchema = z.object({
   address: z.string().trim().max(500).nullable(),
+  maps_url: mapsUrlField,
   lat: z.number().min(-90).max(90).nullable(),
   lng: z.number().min(-180).max(180).nullable(),
 });

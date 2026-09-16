@@ -17,12 +17,22 @@ export function googleMapsCoordUrl(lat: number, lng: number): string {
 }
 
 /**
- * Best available Maps link for a location that may have precise
- * coordinates (from the Leaflet picker) and/or just a free-text address —
- * prefers coordinates, falls back to a text search, and is null only when
- * there's nothing to link to at all.
+ * Best available Maps link for a location that may have a directly-pasted
+ * Google Maps link, precise coordinates (from the Leaflet picker), and/or
+ * just a free-text address — prefers the pasted link (it's the most
+ * intentional/precise thing staff can give us — e.g. a "share link" a
+ * customer sent on WhatsApp/Messenger), then coordinates, then falls back to
+ * a text search, and is null only when there's nothing to link to at all.
  */
-export function mapsUrlFor(location: { address?: string | null; lat?: number | null; lng?: number | null }): string | null {
+export function mapsUrlFor(location: {
+  maps_url?: string | null;
+  address?: string | null;
+  lat?: number | null;
+  lng?: number | null;
+}): string | null {
+  if (location.maps_url) {
+    return location.maps_url;
+  }
   if (location.lat != null && location.lng != null) {
     return googleMapsCoordUrl(location.lat, location.lng);
   }

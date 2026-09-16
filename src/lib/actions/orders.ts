@@ -37,6 +37,7 @@ export async function createPublicOrderAction(
     p_work_required: parsed.data.work_required ?? null,
     p_customer_notes: parsed.data.customer_notes ?? null,
     p_factory_id: parsed.data.factory_id ?? null,
+    p_customer_maps_url: parsed.data.customer_maps_url?.trim() || null,
   });
 
   if (error) return fail(toErrorMessage(error, "تعذر إنشاء الأوردر"));
@@ -79,6 +80,7 @@ export async function createModeratorOrderAction(
     p_customer_notes: parsed.data.customer_notes ?? null,
     p_factory_id: parsed.data.factory_id ?? null,
     p_driver_id: parsed.data.driver_id ?? null,
+    p_customer_maps_url: parsed.data.customer_maps_url?.trim() || null,
   });
 
   if (error) return fail(toErrorMessage(error, "تعذر إنشاء الأوردر"));

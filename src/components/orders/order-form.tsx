@@ -43,6 +43,7 @@ export function OrderForm({
       customer_name: "",
       customer_phone: "",
       customer_address: "",
+      customer_maps_url: "",
       region_id: null,
       pieces_count: 1,
       piece_details: "",
@@ -149,6 +150,29 @@ export function OrderForm({
               <FormControl>
                 <Textarea rows={2} {...field} />
               </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="customer_maps_url"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>رابط الموقع على خرائط جوجل (اختياري)</FormLabel>
+              <FormControl>
+                <Input
+                  dir="ltr"
+                  placeholder="https://www.google.com/maps/place/..."
+                  {...field}
+                  value={field.value ?? ""}
+                />
+              </FormControl>
+              <p className="text-xs text-muted-foreground">
+                إن كان لدى العميل رابط موقعه من تطبيق خرائط جوجل (مشاركة ↦ نسخ الرابط)، الصقه هنا ليفتح المندوب
+                موقعه الدقيق مباشرة بدلًا من البحث عن العنوان النصي.
+              </p>
               <FormMessage />
             </FormItem>
           )}

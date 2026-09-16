@@ -12,7 +12,7 @@ import { DeliveryCodeReveal } from "./delivery-code-reveal";
 import { Badge } from "@/components/ui/badge";
 import { formatDateTime } from "@/lib/domain/format";
 import { isOrderDelayed } from "@/lib/domain/order-status";
-import { googleMapsSearchUrl, mapsUrlFor } from "@/lib/domain/maps";
+import { mapsUrlFor } from "@/lib/domain/maps";
 import { PackageCheck, CheckCircle2, MapPin } from "lucide-react";
 import type { Order, OrderHistoryEntry, Region, Profile } from "@/types/database";
 
@@ -37,6 +37,7 @@ export function OrderDetailView({
   assignedFactoryAddress,
   assignedFactoryLat,
   assignedFactoryLng,
+  assignedFactoryMapsUrl,
   viewerProfile,
   canManageDistribution,
   drivers = [],
@@ -50,6 +51,7 @@ export function OrderDetailView({
   assignedFactoryAddress?: string | null;
   assignedFactoryLat?: number | null;
   assignedFactoryLng?: number | null;
+  assignedFactoryMapsUrl?: string | null;
   viewerProfile: Profile;
   canManageDistribution: boolean;
   /** Active drivers, for the "change driver" control below — only needed when canManageDistribution. */
@@ -92,7 +94,8 @@ export function OrderDetailView({
                 <dd className="text-sm">
                   {order.customer_address}
                   {(() => {
-                    const url = googleMapsSearchUrl(order.customer_address);
+                    const url = mapsUrlFor({ maps_url: order.customer_maps_url, address: order.customer_address });
+                    if (!url) return null;
                     return (
                       <a
                         href={url}
@@ -134,7 +137,12 @@ export function OrderDetailView({
                   )}
                   {assignedFactoryName &&
                     (() => {
-                      const url = mapsUrlFor({ address: assignedFactoryAddress, lat: assignedFactoryLat, lng: assignedFactoryLng });
+                      const url = mapsUrlFor({
+                        maps_url: assignedFactoryMapsUrl,
+                        address: assignedFactoryAddress,
+                        lat: assignedFactoryLat,
+                        lng: assignedFactoryLng,
+                      });
                       if (!url) return null;
                       return (
                         <a
