@@ -35,6 +35,7 @@ export default async function OwnerOrderDetailPage({ params }: { params: Promise
       viewerProfile={profile}
       canManageDistribution
       drivers={drivers}
+      factories={factories}
     />
   );
 }

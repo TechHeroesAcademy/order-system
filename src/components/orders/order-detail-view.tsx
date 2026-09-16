@@ -3,7 +3,9 @@ import { OrderStatusBadge } from "./order-status-badge";
 import { OrderTimeline } from "./order-timeline";
 import { DistributionPanel } from "./distribution-panel";
 import { ChangeDriverButton } from "./change-driver-button";
+import { ChangeFactoryButton } from "./change-factory-button";
 import { CancelOrderButton } from "./cancel-order-button";
+import { OrderChat } from "./order-chat";
 import { ConfirmActionButton } from "@/components/shared/confirm-action-button";
 import { factoryConfirmReceiptAction, factoryMarkReadyAction } from "@/lib/actions/orders";
 import { DeliveryCodeReveal } from "./delivery-code-reveal";
@@ -38,6 +40,7 @@ export function OrderDetailView({
   viewerProfile,
   canManageDistribution,
   drivers = [],
+  factories = [],
 }: {
   order: Order;
   history: OrderHistoryEntry[];
@@ -51,6 +54,8 @@ export function OrderDetailView({
   canManageDistribution: boolean;
   /** Active drivers, for the "change driver" control below — only needed when canManageDistribution. */
   drivers?: Profile[];
+  /** Active factories, for the "change factory" control below — only needed when canManageDistribution. */
+  factories?: Profile[];
 }) {
   const delayed = isOrderDelayed(order.status, order.created_at);
   const isTerminal = ["delivered", "refused", "cancelled"].includes(order.status);
@@ -193,8 +198,9 @@ export function OrderDetailView({
 
         {canManageDistribution && !isTerminal && (
           <Card>
-            <CardContent className="pt-6">
+            <CardContent className="space-y-2 pt-6">
               <ChangeDriverButton orderId={order.id} currentDriverId={order.assigned_driver_id} drivers={drivers} />
+              <ChangeFactoryButton orderId={order.id} currentFactoryId={order.assigned_factory_id} factories={factories} />
             </CardContent>
           </Card>
         )}
@@ -241,6 +247,8 @@ export function OrderDetailView({
             </CardContent>
           </Card>
         )}
+
+        {canManageDistribution && <OrderChat orderId={order.id} viewerId={viewerProfile.id} />}
       </div>
     </div>
   );

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { listOrders, listRegions } from "@/lib/data/orders";
+import { listOrders, listRegions, getOrderDeliveryCodesMap } from "@/lib/data/orders";
 import { listStaff } from "@/lib/data/staff";
 import { OrdersFilterBar } from "@/components/orders/orders-filter-bar";
 import { OrderStatusTabs } from "@/components/orders/order-status-tabs";
@@ -24,11 +24,13 @@ export default async function OwnerOrdersPage({
   const maxPieces = typeof sp.maxPieces === "string" && sp.maxPieces ? Number(sp.maxPieces) : undefined;
   const page = typeof sp.page === "string" ? Number(sp.page) || 1 : 1;
 
-  const [{ orders, total }, regions, drivers] = await Promise.all([
+  const [{ orders, total }, regions, drivers, factories] = await Promise.all([
     listOrders({ status, regionId, driverId, search, dateFrom, dateTo, minPieces, maxPieces, page, pageSize: 25 }),
     listRegions(),
     listStaff("driver"),
+    listStaff("factory"),
   ]);
+  const deliveryCodes = await getOrderDeliveryCodesMap(orders.map((o) => o.id));
 
   return (
     <div className="space-y-4">
@@ -44,7 +46,14 @@ export default async function OwnerOrdersPage({
 
       <Card>
         <CardContent className="p-0">
-          <OrdersTable orders={orders} regions={regions} basePath="/owner/orders" drivers={drivers} />
+          <OrdersTable
+            orders={orders}
+            regions={regions}
+            basePath="/owner/orders"
+            drivers={drivers}
+            factories={factories}
+            deliveryCodes={deliveryCodes}
+          />
         </CardContent>
       </Card>
 

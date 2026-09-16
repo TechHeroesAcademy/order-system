@@ -7,6 +7,7 @@ import { orderFormSchema, trackOrderSchema } from "@/lib/domain/validators";
 import { ok, fail, toErrorMessage, type ActionResult } from "./types";
 import type {
   NewOrderResult,
+  OrderMessage,
   SuggestedDriverRow,
   TrackedOrder,
 } from "@/types/database";
@@ -186,6 +187,22 @@ export async function reassignOrderDriverAction(orderId: string, newDriverId: st
   return ok(undefined);
 }
 
+/** Change the factory an order is routed to, at any point before it's closed — mirrors reassignOrderDriverAction. */
+export async function reassignOrderFactoryAction(orderId: string, newFactoryId: string): Promise<ActionResult> {
+  await requireRole("owner", "moderator");
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("reassign_order_factory", {
+    p_order_id: orderId,
+    p_new_factory_id: newFactoryId,
+  });
+  if (error) return fail(toErrorMessage(error));
+  revalidatePath("/owner");
+  revalidatePath("/moderator");
+  revalidatePath("/driver");
+  revalidatePath("/factory");
+  return ok(undefined);
+}
+
 export async function cancelOrderAction(orderId: string, reason: string): Promise<ActionResult> {
   await requireRole("owner", "moderator");
   const supabase = await createClient();
@@ -286,4 +303,31 @@ export async function factoryMarkReadyAction(orderId: string): Promise<ActionRes
   revalidatePath("/owner");
   revalidatePath("/moderator");
   return ok(undefined);
+}
+
+// ---------- Per-order chat (driver <-> Owner/Moderator) ----------
+// No requireRole() gate here on purpose — send_order_message() and the
+// order_messages RLS policy (migration 0018) are the real authorization
+// boundary (assigned driver, or Owner/Moderator; a factory account gets a
+// clean "غير مصرح" from the RPC and an empty result from a direct select),
+// exactly like every other RPC-backed action in this file.
+
+export async function listOrderMessagesAction(orderId: string): Promise<ActionResult<OrderMessage[]>> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("order_messages")
+    .select("*, sender:profiles!order_messages_sender_id_fkey(full_name)")
+    .eq("order_id", orderId)
+    .order("created_at", { ascending: true });
+  if (error) return fail(toErrorMessage(error, "تعذر تحميل الرسائل"));
+  return ok((data as unknown as OrderMessage[]) ?? []);
+}
+
+export async function sendOrderMessageAction(orderId: string, body: string): Promise<ActionResult<OrderMessage>> {
+  const trimmed = body.trim();
+  if (!trimmed) return fail("اكتب رسالة قبل الإرسال");
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("send_order_message", { p_order_id: orderId, p_body: trimmed });
+  if (error) return fail(toErrorMessage(error, "تعذر إرسال الرسالة"));
+  return ok(data as OrderMessage);
 }

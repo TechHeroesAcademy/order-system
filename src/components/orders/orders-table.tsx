@@ -9,7 +9,9 @@ import {
 } from "@/components/ui/table";
 import { OrderStatusBadge } from "./order-status-badge";
 import { ChangeDriverButton } from "./change-driver-button";
+import { ChangeFactoryButton } from "./change-factory-button";
 import { CancelOrderButton } from "./cancel-order-button";
+import { DeliveryCodeCell } from "./delivery-code-cell";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/shared/empty-state";
 import { formatDateTime } from "@/lib/domain/format";
@@ -24,12 +26,18 @@ export function OrdersTable({
   orders,
   basePath,
   drivers = [],
+  factories = [],
+  deliveryCodes = {},
 }: {
   orders: OrderListRow[];
   regions: Region[];
   basePath: string;
   /** Active drivers, for the inline "change driver" action — Owner/Moderator only. */
   drivers?: Profile[];
+  /** Active factories, for the inline "change factory" action — Owner/Moderator only. */
+  factories?: Profile[];
+  /** Delivery codes for this page's orders, keyed by order id — batch-fetched once by the page (see getOrderDeliveryCodesMap). */
+  deliveryCodes?: Record<string, string>;
 }) {
   if (orders.length === 0) {
     return <EmptyState icon={PackageSearch} title="لا يوجد أوردرات مطابقة" />;
@@ -43,6 +51,8 @@ export function OrdersTable({
           <TableHead>العميل</TableHead>
           <TableHead>المنطقة</TableHead>
           <TableHead>المندوب</TableHead>
+          <TableHead>المصنع</TableHead>
+          <TableHead>كود التسليم</TableHead>
           <TableHead>الحالة</TableHead>
           <TableHead>تاريخ الإنشاء</TableHead>
           <TableHead className="text-center">إجراءات</TableHead>
@@ -67,6 +77,10 @@ export function OrdersTable({
               </TableCell>
               <TableCell>{order.region?.name ?? "—"}</TableCell>
               <TableCell>{order.assigned_driver?.full_name ?? "—"}</TableCell>
+              <TableCell>{order.assigned_factory?.full_name ?? "—"}</TableCell>
+              <TableCell>
+                <DeliveryCodeCell code={deliveryCodes[order.id] ?? null} />
+              </TableCell>
               <TableCell>
                 <div className="flex items-center gap-1.5">
                   {delayed && <Badge variant="warning">متأخر</Badge>}
@@ -83,6 +97,12 @@ export function OrdersTable({
                       orderId={order.id}
                       currentDriverId={order.assigned_driver_id}
                       drivers={drivers}
+                      compact
+                    />
+                    <ChangeFactoryButton
+                      orderId={order.id}
+                      currentFactoryId={order.assigned_factory_id}
+                      factories={factories}
                       compact
                     />
                     <CancelOrderButton orderId={order.id} compact />

@@ -5,6 +5,7 @@ import { requireRole } from "@/lib/auth";
 import { OrderStatusBadge } from "@/components/orders/order-status-badge";
 import { OrderTimeline } from "@/components/orders/order-timeline";
 import { DriverOrderActions } from "@/components/driver/driver-order-actions";
+import { OrderChat } from "@/components/orders/order-chat";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatDateTime } from "@/lib/domain/format";
@@ -112,6 +113,8 @@ export default async function DriverOrderDetailPage({ params }: { params: Promis
             : null
         }
       />
+
+      <OrderChat orderId={order.id} viewerId={profile.id} />
 
       <Card>
         <CardHeader>

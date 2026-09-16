@@ -92,6 +92,7 @@ export const EVENT_TYPE_LABELS_AR: Record<string, string> = {
   distribution_cleared: "تم إلغاء التوزيع المقترح",
   distribution_approved: "تم اعتماد التوزيع",
   driver_reassigned: "تم تعيين/تغيير المندوب",
+  factory_reassigned: "تم تعيين/تغيير المصنع",
   collected_from_customer: "تم الاستلام من العميل",
   handed_to_factory: "توجه المندوب بالأوردر للمصنع",
   factory_confirmed_receipt: "المصنع أكد الاستلام",

@@ -9,6 +9,7 @@ import type {
   DailyReport,
   Order,
   OrderHistoryEntry,
+  OrderMessage,
   OrderStatus,
   Region,
   TopRegionRow,
@@ -30,6 +31,7 @@ export interface OrderFilters {
 export interface OrderListRow extends Order {
   region: { name: string } | null;
   assigned_driver: { full_name: string } | null;
+  assigned_factory: { full_name: string } | null;
 }
 
 export interface OrderListResult {
@@ -47,9 +49,10 @@ export async function listOrders(filters: OrderFilters = {}): Promise<OrderListR
 
   let query = supabase
     .from("orders")
-    .select("*, region:regions(name), assigned_driver:profiles!orders_assigned_driver_id_fkey(full_name)", {
-      count: "exact",
-    })
+    .select(
+      "*, region:regions(name), assigned_driver:profiles!orders_assigned_driver_id_fkey(full_name), assigned_factory:profiles!orders_assigned_factory_id_fkey(full_name)",
+      { count: "exact" },
+    )
     .order("created_at", { ascending: false });
 
   if (filters.status && filters.status !== "all") {
@@ -91,6 +94,46 @@ export async function getOrderById(id: string): Promise<Order | null> {
   const { data, error } = await supabase.from("orders").select("*").eq("id", id).maybeSingle();
   if (error) throw error;
   return (data as Order) ?? null;
+}
+
+/**
+ * Delivery codes for a page of orders in one round trip, keyed by order id —
+ * the batch counterpart to getOrderDeliveryCodeAction (which stays for the
+ * order-detail "reveal" flow). Used so the orders list can show every row's
+ * code without firing one RPC per row. Owner/Moderator only — enforced by
+ * get_order_delivery_codes() itself (see migration 0018); an empty array
+ * short-circuits without a round trip since RPC calls with `= any('{}')`
+ * are legal but pointless here.
+ */
+export async function getOrderDeliveryCodesMap(orderIds: string[]): Promise<Record<string, string>> {
+  if (orderIds.length === 0) return {};
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("get_order_delivery_codes", { p_order_ids: orderIds });
+  if (error) throw error;
+  const map: Record<string, string> = {};
+  for (const row of (data as { order_id: string; code: string }[]) ?? []) {
+    map[row.order_id] = row.code;
+  }
+  return map;
+}
+
+/**
+ * A per-order chat thread between the assigned driver and Owner/Moderator.
+ * Reads go straight through RLS (order_messages_select, migration 0018) —
+ * same pattern as orders/order_history/notifications — so this is just a
+ * plain select, gated by whether the current user is even allowed to see
+ * any rows at all (an unauthorized caller simply gets an empty array back,
+ * not an error, since RLS filters rather than rejects on SELECT).
+ */
+export async function getOrderMessages(orderId: string): Promise<OrderMessage[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("order_messages")
+    .select("*, sender:profiles!order_messages_sender_id_fkey(full_name)")
+    .eq("order_id", orderId)
+    .order("created_at", { ascending: true });
+  if (error) throw error;
+  return (data as unknown as OrderMessage[]) ?? [];
 }
 
 export async function getOrderHistory(orderId: string): Promise<OrderHistoryEntry[]> {

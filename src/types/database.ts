@@ -227,3 +227,15 @@ export interface NewOrderResult {
   order_number: string;
   delivery_code: string;
 }
+
+/** One message in a per-order chat thread between the assigned driver and Owner/Moderator. See migration 0018. */
+export interface OrderMessage {
+  id: string;
+  order_id: string;
+  sender_id: string;
+  sender_role: UserRole;
+  body: string;
+  created_at: string;
+  /** Joined from profiles — present on every read, absent only on the just-inserted row returned by send_order_message(). */
+  sender?: { full_name: string } | null;
+}
