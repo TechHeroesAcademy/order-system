@@ -48,23 +48,33 @@ export async function createPublicOrderAction(
 /**
  * Moderator/Owner creating an order sourced from a Messenger conversation.
  *
- * Driver + factory are mandatory for both roles. This is a UI/product rule
- * rather than something the shared orderFormSchema can express, so it's
- * enforced here, server-side, in addition to OrderForm's own client-side
- * check (defense in depth — this action could otherwise be called directly,
- * bypassing the form).
+ * Only the Owner (the "manager") may pick the driver/factory directly —
+ * see migration 0024. A Moderator's copy of the form never shows those
+ * fields at all (OrderForm's showDistributionFields=false); this is the
+ * server-side half of that same rule (defense in depth — this action could
+ * otherwise be called directly, bypassing the form), and the RPC itself
+ * re-checks it a third time as the real authorization boundary. For an
+ * Owner, both fields stay mandatory (unchanged since Round 4) — an explicit
+ * pick there is immediately approved, since the Owner's own pick already
+ * *is* the manager's confirmation. A Moderator's order instead gets a
+ * fair, region-based driver suggestion automatically (0024), left pending
+ * until the Owner approves it from <DistributionPanel>.
  */
 export async function createModeratorOrderAction(
   input: OrderFormInput,
 ): Promise<ActionResult<NewOrderResult>> {
-  await requireRole("owner", "moderator");
+  const me = await requireRole("owner", "moderator");
   const parsed = orderFormSchema.safeParse(input);
   if (!parsed.success) {
     return fail(parsed.error.issues[0]?.message ?? "بيانات غير صالحة");
   }
 
-  if (!parsed.data.driver_id || !parsed.data.factory_id) {
-    return fail("يجب اختيار المندوب والمصنع عند إنشاء الأوردر");
+  if (me.role === "owner") {
+    if (!parsed.data.driver_id || !parsed.data.factory_id) {
+      return fail("يجب اختيار المندوب والمصنع عند إنشاء الأوردر");
+    }
+  } else if (parsed.data.driver_id || parsed.data.factory_id) {
+    return fail("تحديد المندوب أو المصنع من صلاحية المدير فقط");
   }
 
   const supabase = await createClient();
@@ -143,6 +153,20 @@ export async function getOrderDeliveryCodeAction(orderId: string): Promise<Actio
   return ok({ code: (data as string | null) ?? null });
 }
 
+/**
+ * Owner/Moderator looking up an order's plaintext pickup code (the one the
+ * driver needs from the customer to confirm collection) — mirrors
+ * getOrderDeliveryCodeAction exactly, see get_order_pickup_code() in
+ * migration 0024.
+ */
+export async function getOrderPickupCodeAction(orderId: string): Promise<ActionResult<{ code: string | null }>> {
+  await requireRole("owner", "moderator");
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("get_order_pickup_code", { p_order_id: orderId });
+  if (error) return fail(toErrorMessage(error, "تعذر جلب كود الاستلام"));
+  return ok({ code: (data as string | null) ?? null });
+}
+
 export async function trackOrderAction(
   input: z.infer<typeof trackOrderSchema>,
 ): Promise<ActionResult<TrackedOrder | null>> {
@@ -175,12 +199,13 @@ export async function suggestDriversAction(orderId: string): Promise<ActionResul
   return ok((data as SuggestedDriverRow[]) ?? []);
 }
 
+/** Owner only — see migration 0024 ("moderator cannot assign or edit or change drivers or factories"). */
 export async function setOrderDistributionAction(
   orderId: string,
   driverId: string,
   isSuggestion: boolean,
 ): Promise<ActionResult> {
-  await requireRole("owner", "moderator");
+  await requireRole("owner");
   const supabase = await createClient();
   const { error } = await supabase.rpc("set_order_distribution", {
     p_order_id: orderId,
@@ -193,8 +218,9 @@ export async function setOrderDistributionAction(
   return ok(undefined);
 }
 
+/** Owner only — see migration 0024. */
 export async function clearOrderDistributionAction(orderId: string): Promise<ActionResult> {
-  await requireRole("owner", "moderator");
+  await requireRole("owner");
   const supabase = await createClient();
   const { error } = await supabase.rpc("clear_order_distribution", { p_order_id: orderId });
   if (error) return fail(toErrorMessage(error));
@@ -213,9 +239,9 @@ export async function approveDistributionAction(orderId: string): Promise<Action
   return ok(undefined);
 }
 
-/** Change the responsible driver at any point before the order is closed. */
+/** Change the responsible driver at any point before the order is closed. Owner only — see migration 0024. */
 export async function reassignOrderDriverAction(orderId: string, newDriverId: string): Promise<ActionResult> {
-  await requireRole("owner", "moderator");
+  await requireRole("owner");
   const supabase = await createClient();
   const { error } = await supabase.rpc("reassign_order_driver", {
     p_order_id: orderId,
@@ -228,9 +254,12 @@ export async function reassignOrderDriverAction(orderId: string, newDriverId: st
   return ok(undefined);
 }
 
-/** Change the factory an order is routed to, at any point before it's closed — mirrors reassignOrderDriverAction. */
+/**
+ * Change the factory an order is routed to, at any point before it's closed —
+ * mirrors reassignOrderDriverAction. Owner only — see migration 0024.
+ */
 export async function reassignOrderFactoryAction(orderId: string, newFactoryId: string): Promise<ActionResult> {
-  await requireRole("owner", "moderator");
+  await requireRole("owner");
   const supabase = await createClient();
   const { error } = await supabase.rpc("reassign_order_factory", {
     p_order_id: orderId,
@@ -256,14 +285,26 @@ export async function cancelOrderAction(orderId: string, reason: string): Promis
 
 // ---------- Driver ----------
 
-export async function driverMarkCollectedAction(orderId: string): Promise<ActionResult> {
+/**
+ * The driver confirming they physically collected the order from the
+ * customer — as of migration 0024, gated by a pickup code exactly like
+ * driverDeliverToCustomerAction is gated by the delivery code, so a driver
+ * can't tap this without actually getting the code from the customer.
+ */
+export async function driverMarkCollectedAction(
+  orderId: string,
+  code: string,
+): Promise<ActionResult<{ success: boolean }>> {
   await requireRole("owner", "driver");
   const supabase = await createClient();
-  const { error } = await supabase.rpc("driver_mark_collected", { p_order_id: orderId });
+  const { data, error } = await supabase.rpc("driver_mark_collected", {
+    p_order_id: orderId,
+    p_code: code,
+  });
   if (error) return fail(toErrorMessage(error));
   revalidatePath("/driver");
   revalidatePath("/owner");
-  return ok(undefined);
+  return ok({ success: Boolean(data) });
 }
 
 export async function driverHandToFactoryAction(orderId: string): Promise<ActionResult> {

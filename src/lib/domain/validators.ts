@@ -93,6 +93,9 @@ export const deliveryCodeSchema = z.object({
     .regex(/^\d{4}$/, "الكود مكوّن من 4 أرقام"),
 });
 
+/** Same 4-digit shape as deliveryCodeSchema, kept as its own export for the pickup-from-customer step (migration 0024) — same code format, different meaning. */
+export const pickupCodeSchema = deliveryCodeSchema;
+
 export const refusalReasonSchema = z.object({
   reason: z.string().trim().min(3, "اكتب سبب الرفض").max(500),
 });

@@ -10,6 +10,7 @@ import { OrderChat } from "./order-chat";
 import { ConfirmActionButton } from "@/components/shared/confirm-action-button";
 import { factoryConfirmReceiptAction, factoryMarkReadyAction } from "@/lib/actions/orders";
 import { DeliveryCodeReveal } from "./delivery-code-reveal";
+import { PickupCodeReveal } from "./pickup-code-reveal";
 import { Badge } from "@/components/ui/badge";
 import { formatDateTime } from "@/lib/domain/format";
 import { isOrderDelayed } from "@/lib/domain/order-status";
@@ -65,6 +66,11 @@ export function OrderDetailView({
 }) {
   const delayed = isOrderDelayed(order.status, order.created_at);
   const isTerminal = ["delivered", "refused", "cancelled"].includes(order.status);
+  // Assigning/changing who handles an order (driver or factory) is Manager-
+  // only now — see migration 0024. Everything else canManageDistribution
+  // already gates (editing order details, the delivery/pickup codes,
+  // cancelling, chat) is unaffected and stays available to Moderator too.
+  const canAssign = viewerProfile.role === "owner";
 
   return (
     <div className="grid gap-4 lg:grid-cols-3">
@@ -200,16 +206,28 @@ export function OrderDetailView({
           </Card>
         )}
 
+        {canManageDistribution && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">كود الاستلام من العميل</CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <PickupCodeReveal orderId={order.id} />
+            </CardContent>
+          </Card>
+        )}
+
         {canManageDistribution && order.status === "new" && (
           <DistributionPanel
             orderId={order.id}
             assignedDriverId={order.assigned_driver_id}
             assignedDriverName={assignedDriverName}
+            canAssign={canAssign}
             canApprove={viewerProfile.role === "owner"}
           />
         )}
 
-        {canManageDistribution && !isTerminal && (
+        {canAssign && !isTerminal && (
           <Card>
             <CardContent className="space-y-2 pt-6">
               <ChangeDriverButton orderId={order.id} currentDriverId={order.assigned_driver_id} drivers={drivers} />

@@ -25,7 +25,7 @@ import {
   driverDeliverToCustomerAction,
   driverLogRefusalAction,
 } from "@/lib/actions/orders";
-import { deliveryCodeSchema, refusalReasonSchema } from "@/lib/domain/validators";
+import { deliveryCodeSchema, pickupCodeSchema, refusalReasonSchema } from "@/lib/domain/validators";
 import { formatDateTime } from "@/lib/domain/format";
 import { mapsUrlFor } from "@/lib/domain/maps";
 import type { Order } from "@/types/database";
@@ -67,20 +67,7 @@ function FactoryLocationNote({ factory }: { factory: FactoryInfo }) {
 export function DriverOrderActions({ order, factory = null }: { order: Order; factory?: FactoryInfo }) {
   switch (order.status) {
     case "assigned":
-      return (
-        <Card>
-          <CardContent className="pt-6">
-            <ConfirmActionButton
-              label="تم استلام الأوردر من العميل"
-              confirmTitle="تأكيد استلام الأوردر"
-              confirmDescription="تأكد أنك استلمت القطع فعليًا من العميل قبل التأكيد."
-              onConfirm={() => driverMarkCollectedAction(order.id)}
-              successMessage="تم تسجيل الاستلام من العميل"
-              icon={<PackageCheck />}
-            />
-          </CardContent>
-        </Card>
-      );
+      return <CollectFromCustomerCard orderId={order.id} />;
 
     case "collected":
       // Status stays 'collected' through this whole step — only the factory
@@ -154,6 +141,68 @@ export function DriverOrderActions({ order, factory = null }: { order: Order; fa
     default:
       return null;
   }
+}
+
+/**
+ * The driver confirming pickup from the customer — as of migration 0024,
+ * gated by a pickup code exactly like <DeliverToCustomerCard> below is
+ * gated by the delivery code, so this can no longer be tapped without
+ * actually getting the code from the customer first.
+ */
+function CollectFromCustomerCard({ orderId }: { orderId: string }) {
+  const [code, setCode] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+  const router = useRouter();
+
+  function submitCollection() {
+    const parsed = pickupCodeSchema.safeParse({ code });
+    if (!parsed.success) {
+      setError(parsed.error.issues[0]?.message ?? "كود غير صالح");
+      return;
+    }
+    setError(null);
+    startTransition(async () => {
+      const res = await driverMarkCollectedAction(orderId, parsed.data.code);
+      if (!res.ok) {
+        toast.error(res.error);
+        return;
+      }
+      if (!res.data.success) {
+        setError("الكود غير صحيح — تأكد من الكود مع العميل");
+        setCode("");
+        return;
+      }
+      toast.success("تم تسجيل الاستلام من العميل");
+      router.refresh();
+    });
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">استلام الأوردر من العميل</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <p className="text-sm text-muted-foreground">اطلب من العميل كود الاستلام وأدخله هنا لتأكيد أنك استلمت القطع فعليًا.</p>
+        <Input
+          inputMode="numeric"
+          dir="ltr"
+          placeholder="كود مكوّن من 4 أرقام"
+          maxLength={4}
+          value={code}
+          onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+          className="text-center text-lg tracking-widest tabular-nums"
+        />
+        {error && <p className="text-sm text-destructive">{error}</p>}
+        <Button className="w-full" onClick={submitCollection} disabled={pending}>
+          {pending && <Loader2 className="animate-spin" />}
+          <PackageCheck />
+          تأكيد الاستلام
+        </Button>
+      </CardContent>
+    </Card>
+  );
 }
 
 function DeliverToCustomerCard({ orderId }: { orderId: string }) {

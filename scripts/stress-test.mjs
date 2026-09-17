@@ -142,7 +142,7 @@ async function main() {
     const code = created.delivery_code;
     await asUser(pool, ownerId, (client) => client.query("select set_order_distribution($1,$2,false)", [orderId, driverAId]));
     await asUser(pool, ownerId, (client) => client.query("select approve_distribution($1)", [orderId]));
-    await asUser(pool, driverAId, (client) => client.query("select driver_mark_collected($1)", [orderId]));
+    await asUser(pool, driverAId, (client) => client.query("select driver_mark_collected($1,$2)", [orderId, created.pickup_code]));
     await asUser(pool, driverAId, (client) => client.query("select driver_hand_to_factory($1)", [orderId]));
     const factoryRow = await admin_query(pool, "select id from public.profiles where role = 'factory' and is_active limit 1");
     const factoryId = factoryRow[0]?.id;
@@ -213,7 +213,7 @@ async function main() {
     const orderId = created.order_id;
     await asUser(pool, ownerId, (client) => client.query("select set_order_distribution($1,$2,false)", [orderId, driverAId]));
     await asUser(pool, ownerId, (client) => client.query("select approve_distribution($1)", [orderId]));
-    await asUser(pool, driverAId, (client) => client.query("select driver_mark_collected($1)", [orderId]));
+    await asUser(pool, driverAId, (client) => client.query("select driver_mark_collected($1,$2)", [orderId, created.pickup_code]));
     await asUser(pool, driverAId, (client) => client.query("select driver_hand_to_factory($1)", [orderId]));
 
     const factoryRows = await admin_query(pool, "select id from public.profiles where role = 'factory' and is_active limit 1");

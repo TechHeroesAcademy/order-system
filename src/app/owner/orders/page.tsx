@@ -53,6 +53,7 @@ export default async function OwnerOrdersPage({
             drivers={drivers}
             factories={factories}
             deliveryCodes={deliveryCodes}
+            canAssign
           />
         </CardContent>
       </Card>

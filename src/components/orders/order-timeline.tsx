@@ -3,7 +3,13 @@ import { eventTypeLabel } from "@/lib/domain/order-status";
 import { formatDateTime } from "@/lib/domain/format";
 import type { OrderHistoryEntry } from "@/types/database";
 
-const NEGATIVE_EVENTS = new Set(["delivery_code_mismatch", "refused", "cancelled", "distribution_cleared"]);
+const NEGATIVE_EVENTS = new Set([
+  "delivery_code_mismatch",
+  "pickup_code_mismatch",
+  "refused",
+  "cancelled",
+  "distribution_cleared",
+]);
 
 export function OrderTimeline({ entries }: { entries: OrderHistoryEntry[] }) {
   if (entries.length === 0) {

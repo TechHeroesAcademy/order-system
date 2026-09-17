@@ -21,6 +21,7 @@ export function OrderForm({
   factories = [],
   drivers = [],
   requireDriverAndFactory = false,
+  showDistributionFields = true,
   action,
   submitLabel = "إنشاء الأوردر",
 }: {
@@ -29,8 +30,15 @@ export function OrderForm({
   factories?: Profile[];
   /** Active driver accounts, for the "assign a driver" field below. */
   drivers?: Profile[];
-  /** Moderator creating an order must pick both a driver and a factory up front — Owner can still leave them for the separate distribution flow. See createModeratorOrderAction. */
+  /** Owner creating an order must pick both a driver and a factory up front. See createModeratorOrderAction. Ignored when showDistributionFields is false. */
   requireDriverAndFactory?: boolean;
+  /**
+   * false hides the factory/driver fields entirely — used for a Moderator,
+   * who can no longer assign either (migration 0024): the region alone is
+   * enough for the system to auto-suggest a driver, pending the Owner's
+   * approval, and the factory is left for the Owner to set afterward.
+   */
+  showDistributionFields?: boolean;
   action: (values: OrderFormValues) => Promise<ActionResult<NewOrderResult>>;
   submitLabel?: string;
 }) {
@@ -56,7 +64,7 @@ export function OrderForm({
   });
 
   async function onSubmit(values: OrderFormValues) {
-    if (requireDriverAndFactory) {
+    if (showDistributionFields && requireDriverAndFactory) {
       let missing = false;
       if (!values.driver_id) {
         form.setError("driver_id", { message: "اختر المندوب" });
@@ -96,11 +104,17 @@ export function OrderForm({
               رقم الأوردر: <span className="font-bold">{result.order_number}</span>
             </AlertDescription>
           </Alert>
-          <div className="rounded-lg border bg-muted/40 p-4 text-center">
-            <p className="text-sm text-muted-foreground">كود تأكيد التسليم — يُكتب على إيصال العميل الورقي</p>
-            <p className="mt-1 text-3xl font-bold tracking-widest tabular-nums">{result.delivery_code}</p>
-            <p className="mt-1 text-xs text-muted-foreground">لن يظهر هذا الكود مرة أخرى بعد الآن</p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="rounded-lg border bg-muted/40 p-4 text-center">
+              <p className="text-sm text-muted-foreground">كود الاستلام من العميل — يطلبه المندوب قبل الاستلام</p>
+              <p className="mt-1 text-3xl font-bold tracking-widest tabular-nums">{result.pickup_code}</p>
+            </div>
+            <div className="rounded-lg border bg-muted/40 p-4 text-center">
+              <p className="text-sm text-muted-foreground">كود تأكيد التسليم — يُكتب على إيصال العميل الورقي</p>
+              <p className="mt-1 text-3xl font-bold tracking-widest tabular-nums">{result.delivery_code}</p>
+            </div>
           </div>
+          <p className="text-center text-xs text-muted-foreground">لن يظهر هذان الكودان مرة أخرى بعد الآن هنا — يمكن لاحقًا إظهارهما من صفحة الأوردر</p>
           <Button className="w-full" variant="outline" onClick={() => setResult(null)}>
             إنشاء أوردر آخر
           </Button>
@@ -226,7 +240,7 @@ export function OrderForm({
           />
         </div>
 
-        {(factories.length > 0 || requireDriverAndFactory) && (
+        {showDistributionFields && (factories.length > 0 || requireDriverAndFactory) && (
           <FormField
             control={form.control}
             name="factory_id"
@@ -266,7 +280,7 @@ export function OrderForm({
           />
         )}
 
-        {(drivers.length > 0 || requireDriverAndFactory) && (
+        {showDistributionFields && (drivers.length > 0 || requireDriverAndFactory) && (
           <FormField
             control={form.control}
             name="driver_id"

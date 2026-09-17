@@ -20,11 +20,14 @@ export function DistributionPanel({
   orderId,
   assignedDriverId,
   assignedDriverName,
+  canAssign,
   canApprove,
 }: {
   orderId: string;
   assignedDriverId: string | null;
   assignedDriverName: string | null;
+  /** Owner only (migration 0024) — a Moderator can see the suggested/pending driver here but not pick or clear one. */
+  canAssign: boolean;
   canApprove: boolean;
 }) {
   const [drivers, setDrivers] = useState<SuggestedDriverRow[] | null>(null);
@@ -100,14 +103,22 @@ export function DistributionPanel({
                   اعتماد التوزيع
                 </Button>
               )}
-              <Button size="sm" variant="ghost" onClick={clear} disabled={pending}>
-                <X className="size-4" />
-              </Button>
+              {canAssign && (
+                <Button size="sm" variant="ghost" onClick={clear} disabled={pending}>
+                  <X className="size-4" />
+                </Button>
+              )}
             </div>
           </div>
         )}
 
-        {!assignedDriverId && (
+        {!assignedDriverId && !canAssign && (
+          <p className="text-sm text-muted-foreground">
+            سيتم اقتراح مندوب تلقائيًا حسب المنطقة، أو يحدده المدير يدويًا.
+          </p>
+        )}
+
+        {!assignedDriverId && canAssign && (
           <>
             {loadingDrivers && <p className="text-sm text-muted-foreground">جاري تحميل المندوبين...</p>}
             {drivers && drivers.length === 0 && (

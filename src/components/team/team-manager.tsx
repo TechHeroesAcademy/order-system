@@ -98,11 +98,15 @@ export function TeamManager({
               onCreated={(region) => setRegionsList((prev) => [...prev, region].sort((a, b) => a.name.localeCompare(b.name)))}
             />
           )}
-          <AddStaffDialog
-            regions={regionsList}
-            viewerRole={viewerRole}
-            onCreated={(profile) => setStaffList((prev) => [profile, ...prev])}
-          />
+          {/* Adding a new worker or factory account is Manager-only now (see
+              migration 0024 / createStaffAccountAction) — a Moderator no
+              longer gets this control at all, not even scoped to drivers. */}
+          {!isModerator && (
+            <AddStaffDialog
+              regions={regionsList}
+              onCreated={(profile) => setStaffList((prev) => [profile, ...prev])}
+            />
+          )}
         </div>
       </div>
 
@@ -116,10 +120,12 @@ export function TeamManager({
             <Factory className="size-4" />
             المصانع ({factories.length})
           </TabsTrigger>
-          <TabsTrigger value="add-factory">
-            <Plus className="size-4" />
-            إضافة مصنع
-          </TabsTrigger>
+          {!isModerator && (
+            <TabsTrigger value="add-factory">
+              <Plus className="size-4" />
+              إضافة مصنع
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="workers" className="space-y-4">
@@ -202,14 +208,16 @@ export function TeamManager({
           />
         </TabsContent>
 
-        <TabsContent value="add-factory">
-          <AddFactoryPanel
-            onCreated={(profile) => {
-              setStaffList((prev) => [profile, ...prev]);
-              setActiveTab("factories");
-            }}
-          />
-        </TabsContent>
+        {!isModerator && (
+          <TabsContent value="add-factory">
+            <AddFactoryPanel
+              onCreated={(profile) => {
+                setStaffList((prev) => [profile, ...prev]);
+                setActiveTab("factories");
+              }}
+            />
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   );
@@ -363,17 +371,16 @@ function AddRegionDialog({ onCreated }: { onCreated: (region: Region) => void })
 
 function AddStaffDialog({
   regions,
-  viewerRole,
   onCreated,
 }: {
   regions: Region[];
-  viewerRole: UserRole;
   onCreated: (profile: Profile) => void;
 }) {
-  // Factory accounts have their own "إضافة مصنع" tab (AddFactoryPanel) —
-  // a Moderator caller can only ever create a driver here (createStaffAccountAction
-  // still separately enforces this server-side, same as before).
-  const roleOptions = viewerRole === "moderator" ? (["driver"] as const) : ROLE_OPTIONS;
+  // This dialog is Owner-only now (see TeamManager — a Moderator never even
+  // sees the trigger button), so every role in ROLE_OPTIONS is fair game;
+  // factory accounts still have their own separate "إضافة مصنع" tab
+  // (AddFactoryPanel) rather than being one more option here.
+  const roleOptions = ROLE_OPTIONS;
   const [open, setOpen] = useState(false);
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");

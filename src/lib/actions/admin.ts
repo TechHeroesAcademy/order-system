@@ -10,21 +10,20 @@ import { ok, fail, toErrorMessage, type ActionResult } from "./types";
 import type { z } from "zod";
 
 /**
- * Owner or Moderator creates a new staff account. A Moderator may only create
- * drivers/factory accounts (never another owner or moderator — that stays an
- * Owner-only action, same boundary the self-escalation trigger enforces on
- * the profiles table).
+ * Owner-only: creates a new staff or factory account. Previously a
+ * Moderator could create driver/factory accounts too — "adding new worker
+ * or factory only manager who can do that" (migration 0024) removed that
+ * entirely, not just narrowed it, so this is now a plain requireRole("owner").
+ * The frontend already never shows the "عضو جديد"/"إضافة مصنع" controls to
+ * a Moderator (see TeamManager); this is the server-side half of that rule.
  */
 export async function createStaffAccountAction(
   input: z.infer<typeof createStaffAccountSchema>,
 ): Promise<ActionResult<{ userId: string }>> {
-  const me = await requireRole("owner", "moderator");
+  await requireRole("owner");
   const parsed = createStaffAccountSchema.safeParse(input);
   if (!parsed.success) {
     return fail(parsed.error.issues[0]?.message ?? "بيانات غير صالحة");
-  }
-  if (me.role === "moderator" && !["driver", "factory"].includes(parsed.data.role)) {
-    return fail("المشرف يمكنه فقط إضافة حساب مندوب أو مصنع");
   }
 
   const admin = createAdminClient();

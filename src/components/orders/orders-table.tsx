@@ -28,16 +28,19 @@ export function OrdersTable({
   drivers = [],
   factories = [],
   deliveryCodes = {},
+  canAssign = false,
 }: {
   orders: OrderListRow[];
   regions: Region[];
   basePath: string;
-  /** Active drivers, for the inline "change driver" action — Owner/Moderator only. */
+  /** Active drivers, for the inline "change driver" action — Owner only, see canAssign. */
   drivers?: Profile[];
-  /** Active factories, for the inline "change factory" action — Owner/Moderator only. */
+  /** Active factories, for the inline "change factory" action — Owner only, see canAssign. */
   factories?: Profile[];
   /** Delivery codes for this page's orders, keyed by order id — batch-fetched once by the page (see getOrderDeliveryCodesMap). */
   deliveryCodes?: Record<string, string>;
+  /** Owner only (migration 0024) — shows the inline change-driver/change-factory buttons. A Moderator still sees everything else in this row (cancel, status, codes). */
+  canAssign?: boolean;
 }) {
   if (orders.length === 0) {
     return <EmptyState icon={PackageSearch} title="لا يوجد أوردرات مطابقة" />;
@@ -93,18 +96,22 @@ export function OrdersTable({
                   <p className="text-center text-xs text-muted-foreground">—</p>
                 ) : (
                   <div className="flex items-center justify-center gap-0.5">
-                    <ChangeDriverButton
-                      orderId={order.id}
-                      currentDriverId={order.assigned_driver_id}
-                      drivers={drivers}
-                      compact
-                    />
-                    <ChangeFactoryButton
-                      orderId={order.id}
-                      currentFactoryId={order.assigned_factory_id}
-                      factories={factories}
-                      compact
-                    />
+                    {canAssign && (
+                      <>
+                        <ChangeDriverButton
+                          orderId={order.id}
+                          currentDriverId={order.assigned_driver_id}
+                          drivers={drivers}
+                          compact
+                        />
+                        <ChangeFactoryButton
+                          orderId={order.id}
+                          currentFactoryId={order.assigned_factory_id}
+                          factories={factories}
+                          compact
+                        />
+                      </>
+                    )}
                     <CancelOrderButton orderId={order.id} compact />
                   </div>
                 )}

@@ -86,6 +86,8 @@ export interface Order {
 
   failed_code_attempts: number;
   delivery_code_last_attempt_at: string | null;
+  failed_pickup_code_attempts: number;
+  pickup_code_last_attempt_at: string | null;
 
   created_by: string | null;
   created_at: string;
@@ -234,6 +236,7 @@ export interface NewOrderResult {
   order_id: string;
   order_number: string;
   delivery_code: string;
+  pickup_code: string;
 }
 
 /** Which per-order conversation a message belongs to — see migration 0019. */
