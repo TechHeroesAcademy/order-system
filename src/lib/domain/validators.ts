@@ -41,7 +41,14 @@ export const orderFormSchema = z.object({
   // mapsUrlFor). Independent of customer_address, which stays required as
   // the human-readable fallback and is always shown regardless.
   customer_maps_url: mapsUrlField,
-  region_id: z.string().uuid("اختر المنطقة").nullable(),
+  // Typed by keyboard, not picked from a list (see migration 0025) — and
+  // mandatory: a blank/whitespace-only value fails here before it ever
+  // reaches find_or_create_region()'s own (defense-in-depth) check.
+  region_name: z
+    .string()
+    .trim()
+    .min(2, "اكتب اسم المنطقة")
+    .max(100, "اسم المنطقة طويل جدًا"),
   pieces_count: z
     .number()
     .int("عدد القطع يجب أن يكون رقمًا صحيحًا")
@@ -120,7 +127,12 @@ export const createStaffAccountSchema = z.object({
   // an internal one — it's never shown to them or used for login.
   email: z.string().trim().email("بريد إلكتروني غير صالح").optional().or(z.literal("")),
   role: z.enum(["owner", "moderator", "driver", "factory"]),
-  region_ids: z.array(z.string().uuid()).optional().default([]),
+  // Typed area names, not ids picked from a checkbox list (migration
+  // 0025) — resolved/auto-created server-side via find_or_create_region().
+  region_names: z
+    .array(z.string().trim().min(2).max(100))
+    .optional()
+    .default([]),
   // Only meaningful for role="factory" — where the driver drops off/picks
   // up orders. Left optional rather than required-when-factory so an
   // existing flow that doesn't collect it yet (or a factory added before a

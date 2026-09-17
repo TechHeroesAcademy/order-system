@@ -97,7 +97,7 @@ async function main() {
   const admin = await pool.connect();
   const { rows: owners } = await admin.query("select id from public.profiles where role = 'owner' and is_active limit 1");
   const { rows: drivers } = await admin.query("select id from public.profiles where role = 'driver' and is_active limit 2");
-  const { rows: regions } = await admin.query("select id from public.regions limit 1");
+  const { rows: regions } = await admin.query("select id, name from public.regions limit 1");
   if (!owners[0] || drivers.length < 2 || !regions[0]) {
     console.error("Seed data missing: need at least 1 active owner, 2 active drivers, and 1 region in this database.");
     console.error("Run supabase/seed.sql against it first, or point STRESS_DB_URL at a DB that already has staff.");
@@ -106,7 +106,10 @@ async function main() {
   const ownerId = owners[0].id;
   const driverAId = drivers[0].id;
   const driverBId = drivers[1].id;
-  const regionId = regions[0].id;
+  // public_create_order's 4th param is p_region_name text as of migration
+  // 0025 (typed منطقة, resolved/auto-created via find_or_create_region) —
+  // pass the seeded region's name, not its id.
+  const regionName = regions[0].name;
   admin.release();
 
   // ---------- Test 1: concurrent order creation burst ----------
@@ -118,7 +121,7 @@ async function main() {
         // for this RPC (it has no auth check), so run it on a plain connection.
         const { rows } = await client.query(
           `select (r).* from public_create_order($1,$2,$3,$4,$5) r`,
-          [`عميل ${i}`, `0100000${String(i).padStart(4, "0")}`, "عنوان تجريبي", regionId, 1],
+          [`عميل ${i}`, `0100000${String(i).padStart(4, "0")}`, "عنوان تجريبي", regionName, 1],
         );
         return rows[0];
       });
@@ -135,7 +138,7 @@ async function main() {
   async function makeAssignedOrder() {
     const { result: created } = await asUser(pool, null, (client) =>
       client
-        .query(`select (r).* from public_create_order($1,$2,$3,$4,$5) r`, ["عميل الضغط المتكرر", "01099999999", "عنوان", regionId, 2])
+        .query(`select (r).* from public_create_order($1,$2,$3,$4,$5) r`, ["عميل الضغط المتكرر", "01099999999", "عنوان", regionName, 2])
         .then((r) => r.rows[0]),
     );
     const orderId = created.order_id;
@@ -207,7 +210,7 @@ async function main() {
   {
     const { result: created } = await asUser(pool, null, (client) =>
       client
-        .query(`select (r).* from public_create_order($1,$2,$3,$4,$5) r`, ["عميل مصنع", "01098888888", "عنوان", regionId, 1])
+        .query(`select (r).* from public_create_order($1,$2,$3,$4,$5) r`, ["عميل مصنع", "01098888888", "عنوان", regionName, 1])
         .then((r) => r.rows[0]),
     );
     const orderId = created.order_id;
@@ -239,7 +242,7 @@ async function main() {
   {
     const { result: created } = await asUser(pool, null, (client) =>
       client
-        .query(`select (r).* from public_create_order($1,$2,$3,$4,$5) r`, ["عميل اعتماد", "01097777777", "عنوان", regionId, 1])
+        .query(`select (r).* from public_create_order($1,$2,$3,$4,$5) r`, ["عميل اعتماد", "01097777777", "عنوان", regionName, 1])
         .then((r) => r.rows[0]),
     );
     const orderId = created.order_id;

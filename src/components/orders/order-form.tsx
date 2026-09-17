@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
@@ -8,6 +8,7 @@ import { Loader2, PackageCheck } from "lucide-react";
 import { orderFormSchema, type OrderFormValues } from "@/lib/domain/validators";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { RegionDatalist } from "@/components/shared/region-datalist";
 import { Textarea } from "@/components/ui/textarea";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -44,6 +45,7 @@ export function OrderForm({
 }) {
   const [result, setResult] = useState<NewOrderResult | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const regionListId = useId();
 
   const form = useForm<OrderFormValues>({
     resolver: zodResolver(orderFormSchema),
@@ -52,7 +54,7 @@ export function OrderForm({
       customer_phone: "",
       customer_address: "",
       customer_maps_url: "",
-      region_id: null,
+      region_name: "",
       pieces_count: 1,
       piece_details: "",
       color: "",
@@ -195,24 +197,21 @@ export function OrderForm({
         <div className="grid gap-4 sm:grid-cols-2">
           <FormField
             control={form.control}
-            name="region_id"
+            name="region_name"
             render={({ field }) => (
               <FormItem>
                 <FormLabel>المنطقة</FormLabel>
-                <Select value={field.value ?? undefined} onValueChange={field.onChange}>
-                  <FormControl>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="اختر المنطقة" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {regions.map((r) => (
-                      <SelectItem key={r.id} value={r.id}>
-                        {r.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <FormControl>
+                  <Input
+                    {...field}
+                    list={regionListId}
+                    placeholder="اكتب اسم المنطقة (مثال: المعادي، مدينة نصر)"
+                  />
+                </FormControl>
+                <RegionDatalist id={regionListId} regions={regions} />
+                <p className="text-xs text-muted-foreground">
+                  اكتب اسم المنطقة بنفسك — تُستخدم لترشيح مندوب تلقائيًا من نفس المنطقة.
+                </p>
                 <FormMessage />
               </FormItem>
             )}

@@ -66,11 +66,26 @@ export async function createStaffAccountAction(
   // false so the phone-login flow makes the new hire set their own.
   await admin.from("profiles").update({ password_set: false }).eq("id", data.user.id);
 
-  if (parsed.data.role === "driver" && parsed.data.region_ids.length > 0) {
-    const rows = parsed.data.region_ids.map((region_id) => ({ driver_id: data.user!.id, region_id }));
-    const { error: regionError } = await admin.from("driver_regions").insert(rows);
-    if (regionError) {
-      return fail(toErrorMessage(regionError, "تم إنشاء الحساب لكن فشل ربط المناطق"));
+  if (parsed.data.role === "driver" && parsed.data.region_names.length > 0) {
+    // Typed area names (migration 0025), not pre-picked ids — resolved
+    // (and auto-created if new) through the same find_or_create_region()
+    // every other region entry point uses, so a name typed here and the
+    // same name typed on an order always resolve to one canonical row.
+    const regionIds: string[] = [];
+    for (const name of parsed.data.region_names) {
+      const { data: regionId, error: regionError } = await admin.rpc("find_or_create_region", {
+        p_name: name,
+      });
+      if (regionError || !regionId) {
+        return fail(toErrorMessage(regionError, "تم إنشاء الحساب لكن فشل ربط المناطق"));
+      }
+      if (!regionIds.includes(regionId as string)) regionIds.push(regionId as string);
+    }
+
+    const rows = regionIds.map((region_id) => ({ driver_id: data.user!.id, region_id }));
+    const { error: regionLinkError } = await admin.from("driver_regions").insert(rows);
+    if (regionLinkError) {
+      return fail(toErrorMessage(regionLinkError, "تم إنشاء الحساب لكن فشل ربط المناطق"));
     }
   }
 
@@ -127,18 +142,21 @@ export async function resetStaffPasswordAction(userId: string): Promise<ActionRe
   return ok(undefined);
 }
 
-export async function setDriverRegionsAction(driverId: string, regionIds: string[]): Promise<ActionResult> {
+/**
+ * Owner/Moderator editing a driver's covered areas — typed names now
+ * (migration 0025), resolved/auto-created and swapped in atomically by
+ * set_driver_regions_by_name(), which keeps the same Owner+Moderator
+ * authorization this used to enforce here via two separate client calls.
+ */
+export async function setDriverRegionsAction(driverId: string, regionNames: string[]): Promise<ActionResult> {
   await requireRole("owner", "moderator");
   const supabase = await createClient();
 
-  const { error: deleteError } = await supabase.from("driver_regions").delete().eq("driver_id", driverId);
-  if (deleteError) return fail(toErrorMessage(deleteError));
-
-  if (regionIds.length > 0) {
-    const rows = regionIds.map((region_id) => ({ driver_id: driverId, region_id }));
-    const { error: insertError } = await supabase.from("driver_regions").insert(rows);
-    if (insertError) return fail(toErrorMessage(insertError));
-  }
+  const { error } = await supabase.rpc("set_driver_regions_by_name", {
+    p_driver_id: driverId,
+    p_region_names: regionNames,
+  });
+  if (error) return fail(toErrorMessage(error));
 
   revalidatePath("/owner/team");
   revalidatePath("/moderator/team");

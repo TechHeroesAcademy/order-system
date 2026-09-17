@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { RegionDatalist } from "@/components/shared/region-datalist";
 import {
   Dialog,
   DialogContent,
@@ -35,6 +35,12 @@ export function EditOrderDialog({ order, regions }: { order: Order; regions: Reg
   const [open, setOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const router = useRouter();
+  const regionListId = useId();
+
+  // order carries only region_id (the FK) — resolve it to the typed name
+  // the text field now shows, from the same regions list already passed
+  // in for the datalist suggestions.
+  const currentRegionName = regions.find((r) => r.id === order.region_id)?.name ?? "";
 
   const form = useForm<EditOrderValues>({
     resolver: zodResolver(editOrderSchema),
@@ -43,7 +49,7 @@ export function EditOrderDialog({ order, regions }: { order: Order; regions: Reg
       customer_phone: order.customer_phone,
       customer_address: order.customer_address,
       customer_maps_url: order.customer_maps_url ?? "",
-      region_id: order.region_id,
+      region_name: currentRegionName,
       pieces_count: order.pieces_count,
       piece_details: order.piece_details ?? "",
       color: order.color ?? "",
@@ -61,7 +67,7 @@ export function EditOrderDialog({ order, regions }: { order: Order; regions: Reg
         customer_phone: order.customer_phone,
         customer_address: order.customer_address,
         customer_maps_url: order.customer_maps_url ?? "",
-        region_id: order.region_id,
+        region_name: currentRegionName,
         pieces_count: order.pieces_count,
         piece_details: order.piece_details ?? "",
         color: order.color ?? "",
@@ -168,24 +174,14 @@ export function EditOrderDialog({ order, regions }: { order: Order; regions: Reg
             <div className="grid gap-4 sm:grid-cols-2">
               <FormField
                 control={form.control}
-                name="region_id"
+                name="region_name"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>المنطقة</FormLabel>
-                    <Select value={field.value ?? undefined} onValueChange={field.onChange}>
-                      <FormControl>
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder="اختر المنطقة" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {regions.map((r) => (
-                          <SelectItem key={r.id} value={r.id}>
-                            {r.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <FormControl>
+                      <Input {...field} list={regionListId} placeholder="اكتب اسم المنطقة" />
+                    </FormControl>
+                    <RegionDatalist id={regionListId} regions={regions} />
                     <FormMessage />
                   </FormItem>
                 )}

@@ -75,6 +75,11 @@ test.describe("full order lifecycle across all four roles", () => {
     await mod.getByLabel("اسم العميل").fill("عميل اختبار E2E");
     await mod.getByLabel("رقم الهاتف").fill(uniquePhone);
     await mod.getByLabel("العنوان").fill("عنوان اختبار");
+    // Typed by keyboard, not picked from a list, and mandatory as of
+    // migration 0025 — no driver covers this made-up name, so the order is
+    // left unassigned for the Owner to distribute manually below, same as
+    // this test already exercised before this field existed.
+    await mod.getByLabel("المنطقة").fill("منطقة اختبار E2E");
     await mod.getByLabel("عدد القطع").fill("2");
     await mod.getByRole("button", { name: /إنشاء الأوردر/ }).click();
     const orderNumberText = await mod.getByText(/ORD-\d+/).first().textContent();

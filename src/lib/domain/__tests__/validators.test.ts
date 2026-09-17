@@ -10,7 +10,7 @@ describe("orderFormSchema", () => {
     customer_name: "أحمد علي",
     customer_phone: "01012345678",
     customer_address: "مدينة نصر، شارع مصطفى النحاس",
-    region_id: "11111111-1111-4111-8111-111111111111",
+    region_name: "مدينة نصر",
     pieces_count: 2,
     piece_details: "كرسيين",
     color: "بني",
@@ -38,9 +38,15 @@ describe("orderFormSchema", () => {
     expect(orderFormSchema.safeParse({ ...base, pieces_count: -3 }).success).toBe(false);
   });
 
-  it("allows a null region_id (not yet chosen)", () => {
-    const result = orderFormSchema.safeParse({ ...base, region_id: null });
-    expect(result.success).toBe(true);
+  // As of migration 0025, المنطقة is typed by keyboard and mandatory — no
+  // longer a nullable dropdown pick (see order-form.tsx / find_or_create_region()).
+  it("rejects a blank region_name", () => {
+    expect(orderFormSchema.safeParse({ ...base, region_name: "" }).success).toBe(false);
+    expect(orderFormSchema.safeParse({ ...base, region_name: "   " }).success).toBe(false);
+  });
+
+  it("rejects a region_name that's too short", () => {
+    expect(orderFormSchema.safeParse({ ...base, region_name: "أ" }).success).toBe(false);
   });
 
   it("accepts a pasted Google Maps link for the customer", () => {

@@ -1,14 +1,15 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Loader2, MapPin, Plus, UserPlus, Users, Factory } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { RegionTagsInput } from "./region-tags-input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
@@ -71,8 +72,28 @@ export function TeamManager({
   viewerRole: UserRole;
 }) {
   const [staffList, setStaffList] = useState(staff);
+
+  // Typing a new منطقة name (migration 0025) can create a region — or
+  // change a driver's coverage — that this component didn't know about
+  // when it first mounted. router.refresh() re-fetches regions/
+  // driverRegionsMap server-side and passes new props down; this is React's
+  // own "adjust state when a prop changes" pattern (a render-time check +
+  // setState, not an effect) for actually picking that up in local state
+  // that AddRegionDialog also updates optimistically without a refresh.
   const [regionsList, setRegionsList] = useState(regions);
+  const [prevRegions, setPrevRegions] = useState(regions);
+  if (regions !== prevRegions) {
+    setPrevRegions(regions);
+    setRegionsList(regions);
+  }
+
   const [regionsByDriver, setRegionsByDriver] = useState(driverRegionsMap);
+  const [prevDriverRegionsMap, setPrevDriverRegionsMap] = useState(driverRegionsMap);
+  if (driverRegionsMap !== prevDriverRegionsMap) {
+    setPrevDriverRegionsMap(driverRegionsMap);
+    setRegionsByDriver(driverRegionsMap);
+  }
+
   const isModerator = viewerRole === "moderator";
 
   const workers = useMemo(() => staffList.filter((m) => m.role !== "factory"), [staffList]);
@@ -164,7 +185,6 @@ export function TeamManager({
                               driverId={member.id}
                               regions={regionsList}
                               assignedIds={regionsByDriver[member.id] ?? []}
-                              onSaved={(ids) => setRegionsByDriver((prev) => ({ ...prev, [member.id]: ids }))}
                             />
                           ) : (
                             <span className="text-muted-foreground">—</span>
@@ -227,33 +247,29 @@ function DriverRegionsCell({
   driverId,
   regions,
   assignedIds,
-  onSaved,
 }: {
   driverId: string;
   regions: Region[];
   assignedIds: string[];
-  onSaved: (ids: string[]) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const [selected, setSelected] = useState<string[]>(assignedIds);
-  const [pending, startTransition] = useTransition();
-
   const assignedNames = regions.filter((r) => assignedIds.includes(r.id)).map((r) => r.name);
-
-  function toggleRegion(id: string, checked: boolean) {
-    setSelected((prev) => (checked ? [...prev, id] : prev.filter((r) => r !== id)));
-  }
+  const [names, setNames] = useState<string[]>(assignedNames);
+  const [pending, startTransition] = useTransition();
+  const router = useRouter();
 
   function save() {
     startTransition(async () => {
-      const res = await setDriverRegionsAction(driverId, selected);
+      const res = await setDriverRegionsAction(driverId, names);
       if (!res.ok) {
         toast.error(res.error);
         return;
       }
-      onSaved(selected);
       toast.success("تم تحديث مناطق المندوب");
       setOpen(false);
+      // A typed name may have created a brand-new region — refresh so the
+      // regions list and this driver's assigned ids stay in sync with it.
+      router.refresh();
     });
   }
 
@@ -262,7 +278,7 @@ function DriverRegionsCell({
       open={open}
       onOpenChange={(next) => {
         setOpen(next);
-        if (next) setSelected(assignedIds);
+        if (next) setNames(assignedNames);
       }}
     >
       <DialogTrigger asChild>
@@ -274,29 +290,9 @@ function DriverRegionsCell({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>مناطق تغطية المندوب</DialogTitle>
-          <DialogDescription>حدد المناطق التي يغطيها هذا المندوب لترشيحه تلقائيًا لأوردراتها.</DialogDescription>
+          <DialogDescription>اكتب المناطق التي يغطيها هذا المندوب لترشيحه تلقائيًا لأوردراتها.</DialogDescription>
         </DialogHeader>
-        <div className="max-h-64 space-y-2 overflow-y-auto">
-          {regions.length === 0 && <p className="text-sm text-muted-foreground">لا يوجد مناطق مضافة بعد.</p>}
-          {regions.length > 0 && (
-            <label className="flex items-center gap-2 border-b pb-2 text-sm font-medium">
-              <Checkbox
-                checked={selected.length === regions.length}
-                onCheckedChange={(checked) => setSelected(checked === true ? regions.map((r) => r.id) : [])}
-              />
-              تحديد الكل
-            </label>
-          )}
-          {regions.map((r) => (
-            <label key={r.id} className="flex items-center gap-2 text-sm">
-              <Checkbox
-                checked={selected.includes(r.id)}
-                onCheckedChange={(checked) => toggleRegion(r.id, checked === true)}
-              />
-              {r.name}
-            </label>
-          ))}
-        </div>
+        <RegionTagsInput value={names} onChange={setNames} regions={regions} />
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)} disabled={pending}>
             تراجع
@@ -386,21 +382,18 @@ function AddStaffDialog({
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<UserRole>(roleOptions[0]);
-  const [regionIds, setRegionIds] = useState<string[]>([]);
+  const [regionNames, setRegionNames] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const router = useRouter();
 
   function reset() {
     setFullName("");
     setPhone("");
     setEmail("");
     setRole(roleOptions[0]);
-    setRegionIds([]);
+    setRegionNames([]);
     setError(null);
-  }
-
-  function toggleRegion(id: string, checked: boolean) {
-    setRegionIds((prev) => (checked ? [...prev, id] : prev.filter((r) => r !== id)));
   }
 
   function submit() {
@@ -409,7 +402,7 @@ function AddStaffDialog({
       phone,
       email: email || undefined,
       role,
-      region_ids: role === "driver" ? regionIds : [],
+      region_names: role === "driver" ? regionNames : [],
     });
     if (!parsed.success) {
       setError(parsed.error.issues[0]?.message ?? "بيانات غير صالحة");
@@ -442,6 +435,8 @@ function AddStaffDialog({
       toast.success("تم إنشاء الحساب — يمكنه تسجيل الدخول برقم هاتفه وإنشاء كلمة مرور لأول مرة");
       reset();
       setOpen(false);
+      // A typed region name may have just created a brand-new region.
+      if (parsed.data.region_names.length > 0) router.refresh();
     });
   }
 
@@ -496,27 +491,7 @@ function AddStaffDialog({
           {role === "driver" && (
             <div className="space-y-1.5">
               <Label>المناطق التي يغطيها</Label>
-              <div className="max-h-40 space-y-2 overflow-y-auto rounded-md border p-2">
-                {regions.length === 0 && <p className="text-sm text-muted-foreground">لا يوجد مناطق مضافة بعد.</p>}
-                {regions.length > 0 && (
-                  <label className="flex items-center gap-2 border-b pb-2 text-sm font-medium">
-                    <Checkbox
-                      checked={regionIds.length === regions.length}
-                      onCheckedChange={(checked) => setRegionIds(checked === true ? regions.map((r) => r.id) : [])}
-                    />
-                    تحديد الكل
-                  </label>
-                )}
-                {regions.map((r) => (
-                  <label key={r.id} className="flex items-center gap-2 text-sm">
-                    <Checkbox
-                      checked={regionIds.includes(r.id)}
-                      onCheckedChange={(checked) => toggleRegion(r.id, checked === true)}
-                    />
-                    {r.name}
-                  </label>
-                ))}
-              </div>
+              <RegionTagsInput value={regionNames} onChange={setRegionNames} regions={regions} />
             </div>
           )}
           {error && <p className="text-sm text-destructive">{error}</p>}

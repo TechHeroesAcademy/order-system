@@ -43,7 +43,7 @@ export function AddFactoryPanel({ onCreated }: { onCreated: (profile: Profile) =
       phone,
       email: email || undefined,
       role: "factory",
-      region_ids: [],
+      region_names: [],
       address,
       maps_url: mapsUrl,
     });
