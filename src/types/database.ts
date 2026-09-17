@@ -137,6 +137,10 @@ export interface FactoryOrderRow {
   handed_to_factory_at: string | null;
   factory_received_at: string | null;
   factory_ready_at: string | null;
+  /** Added in 0022 alongside permanent factory history access — when the driver picked the order back up from the factory. */
+  driver_pickup_at: string | null;
+  /** Added in 0022 — when the order was delivered to the customer, for history rows past the factory's own steps. */
+  delivered_at: string | null;
   created_at: string;
 }
 

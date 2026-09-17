@@ -172,6 +172,28 @@ export async function listFactoryOrders(): Promise<FactoryOrderRow[]> {
   return (data as FactoryOrderRow[]) ?? [];
 }
 
+/**
+ * Every order this factory was ever assigned to that has since moved past
+ * its own active window (collected/at_factory/ready) — with_driver,
+ * delivered, refused, or cancelled. Backed by the same factory_orders_view
+ * as listFactoryOrders(), which migration 0022 changed to keep showing a
+ * factory any order it's assigned to regardless of status (previously it
+ * disappeared the moment the driver picked it back up, same as this row
+ * would 404 on the factory's own order-detail page — see that migration's
+ * comment for the full report and root cause). Newest-first, since this is
+ * a look-back list rather than a work queue.
+ */
+export async function listFactoryOrderHistory(): Promise<FactoryOrderRow[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("factory_orders_view")
+    .select("*")
+    .not("status", "in", "(collected,at_factory,ready)")
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data as FactoryOrderRow[]) ?? [];
+}
+
 export async function getFactoryOrderByNumber(orderNumber: string): Promise<FactoryOrderRow | null> {
   const supabase = await createClient();
   const { data, error } = await supabase
@@ -184,14 +206,16 @@ export async function getFactoryOrderByNumber(orderNumber: string): Promise<Fact
 }
 
 /**
- * A single order for the factory's own detail page (new — supports the
- * factory chat channel and the "open this order" notification click-through).
- * Goes through factory_orders_view, same as the rest of the factory
- * dashboard, so visibility matches exactly: only orders in
- * collected/at_factory/ready, and only ones assigned to this factory (or
- * unassigned). An order the factory was involved with earlier but that has
- * since moved on (e.g. delivered) correctly stops resolving here — same as
- * it already disappears from their dashboard tabs.
+ * A single order for the factory's own detail page — supports the factory
+ * chat channel and the "open this order" notification click-through, and
+ * (as of migration 0022) any order this factory was ever assigned to,
+ * regardless of status. Before 0022 this went through the same
+ * active-status-only filter as the dashboard tabs, so an order that had
+ * moved past 'ready' (with_driver/delivered/refused/cancelled) 404'd here —
+ * reported as "press the order number and it gives an error." An
+ * unassigned order still only resolves here while active (collected/
+ * at_factory/ready), same as before — nothing to permanently attribute it
+ * to once it's no longer assigned to a specific factory.
  */
 export async function getFactoryOrderById(id: string): Promise<FactoryOrderRow | null> {
   const supabase = await createClient();

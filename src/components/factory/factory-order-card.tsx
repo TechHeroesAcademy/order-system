@@ -8,7 +8,7 @@ import { OrderStatusBadge } from "@/components/orders/order-status-badge";
 import { ConfirmActionButton } from "@/components/shared/confirm-action-button";
 import { factoryConfirmReceiptAction, factoryMarkReadyAction } from "@/lib/actions/orders";
 import { formatDateTime } from "@/lib/domain/format";
-import { isOrderDelayed } from "@/lib/domain/order-status";
+import { isOrderDelayed, ORDER_STATUS_LABELS_AR } from "@/lib/domain/order-status";
 import type { FactoryOrderRow } from "@/types/database";
 
 export function FactoryOrderCard({ order }: { order: FactoryOrderRow }) {
@@ -80,6 +80,26 @@ export function FactoryOrderCard({ order }: { order: FactoryOrderRow }) {
         {order.status === "ready" && (
           <p className="rounded-md border bg-muted/40 p-2 text-center text-sm text-muted-foreground">
             بانتظار استلام المندوب — {formatDateTime(order.factory_ready_at)}
+          </p>
+        )}
+
+        {/* History rows (migration 0022) — the order has moved past the
+            factory's own steps (with_driver/delivered/refused/cancelled).
+            No action button applies anymore; just a read-only summary of
+            what happened, alongside the status badge already shown above. */}
+        {order.status === "with_driver" && (
+          <p className="rounded-md border bg-muted/40 p-2 text-center text-sm text-muted-foreground">
+            استلمه المندوب من المصنع — {formatDateTime(order.driver_pickup_at)}
+          </p>
+        )}
+        {order.status === "delivered" && (
+          <p className="rounded-md border bg-muted/40 p-2 text-center text-sm text-muted-foreground">
+            {ORDER_STATUS_LABELS_AR.delivered} — {formatDateTime(order.delivered_at)}
+          </p>
+        )}
+        {(order.status === "refused" || order.status === "cancelled") && (
+          <p className="rounded-md border bg-muted/40 p-2 text-center text-sm text-muted-foreground">
+            {ORDER_STATUS_LABELS_AR[order.status]}
           </p>
         )}
       </CardContent>

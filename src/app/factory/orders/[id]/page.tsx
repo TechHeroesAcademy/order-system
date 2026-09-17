@@ -13,15 +13,14 @@ import { isOrderDelayed } from "@/lib/domain/order-status";
 import { PackageCheck, CheckCircle2 } from "lucide-react";
 
 /**
- * The factory's own order-detail page (new — the driver/owner/moderator
- * roles already each had one). Two things needed it to exist: a place to
- * render the factory's own chat channel (previously the factory had no
- * chat at all — see migration 0019), and a valid navigation target for
- * "click a notification, open that order." Reuses factory_orders_view via
- * getFactoryOrderById, so visibility exactly matches the factory dashboard
- * — an order that has moved past collected/at_factory/ready (or that
- * belongs to another factory) 404s here the same way it disappears from
- * the dashboard tabs.
+ * The factory's own order-detail page. Reuses factory_orders_view via
+ * getFactoryOrderById — as of migration 0022, that means any order this
+ * factory was ever assigned to resolves here permanently, including past
+ * its own active window (with_driver/delivered/refused/cancelled), so the
+ * "السجل" history tab on the dashboard has somewhere to link to. An order
+ * that belongs to another factory, or an unassigned order that's no longer
+ * active, still 404s here — see the comment on getFactoryOrderById
+ * (src/lib/data/orders.ts) for why that part is unchanged.
  */
 export default async function FactoryOrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;

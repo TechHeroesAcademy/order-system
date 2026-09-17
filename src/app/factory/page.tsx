@@ -1,4 +1,4 @@
-import { listFactoryOrders, getFactoryOrderByNumber } from "@/lib/data/orders";
+import { listFactoryOrders, listFactoryOrderHistory, getFactoryOrderByNumber } from "@/lib/data/orders";
 import { requireRole } from "@/lib/auth";
 import { FactoryOrderCard } from "@/components/factory/factory-order-card";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -34,7 +34,7 @@ export default async function FactoryPage({
     );
   }
 
-  const orders = await listFactoryOrders();
+  const [orders, history] = await Promise.all([listFactoryOrders(), listFactoryOrderHistory()]);
   const collected = orders.filter((o) => o.status === "collected");
   const atFactory = orders.filter((o) => o.status === "at_factory");
   const ready = orders.filter((o) => o.status === "ready");
@@ -49,6 +49,7 @@ export default async function FactoryPage({
           <TabsTrigger value="collected">بانتظار الاستلام ({collected.length})</TabsTrigger>
           <TabsTrigger value="at_factory">داخل المصنع ({atFactory.length})</TabsTrigger>
           <TabsTrigger value="ready">جاهزة للتسليم ({ready.length})</TabsTrigger>
+          <TabsTrigger value="history">السجل ({history.length})</TabsTrigger>
         </TabsList>
 
         <TabsContent value="collected" className="space-y-3 pt-3">
@@ -60,14 +61,23 @@ export default async function FactoryPage({
         <TabsContent value="ready" className="space-y-3 pt-3">
           <OrderGrid orders={ready} />
         </TabsContent>
+        <TabsContent value="history" className="space-y-3 pt-3">
+          <OrderGrid orders={history} emptyLabel="لا يوجد أوردرات سابقة بعد" />
+        </TabsContent>
       </Tabs>
     </div>
   );
 }
 
-function OrderGrid({ orders }: { orders: Awaited<ReturnType<typeof listFactoryOrders>> }) {
+function OrderGrid({
+  orders,
+  emptyLabel = "لا يوجد أوردرات هنا حاليًا",
+}: {
+  orders: Awaited<ReturnType<typeof listFactoryOrders>>;
+  emptyLabel?: string;
+}) {
   if (orders.length === 0) {
-    return <EmptyState icon={PackageSearch} title="لا يوجد أوردرات هنا حاليًا" />;
+    return <EmptyState icon={PackageSearch} title={emptyLabel} />;
   }
   return (
     <div className="stagger-children grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
