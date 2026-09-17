@@ -3,12 +3,13 @@
 import { useMemo, useState, useTransition } from "react";
 import dynamic from "next/dynamic";
 import { toast } from "sonner";
-import { Loader2, Factory, MapPin, Map as MapIcon, X } from "lucide-react";
+import { Loader2, Factory, MapPin, MapPinOff, Map as MapIcon, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { EmptyState } from "@/components/shared/empty-state";
 import { updateStaffLocationAction } from "@/lib/actions/admin";
@@ -115,10 +116,27 @@ export function FactoriesMapPanel({
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <p className="text-xs text-muted-foreground">
-            انقر على أي علامة لتعديل بيانات المصنع، أو اختره من الجدول أدناه. إن لم يكن للمصنع المختار موقع محدد
-            بعد، انقر في أي مكان على الخريطة لتحديده.
-          </p>
+          {pins.length === 0 && factories.length > 0 ? (
+            // The map only ever plots a factory once someone explicitly sets
+            // its pin here — creating a factory account (or just giving it a
+            // text address) doesn't place it on the map by itself, so a
+            // freshly-added team with no pins set yet is expected to render
+            // as an empty map. Called out explicitly instead of leaving that
+            // as a silent blank map, which reads as broken.
+            <Alert variant="warning">
+              <MapPinOff className="size-4" />
+              <AlertTitle>لا يوجد أي مصنع له موقع محدد على الخريطة بعد</AlertTitle>
+              <AlertDescription>
+                إضافة عنوان نصي عند إنشاء المصنع لا يضعه تلقائيًا على الخريطة — لتحديد موقعه بدقة: اختر المصنع من
+                الجدول أسفل الخريطة، ثم انقر على مكانه عليها.
+              </AlertDescription>
+            </Alert>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              انقر على أي علامة لتعديل بيانات المصنع، أو اختره من الجدول أدناه. إن لم يكن للمصنع المختار موقع محدد
+              بعد، انقر في أي مكان على الخريطة لتحديده.
+            </p>
+          )}
           <FactoriesMap
             factories={pins}
             selectedId={selectedId}

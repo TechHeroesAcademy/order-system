@@ -8,6 +8,10 @@ import { createPinIcon } from "./pin-icon";
 // Cairo — a reasonable default center when nothing is plotted yet (this
 // app's regions are all Egyptian, see supabase/migrations/0012).
 const DEFAULT_CENTER: [number, number] = [30.0444, 31.2357];
+// Red map pins, matching the standard "location marker" look — the
+// selected/draggable one stays a contrasting blue so it's unmistakable
+// which factory is currently open for editing.
+const FACTORY_COLOR = "#DC2626";
 const SELECTED_COLOR = "#2563eb";
 
 export interface FactoryPin {
@@ -55,7 +59,7 @@ export function FactoriesMap({
   onSelectPin?: (id: string) => void;
   onPinChange?: (lat: number, lng: number) => void;
 }) {
-  const defaultIcon = useMemo(() => createPinIcon(), []);
+  const defaultIcon = useMemo(() => createPinIcon(FACTORY_COLOR), []);
   const selectedIcon = useMemo(() => createPinIcon(SELECTED_COLOR), []);
   const markerRef = useRef<LeafletMarker | null>(null);
 

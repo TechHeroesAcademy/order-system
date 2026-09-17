@@ -43,6 +43,7 @@ import {
 import { createStaffAccountSchema, regionNameSchema } from "@/lib/domain/validators";
 import { ToggleActiveButton, ResetPasswordButton } from "./staff-actions";
 import { FactoriesMapPanel } from "./factories-map-panel";
+import { AddFactoryPanel } from "./add-factory-panel";
 import type { Profile, Region, UserRole } from "@/types/database";
 
 const ROLE_LABELS_AR: Record<UserRole, string> = {
@@ -52,7 +53,10 @@ const ROLE_LABELS_AR: Record<UserRole, string> = {
   factory: "المصنع",
 };
 
-const ROLE_OPTIONS: UserRole[] = ["moderator", "driver", "factory", "owner"];
+// Factory accounts have their own dedicated "إضافة مصنع" tab now (see
+// AddFactoryPanel) — the shared "عضو جديد" dialog below only ever creates
+// driver/moderator/owner ("another manager") accounts.
+const ROLE_OPTIONS: UserRole[] = ["moderator", "driver", "owner"];
 
 export function TeamManager({
   staff,
@@ -82,6 +86,8 @@ export function TeamManager({
     updateMember(id, { is_active: isActive });
   }
 
+  const [activeTab, setActiveTab] = useState("workers");
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -100,7 +106,7 @@ export function TeamManager({
         </div>
       </div>
 
-      <Tabs defaultValue="workers">
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="workers">
             <Users className="size-4" />
@@ -109,6 +115,10 @@ export function TeamManager({
           <TabsTrigger value="factories">
             <Factory className="size-4" />
             المصانع ({factories.length})
+          </TabsTrigger>
+          <TabsTrigger value="add-factory">
+            <Plus className="size-4" />
+            إضافة مصنع
           </TabsTrigger>
         </TabsList>
 
@@ -189,6 +199,15 @@ export function TeamManager({
             factories={factories}
             onSaved={(id, next) => updateMember(id, next)}
             onToggled={(id, isActive) => toggleActive(id, isActive)}
+          />
+        </TabsContent>
+
+        <TabsContent value="add-factory">
+          <AddFactoryPanel
+            onCreated={(profile) => {
+              setStaffList((prev) => [profile, ...prev]);
+              setActiveTab("factories");
+            }}
           />
         </TabsContent>
       </Tabs>
@@ -351,15 +370,16 @@ function AddStaffDialog({
   viewerRole: UserRole;
   onCreated: (profile: Profile) => void;
 }) {
-  const roleOptions = viewerRole === "moderator" ? (["driver", "factory"] as const) : ROLE_OPTIONS;
+  // Factory accounts have their own "إضافة مصنع" tab (AddFactoryPanel) —
+  // a Moderator caller can only ever create a driver here (createStaffAccountAction
+  // still separately enforces this server-side, same as before).
+  const roleOptions = viewerRole === "moderator" ? (["driver"] as const) : ROLE_OPTIONS;
   const [open, setOpen] = useState(false);
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<UserRole>(roleOptions[0]);
   const [regionIds, setRegionIds] = useState<string[]>([]);
-  const [address, setAddress] = useState("");
-  const [mapsUrl, setMapsUrl] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -369,8 +389,6 @@ function AddStaffDialog({
     setEmail("");
     setRole(roleOptions[0]);
     setRegionIds([]);
-    setAddress("");
-    setMapsUrl("");
     setError(null);
   }
 
@@ -385,8 +403,6 @@ function AddStaffDialog({
       email: email || undefined,
       role,
       region_ids: role === "driver" ? regionIds : [],
-      address: role === "factory" ? address : undefined,
-      maps_url: role === "factory" ? mapsUrl : undefined,
     });
     if (!parsed.success) {
       setError(parsed.error.issues[0]?.message ?? "بيانات غير صالحة");
@@ -405,12 +421,12 @@ function AddStaffDialog({
         phone: parsed.data.phone,
         role: parsed.data.role,
         region_id: null,
-        address: parsed.data.role === "factory" ? (parsed.data.address?.trim() || null) : null,
-        // No pin yet — a brand-new factory gets one afterwards from the one
-        // general map in the Factories tab (select it, then click its spot).
+        // This dialog never creates a factory account anymore (see
+        // AddFactoryPanel), so there's never an address/pin to set here.
+        address: null,
         lat: null,
         lng: null,
-        maps_url: parsed.data.role === "factory" ? (parsed.data.maps_url?.trim() || null) : null,
+        maps_url: null,
         is_active: true,
         password_set: false,
         created_at: new Date().toISOString(),
@@ -470,35 +486,6 @@ function AddStaffDialog({
               </SelectContent>
             </Select>
           </div>
-          {role === "factory" && (
-            <div className="space-y-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="staff-address">عنوان المصنع (اختياري)</Label>
-                <Input
-                  id="staff-address"
-                  value={address}
-                  onChange={(e) => setAddress(e.target.value)}
-                  placeholder="مثال: المنطقة الصناعية، مدينة نصر، مبنى 12"
-                />
-                <p className="text-xs text-muted-foreground">يظهر هذا العنوان للمندوب عند تسليم أو استلام أوردر من هذا المصنع.</p>
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="staff-maps-url">رابط خرائط جوجل (اختياري)</Label>
-                <Input
-                  id="staff-maps-url"
-                  dir="ltr"
-                  value={mapsUrl}
-                  onChange={(e) => setMapsUrl(e.target.value)}
-                  placeholder="https://www.google.com/maps/place/..."
-                />
-                <p className="text-xs text-muted-foreground">إن وُجد، يُستخدم مباشرة بدلًا من العنوان النصي أو تحديد الخريطة — أدق وأسرع للمندوب.</p>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                يمكن تحديد موقع المصنع بدقة على الخريطة بعد إنشاء الحساب — من تبويب المصانع، اختره من الجدول ثم انقر
-                على مكانه على الخريطة العامة.
-              </p>
-            </div>
-          )}
           {role === "driver" && (
             <div className="space-y-1.5">
               <Label>المناطق التي يغطيها</Label>

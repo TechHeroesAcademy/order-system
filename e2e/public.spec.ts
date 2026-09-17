@@ -22,20 +22,30 @@ import { test, expect } from "@playwright/test";
  */
 
 test.describe("homepage", () => {
-  test("renders the tracking entry point and the staff sign-in entry point", async ({ page }) => {
+  test("renders the inline tracking field and the staff sign-in entry point", async ({ page }) => {
     await page.goto("/");
     await expect(page.getByRole("heading", { name: "شركة المجد" })).toBeVisible();
-    await expect(page.getByRole("link", { name: "تتبع الأوردر" })).toBeVisible();
+    // The order-tracking field is now embedded directly on the homepage
+    // (not just a link to /track) — order number + phone + a search button.
+    await expect(page.getByLabel("رقم الأوردر")).toBeVisible();
+    await expect(page.getByLabel("رقم الهاتف")).toBeVisible();
+    await expect(page.getByRole("button", { name: "بحث" })).toBeVisible();
     await expect(page.getByRole("link", { name: "تسجيل الدخول" })).toBeVisible();
     // Order creation is not a public action anymore — no standalone
     // "إنشاء أوردر" entry point on the homepage.
     await expect(page.getByRole("link", { name: "إنشاء أوردر", exact: true })).toHaveCount(0);
   });
 
-  test("the tracking entry point navigates to /track", async ({ page }) => {
+  test("the inline tracking field submits without leaving the homepage", async ({ page }) => {
     await page.goto("/");
-    await page.getByRole("link", { name: "تتبع الأوردر" }).click();
-    await expect(page).toHaveURL(/\/track$/);
+    await page.getByLabel("رقم الأوردر").fill("ORD-0001");
+    await page.getByLabel("رقم الهاتف").fill("01000000000");
+    await page.getByRole("button", { name: "بحث" }).click();
+    // No live Supabase project in this environment, so the lookup itself
+    // can't succeed — what this test guards is that submitting the inline
+    // form stays on "/" (a client-side server action call) instead of
+    // navigating anywhere, unlike the old link-to-/track design.
+    await expect(page).toHaveURL(/\/$/);
   });
 
   test("the sign-in entry point navigates to /login", async ({ page }) => {
