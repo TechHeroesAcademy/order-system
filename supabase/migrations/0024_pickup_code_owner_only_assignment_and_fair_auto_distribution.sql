@@ -89,8 +89,26 @@ grant execute on function public.get_order_pickup_code to authenticated;
 -- extends the composite type in place (unlike DROP TYPE ... CASCADE, this
 -- doesn't touch any function that returns it), so create_order_internal and
 -- every function that calls it keep working unchanged except for the one
--- new field this migration actually sets.
-alter type public.new_order_result add attribute pickup_code text;
+-- new field this migration actually sets. Postgres has no
+-- "ADD ATTRIBUTE IF NOT EXISTS" for composite types, so this is wrapped in
+-- an existence check to make it safe to re-run against a database that
+-- already picked up this change (this migration re-applied on top of
+-- itself, or a partially-applied migration history).
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_attribute a
+    join pg_type t on t.typrelid = a.attrelid
+    join pg_namespace n on n.oid = t.typnamespace
+    where n.nspname = 'public'
+      and t.typname = 'new_order_result'
+      and a.attname = 'pickup_code'
+      and not a.attisdropped
+  ) then
+    alter type public.new_order_result add attribute pickup_code text;
+  end if;
+end $$;
 
 -- driver_mark_collected(uuid) -> driver_mark_collected(uuid, text) and
 -- void -> boolean (so the UI can tell "wrong code" apart from a hard
