@@ -3,6 +3,7 @@ import { getCurrentProfile } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { HeroBackground } from "@/components/shared/hero-background";
+import { BrandLogoFull } from "@/components/shared/brand-logo";
 import { TrackOrderForm } from "@/components/track/track-order-form";
 import { LogIn, LayoutDashboard, Building2, Truck, Factory, ShieldCheck } from "lucide-react";
 
@@ -42,10 +43,10 @@ export default async function HomePage() {
         <HeroBackground />
 
         <div className="relative z-10 text-center space-y-3 animate-fade-in-up">
+          <BrandLogoFull className="mx-auto h-24 w-auto drop-shadow-sm sm:h-28" />
           <span className="inline-flex items-center rounded-full bg-primary px-3 py-1 text-xs font-bold tracking-wide text-primary-foreground">
             إدارة وتوزيع الأوردرات
           </span>
-          <h1 className="text-3xl font-extrabold text-white drop-shadow-sm sm:text-4xl">شركة المجد</h1>
           <p className="text-white/85">تابع أوردرك أدناه، أو سجّل دخولك كفريق عمل لإنشاء ومتابعة الأوردرات</p>
         </div>
 

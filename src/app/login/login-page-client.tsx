@@ -13,6 +13,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { HeroBackground } from "@/components/shared/hero-background";
+import { BrandLogoFull } from "@/components/shared/brand-logo";
 import { Loader2, ArrowRight } from "lucide-react";
 
 export function LoginPageClient() {
@@ -28,10 +29,12 @@ function LoginPageInner() {
   const inactiveError = searchParams.get("error") === "account_inactive";
 
   return (
-    <main className="relative flex min-h-screen items-center justify-center overflow-hidden p-6">
+    <main className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden p-6">
       {/* Same professional photo background as the homepage, so signing in
           doesn't feel like a bare, disconnected screen — see HeroBackground. */}
       <HeroBackground />
+
+      <BrandLogoFull className="relative z-10 mb-6 h-20 w-auto drop-shadow-sm" />
 
       <Card className="relative z-10 w-full max-w-sm border-0 bg-white shadow-2xl">
         <CardHeader>

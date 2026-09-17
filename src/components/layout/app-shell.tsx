@@ -4,6 +4,7 @@ import type { LucideIcon } from "lucide-react";
 import { NotificationBellSlot, NotificationBellSkeleton } from "./notification-bell-slot";
 import { SignOutButton } from "./sign-out-button";
 import { IdleLogoutWatcher } from "./idle-logout-watcher";
+import { BrandBadge } from "@/components/shared/brand-logo";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -48,7 +49,13 @@ export function AppShell({
           this is the one element present on every screen for every role. */}
       <header className="sticky top-0 z-40 bg-primary text-primary-foreground shadow-sm">
         <div className="flex h-14 items-center gap-3 px-4">
-          <p className="font-bold whitespace-nowrap">{title}</p>
+          {/* White mount behind the badge for contrast against the bar's own
+              (yellow) brand color — the badge's own red doesn't need to
+              match it, same idea as a logo sticker on a colored sign. */}
+          <span className="sr-only">{title}</span>
+          <div className="flex items-center rounded-md bg-white px-2 py-1 shadow-sm">
+            <BrandBadge className="h-5 w-auto" />
+          </div>
           <Badge variant="outline" className="hidden border-primary-foreground/30 text-primary-foreground sm:inline-flex">
             {ROLE_LABELS_AR[profile.role]}
           </Badge>

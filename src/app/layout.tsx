@@ -4,8 +4,8 @@ import { RefreshToHome } from "@/components/layout/refresh-to-home";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "شركة المجد لإدارة الأوردرات",
-  description: "نظام داخلي لإدارة الأوردرات وتوزيعها وتتبعها من العميل إلى المصنع ورجوعًا — شركة المجد.",
+  title: "EL REWAD — إدارة الأوردرات",
+  description: "نظام داخلي لإدارة الأوردرات وتوزيعها وتتبعها من العميل إلى المصنع ورجوعًا — EL REWAD Company.",
 };
 
 export const viewport: Viewport = {
