@@ -48,33 +48,30 @@ export async function createPublicOrderAction(
 /**
  * Moderator/Owner creating an order sourced from a Messenger conversation.
  *
- * Only the Owner (the "manager") may pick the driver/factory directly —
- * see migration 0024. A Moderator's copy of the form never shows those
- * fields at all (OrderForm's showDistributionFields=false); this is the
- * server-side half of that same rule (defense in depth — this action could
+ * As of migration 0027, both roles pick the factory here (previously
+ * Owner-only, migration 0024), but neither picks a driver directly, Owner
+ * included — OrderForm has no driver field at all anymore. This is the
+ * server-side half of that rule (defense in depth — this action could
  * otherwise be called directly, bypassing the form), and the RPC itself
- * re-checks it a third time as the real authorization boundary. For an
- * Owner, both fields stay mandatory (unchanged since Round 4) — an explicit
- * pick there is immediately approved, since the Owner's own pick already
- * *is* the manager's confirmation. A Moderator's order instead gets a
- * fair, region-based driver suggestion automatically (0024), left pending
- * until the Owner approves it from <DistributionPanel>.
+ * re-checks it a third time as the real authorization boundary. Every
+ * order's driver is now always the fair, region-based auto-suggestion
+ * (create_order_internal), left pending until the Owner approves it from
+ * <DistributionPanel> — even for an order the Owner themself created.
  */
 export async function createModeratorOrderAction(
   input: OrderFormInput,
 ): Promise<ActionResult<NewOrderResult>> {
-  const me = await requireRole("owner", "moderator");
+  await requireRole("owner", "moderator");
   const parsed = orderFormSchema.safeParse(input);
   if (!parsed.success) {
     return fail(parsed.error.issues[0]?.message ?? "بيانات غير صالحة");
   }
 
-  if (me.role === "owner") {
-    if (!parsed.data.driver_id || !parsed.data.factory_id) {
-      return fail("يجب اختيار المندوب والمصنع عند إنشاء الأوردر");
-    }
-  } else if (parsed.data.driver_id || parsed.data.factory_id) {
-    return fail("تحديد المندوب أو المصنع من صلاحية المدير فقط");
+  if (!parsed.data.factory_id) {
+    return fail("يجب اختيار المصنع عند إنشاء الأوردر");
+  }
+  if (parsed.data.driver_id) {
+    return fail("يتم تعيين المندوب تلقائيًا، لا يمكن اختياره عند إنشاء الأوردر");
   }
 
   const supabase = await createClient();
@@ -88,8 +85,8 @@ export async function createModeratorOrderAction(
     p_color: parsed.data.color ?? null,
     p_work_required: parsed.data.work_required ?? null,
     p_customer_notes: parsed.data.customer_notes ?? null,
-    p_factory_id: parsed.data.factory_id ?? null,
-    p_driver_id: parsed.data.driver_id ?? null,
+    p_factory_id: parsed.data.factory_id,
+    p_driver_id: null,
     p_customer_maps_url: parsed.data.customer_maps_url?.trim() || null,
   });
 

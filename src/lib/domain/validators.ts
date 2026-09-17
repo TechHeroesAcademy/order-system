@@ -58,12 +58,16 @@ export const orderFormSchema = z.object({
   color: z.string().trim().max(100).optional().nullable(),
   work_required: z.string().trim().max(500).optional().nullable(),
   customer_notes: z.string().trim().max(1000).optional().nullable(),
+  // Optional at the schema level — whether picking a factory is actually
+  // required is a role/page-based UI rule, not something this shared
+  // schema can express; see OrderForm's requireFactory prop and
+  // createModeratorOrderAction's own server-side check.
   factory_id: z.string().uuid().optional().nullable(),
-  // Optional at the schema level — Owner can still leave these unassigned
-  // (handled later through the separate distribution flow). Moderator is
-  // required to pick both, but that's a role-based UI rule, not something
-  // this shared schema can express; see OrderForm's requireDriverAndFactory
-  // prop and createModeratorOrderAction's own server-side check.
+  // No longer settable from OrderForm as of migration 0027 (the driver is
+  // always auto-suggested by region, never picked at creation time) — kept
+  // here only because EditOrderValues derives from this schema via
+  // .omit({ factory_id: true, driver_id: true }) and createModeratorOrderAction
+  // still rejects a non-null value defensively.
   driver_id: z.string().uuid().optional().nullable(),
 });
 

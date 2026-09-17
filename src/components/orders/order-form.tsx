@@ -20,26 +20,29 @@ import type { ActionResult } from "@/lib/actions/types";
 export function OrderForm({
   regions,
   factories = [],
-  drivers = [],
-  requireDriverAndFactory = false,
-  showDistributionFields = true,
+  requireFactory = false,
+  showFactoryField = true,
   action,
   submitLabel = "إنشاء الأوردر",
 }: {
   regions: Region[];
-  /** Active factory accounts, for the "route to factory" field below — leave the field unassigned and it stays visible to every factory account (unless requireDriverAndFactory). */
+  /** Active factory accounts, for the "route to factory" field below — leave the field unassigned and it stays visible to every factory account (unless requireFactory). */
   factories?: Profile[];
-  /** Active driver accounts, for the "assign a driver" field below. */
-  drivers?: Profile[];
-  /** Owner creating an order must pick both a driver and a factory up front. See createModeratorOrderAction. Ignored when showDistributionFields is false. */
-  requireDriverAndFactory?: boolean;
   /**
-   * false hides the factory/driver fields entirely — used for a Moderator,
-   * who can no longer assign either (migration 0024): the region alone is
-   * enough for the system to auto-suggest a driver, pending the Owner's
-   * approval, and the factory is left for the Owner to set afterward.
+   * Whether picking a factory is mandatory before submitting. See
+   * createModeratorOrderAction. Ignored when showFactoryField is false.
    */
-  showDistributionFields?: boolean;
+  requireFactory?: boolean;
+  /**
+   * false hides the factory field entirely — used for the public/customer
+   * form, which never routes to a specific factory.
+   *
+   * There is no driver field here at all (as of migration 0027): the
+   * driver is always auto-suggested by region (create_order_internal),
+   * pending the Owner's approval from <DistributionPanel> — nobody, Owner
+   * included, picks a driver directly at order-creation time anymore.
+   */
+  showFactoryField?: boolean;
   action: (values: OrderFormValues) => Promise<ActionResult<NewOrderResult>>;
   submitLabel?: string;
 }) {
@@ -66,20 +69,10 @@ export function OrderForm({
   });
 
   async function onSubmit(values: OrderFormValues) {
-    if (showDistributionFields && requireDriverAndFactory) {
-      let missing = false;
-      if (!values.driver_id) {
-        form.setError("driver_id", { message: "اختر المندوب" });
-        missing = true;
-      }
-      if (!values.factory_id) {
-        form.setError("factory_id", { message: "اختر المصنع" });
-        missing = true;
-      }
-      if (missing) {
-        toast.error("يجب اختيار المندوب والمصنع لهذا الأوردر");
-        return;
-      }
+    if (showFactoryField && requireFactory && !values.factory_id) {
+      form.setError("factory_id", { message: "اختر المصنع" });
+      toast.error("يجب اختيار المصنع لهذا الأوردر");
+      return;
     }
 
     setSubmitting(true);
@@ -239,13 +232,13 @@ export function OrderForm({
           />
         </div>
 
-        {showDistributionFields && (factories.length > 0 || requireDriverAndFactory) && (
+        {showFactoryField && (factories.length > 0 || requireFactory) && (
           <FormField
             control={form.control}
             name="factory_id"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>{requireDriverAndFactory ? "المصنع" : "المصنع (اختياري)"}</FormLabel>
+                <FormLabel>{requireFactory ? "المصنع" : "المصنع (اختياري)"}</FormLabel>
                 {factories.length > 0 ? (
                   <Select
                     value={field.value ?? "unassigned"}
@@ -257,7 +250,7 @@ export function OrderForm({
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {!requireDriverAndFactory && (
+                      {!requireFactory && (
                         <SelectItem value="unassigned">بدون تحديد — يظهر لكل المصانع</SelectItem>
                       )}
                       {factories.map((f) => (
@@ -271,45 +264,6 @@ export function OrderForm({
                 ) : (
                   <p className="text-sm text-destructive">
                     لا يوجد حساب مصنع مفعّل — أضف واحدًا من إدارة الفريق أولًا
-                  </p>
-                )}
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        )}
-
-        {showDistributionFields && (drivers.length > 0 || requireDriverAndFactory) && (
-          <FormField
-            control={form.control}
-            name="driver_id"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>{requireDriverAndFactory ? "المندوب" : "المندوب (اختياري)"}</FormLabel>
-                {drivers.length > 0 ? (
-                  <Select
-                    value={field.value ?? "unassigned"}
-                    onValueChange={(v) => field.onChange(v === "unassigned" ? null : v)}
-                  >
-                    <FormControl>
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="بدون تحديد — يُسند لاحقًا من التوزيع" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {!requireDriverAndFactory && (
-                        <SelectItem value="unassigned">بدون تحديد — يُسند لاحقًا من التوزيع</SelectItem>
-                      )}
-                      {drivers.map((d) => (
-                        <SelectItem key={d.id} value={d.id}>
-                          {d.full_name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <p className="text-sm text-destructive">
-                    لا يوجد مندوب مفعّل — أضف واحدًا من إدارة الفريق أولًا
                   </p>
                 )}
                 <FormMessage />

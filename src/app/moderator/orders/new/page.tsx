@@ -9,24 +9,17 @@ import { Info } from "lucide-react";
 
 /**
  * Shared "أوردر جديد" page for both Owner and Moderator (this route's
- * layout allows both) — but as of migration 0024, only the Owner ("the
- * manager") picks the driver and factory directly here. A Moderator's copy
- * of this form drops both fields entirely: the region alone is enough for
- * the system to fairly auto-suggest a driver (pending the Owner's approval
- * from the orders list/detail page), and the factory is left for the Owner
- * to assign afterward.
+ * layout allows both). As of migration 0027, both roles pick the factory
+ * here — the one distribution decision still made at creation time — but
+ * neither picks a driver directly, Owner included: the region alone is
+ * enough for the system to fairly auto-suggest one, always left pending
+ * the Owner's approval from <DistributionPanel> on the order's own page.
  */
 export default async function ModeratorNewOrderPage() {
-  const profile = await requireRole("owner", "moderator");
-  const isOwner = profile.role === "owner";
+  await requireRole("owner", "moderator");
 
-  const [regions, factories, drivers] = await Promise.all([
-    listRegions(),
-    isOwner ? listStaff("factory") : Promise.resolve([]),
-    isOwner ? listStaff("driver") : Promise.resolve([]),
-  ]);
+  const [regions, factories] = await Promise.all([listRegions(), listStaff("factory")]);
   const activeFactories = factories.filter((f) => f.is_active);
-  const activeDrivers = drivers.filter((d) => d.is_active);
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
@@ -38,17 +31,14 @@ export default async function ModeratorNewOrderPage() {
           <Alert>
             <Info className="size-4" />
             <AlertDescription>
-              {isOwner
-                ? "يجب اختيار المندوب والمصنع عند تسجيل الأوردر"
-                : "سيتم اقتراح مندوب تلقائيًا حسب المنطقة، وسيعتمده المدير قبل إرساله — تحديد المندوب والمصنع من صلاحية المدير"}
+              يجب اختيار المصنع عند تسجيل الأوردر — سيتم اقتراح مندوب تلقائيًا حسب المنطقة، وسيعتمده المدير قبل
+              إرساله للمندوب
             </AlertDescription>
           </Alert>
           <OrderForm
             regions={regions}
             factories={activeFactories}
-            drivers={activeDrivers}
-            requireDriverAndFactory={isOwner}
-            showDistributionFields={isOwner}
+            requireFactory
             action={createModeratorOrderAction}
             submitLabel="تسجيل الأوردر"
           />
