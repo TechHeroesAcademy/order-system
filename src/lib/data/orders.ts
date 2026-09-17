@@ -182,13 +182,22 @@ export async function listFactoryOrders(): Promise<FactoryOrderRow[]> {
  * would 404 on the factory's own order-detail page — see that migration's
  * comment for the full report and root cause). Newest-first, since this is
  * a look-back list rather than a work queue.
+ *
+ * An explicit positive `.in()` over the four statuses that actually belong
+ * in history, rather than `.not(...)` over the three active ones — a
+ * negation would also (wrongly) sweep in 'new'/'assigned', an order that
+ * hasn't even been collected yet and was never meant to be visible to the
+ * factory at all (see 0023, which closed that same gap at the RLS/view
+ * level after it was caught the same way listFactoryOrders() shows it —
+ * this list staying an explicit allow-list is a second, independent guard
+ * against that class of bug, not a relied-upon one).
  */
 export async function listFactoryOrderHistory(): Promise<FactoryOrderRow[]> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("factory_orders_view")
     .select("*")
-    .not("status", "in", "(collected,at_factory,ready)")
+    .in("status", ["with_driver", "delivered", "refused", "cancelled"])
     .order("created_at", { ascending: false });
   if (error) throw error;
   return (data as FactoryOrderRow[]) ?? [];
@@ -208,14 +217,18 @@ export async function getFactoryOrderByNumber(orderNumber: string): Promise<Fact
 /**
  * A single order for the factory's own detail page — supports the factory
  * chat channel and the "open this order" notification click-through, and
- * (as of migration 0022) any order this factory was ever assigned to,
- * regardless of status. Before 0022 this went through the same
- * active-status-only filter as the dashboard tabs, so an order that had
- * moved past 'ready' (with_driver/delivered/refused/cancelled) 404'd here —
- * reported as "press the order number and it gives an error." An
- * unassigned order still only resolves here while active (collected/
- * at_factory/ready), same as before — nothing to permanently attribute it
- * to once it's no longer assigned to a specific factory.
+ * (as of migration 0022, corrected by 0023) any order this factory was
+ * ever actually involved with — collected/at_factory/ready/with_driver/
+ * delivered/refused/cancelled — resolves here permanently. Before 0022 this
+ * went through the same active-status-only filter as the dashboard tabs, so
+ * an order that had moved past 'ready' 404'd here — reported as "press the
+ * order number and it gives an error." 0022's first pass over-corrected
+ * that and briefly also exposed 'new'/'assigned' orders (before the driver
+ * has even collected them) — 0023 closed that gap; a factory never sees an
+ * order that far ahead of its own involvement. An unassigned order still
+ * only resolves here while active (collected/at_factory/ready), same as
+ * before — nothing to permanently attribute it to once it's no longer
+ * assigned to a specific factory.
  */
 export async function getFactoryOrderById(id: string): Promise<FactoryOrderRow | null> {
   const supabase = await createClient();
