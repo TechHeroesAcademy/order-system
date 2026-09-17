@@ -203,7 +203,7 @@ export function TrackOrderForm() {
             </p>
           )}
 
-          <p className="text-sm text-muted-foreground">عدد القطع: {order.pieces_count}</p>
+          <p className="text-sm text-muted-foreground">عدد الأواني: {order.pieces_count}</p>
         </div>
       )}
     </div>

@@ -23,10 +23,10 @@ import type { Order, OrderHistoryEntry, Region, Profile } from "@/types/database
 const FIELD_LABELS: { key: keyof Order; label: string }[] = [
   { key: "customer_name", label: "اسم العميل" },
   { key: "customer_phone", label: "رقم الهاتف" },
-  { key: "pieces_count", label: "عدد القطع" },
-  { key: "piece_details", label: "تفاصيل القطع" },
+  { key: "pieces_count", label: "عدد الأواني" },
+  { key: "piece_details", label: "تفاصيل الإناء" },
   { key: "color", label: "اللون" },
-  { key: "work_required", label: "المطلوب عمله" },
+  { key: "work_required", label: "نوع الخدمة المطلوبة" },
   { key: "customer_notes", label: "ملاحظات العميل" },
 ];
 

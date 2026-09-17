@@ -47,7 +47,7 @@ export default async function FactoryOrderDetailPage({ params }: { params: Promi
         <CardContent className="space-y-3">
           <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
             <div>
-              <dt className="text-xs text-muted-foreground">عدد القطع</dt>
+              <dt className="text-xs text-muted-foreground">عدد الأواني</dt>
               <dd className="text-sm">{order.pieces_count}</dd>
             </div>
             <div>
@@ -56,19 +56,19 @@ export default async function FactoryOrderDetailPage({ params }: { params: Promi
             </div>
             {order.color && (
               <div>
-                <dt className="text-xs text-muted-foreground">اللون</dt>
+                <dt className="text-xs text-muted-foreground">اللون الجديد</dt>
                 <dd className="text-sm">{order.color}</dd>
               </div>
             )}
             {order.work_required && (
               <div className="sm:col-span-2">
-                <dt className="text-xs text-muted-foreground">المطلوب عمله</dt>
+                <dt className="text-xs text-muted-foreground">نوع الخدمة المطلوبة</dt>
                 <dd className="text-sm">{order.work_required}</dd>
               </div>
             )}
             {order.piece_details && (
               <div className="sm:col-span-2">
-                <dt className="text-xs text-muted-foreground">تفاصيل القطع</dt>
+                <dt className="text-xs text-muted-foreground">تفاصيل الإناء</dt>
                 <dd className="text-sm">{order.piece_details}</dd>
               </div>
             )}

@@ -1,6 +1,7 @@
 import { requireRole } from "@/lib/auth";
 import { listStaff, listAllDriverRegionIds } from "@/lib/data/staff";
 import { listRegions } from "@/lib/data/orders";
+import { listPickupPoints, listAllPickupPointRegionIds } from "@/lib/data/pickup-points";
 import { TeamManager } from "@/components/team/team-manager";
 
 /**
@@ -12,10 +13,12 @@ import { TeamManager } from "@/components/team/team-manager";
 export default async function ModeratorTeamPage() {
   const profile = await requireRole("owner", "moderator");
 
-  const [staff, regions, driverRegionsMap] = await Promise.all([
+  const [staff, regions, driverRegionsMap, pickupPoints, pickupPointRegionsMap] = await Promise.all([
     listStaff(),
     listRegions(),
     listAllDriverRegionIds(),
+    listPickupPoints(),
+    listAllPickupPointRegionIds(),
   ]);
 
   return (
@@ -23,6 +26,8 @@ export default async function ModeratorTeamPage() {
       staff={staff}
       regions={regions}
       driverRegionsMap={driverRegionsMap}
+      pickupPoints={pickupPoints}
+      pickupPointRegionsMap={pickupPointRegionsMap}
       viewerRole={profile.role}
     />
   );

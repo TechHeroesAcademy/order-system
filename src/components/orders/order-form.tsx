@@ -221,7 +221,7 @@ export function OrderForm({
             name="pieces_count"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>عدد القطع</FormLabel>
+                <FormLabel>عدد الأواني</FormLabel>
                 <FormControl>
                   <Input
                     type="number"
@@ -324,9 +324,9 @@ export function OrderForm({
             name="piece_details"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>تفاصيل القطع</FormLabel>
+                <FormLabel>تفاصيل الإناء</FormLabel>
                 <FormControl>
-                  <Input {...field} value={field.value ?? ""} />
+                  <Input {...field} value={field.value ?? ""} placeholder="مثال: حلة كبيرة، طاسة تيفال..." />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -337,9 +337,9 @@ export function OrderForm({
             name="color"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>اللون</FormLabel>
+                <FormLabel>اللون الجديد</FormLabel>
                 <FormControl>
-                  <Input {...field} value={field.value ?? ""} />
+                  <Input {...field} value={field.value ?? ""} placeholder="مثال: أسود، رمادي فضي..." />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -352,9 +352,9 @@ export function OrderForm({
           name="work_required"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>المطلوب عمله</FormLabel>
+              <FormLabel>نوع الخدمة المطلوبة</FormLabel>
               <FormControl>
-                <Input {...field} value={field.value ?? ""} />
+                <Input {...field} value={field.value ?? ""} placeholder="مثال: إعادة طلاء، تلميع، إصلاح مقبض..." />
               </FormControl>
               <FormMessage />
             </FormItem>

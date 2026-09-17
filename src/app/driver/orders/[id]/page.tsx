@@ -70,18 +70,18 @@ export default async function DriverOrderDetailPage({ params }: { params: Promis
               <dd className="text-sm">{region?.name ?? "—"}</dd>
             </div>
             <div>
-              <dt className="text-xs text-muted-foreground">عدد القطع</dt>
+              <dt className="text-xs text-muted-foreground">عدد الأواني</dt>
               <dd className="text-sm">{order.pieces_count}</dd>
             </div>
             {order.piece_details && (
               <div>
-                <dt className="text-xs text-muted-foreground">تفاصيل القطع</dt>
+                <dt className="text-xs text-muted-foreground">تفاصيل الإناء</dt>
                 <dd className="text-sm">{order.piece_details}</dd>
               </div>
             )}
             {order.work_required && (
               <div>
-                <dt className="text-xs text-muted-foreground">المطلوب عمله</dt>
+                <dt className="text-xs text-muted-foreground">نوع الخدمة المطلوبة</dt>
                 <dd className="text-sm">{order.work_required}</dd>
               </div>
             )}

@@ -45,9 +45,11 @@ export default async function HomePage() {
         <div className="relative z-10 text-center space-y-3 animate-fade-in-up">
           <BrandLogoFull className="mx-auto h-24 w-auto drop-shadow-sm sm:h-28" />
           <span className="inline-flex items-center rounded-full bg-primary px-3 py-1 text-xs font-bold tracking-wide text-primary-foreground">
-            إدارة وتوزيع الأوردرات
+            تجديد أواني الطهي
           </span>
-          <p className="text-white/85">تابع أوردرك أدناه، أو سجّل دخولك كفريق عمل لإنشاء ومتابعة الأوردرات</p>
+          <p className="text-white/85">
+            تابع حالة تجديد إناءك أدناه، أو سجّل دخولك كفريق عمل لإنشاء ومتابعة الأوردرات
+          </p>
         </div>
 
         <Card
@@ -64,13 +66,15 @@ export default async function HomePage() {
         </Card>
       </section>
 
-      {/* About us — a short, honest description of what the system/service
-          does. Replace with your own company copy whenever you're ready. */}
+      {/* About us — EL REWAD renews cooking utensils (new coating, like-new
+          quality) rather than a generic delivery business; the copy below
+          says that plainly instead of describing "orders" in the abstract. */}
       <section className="mx-auto max-w-3xl px-6 py-14">
         <div className="mb-8 text-center space-y-2 animate-fade-in-up">
           <h2 className="text-2xl font-bold">من نحن</h2>
           <p className="text-muted-foreground">
-            نربط بين العميل والمصنع من خلال فريق من المندوبين، بمتابعة دقيقة لكل خطوة من الاستلام إلى التسليم
+            نُعيد الحياة لأواني الطهي القديمة بطلاء جديد وجودة مضمونة — من استلامها من عندك، وحتى تجديدها في
+            مصانعنا وتسليمها إليك من جديد
           </p>
         </div>
         <div className="grid gap-4 sm:grid-cols-3">
@@ -79,8 +83,8 @@ export default async function HomePage() {
               <div className="flex size-11 items-center justify-center rounded-xl bg-primary/15 text-primary">
                 <Truck className="size-5" />
               </div>
-              <p className="font-semibold">توزيع منظم</p>
-              <p className="text-sm text-muted-foreground">مندوبون مخصصون لكل منطقة لاستلام وتسليم الأوردرات بسرعة</p>
+              <p className="font-semibold">تجميع من عندك</p>
+              <p className="text-sm text-muted-foreground">مندوبون مخصصون لكل منطقة يستلمون الأواني من عندك بسرعة</p>
             </CardContent>
           </Card>
           <Card className="animate-fade-in-up border-0 shadow-md" style={{ animationDelay: "150ms" }}>
@@ -88,8 +92,8 @@ export default async function HomePage() {
               <div className="flex size-11 items-center justify-center rounded-xl bg-primary/15 text-primary">
                 <Factory className="size-5" />
               </div>
-              <p className="font-semibold">تنسيق مع المصانع</p>
-              <p className="text-sm text-muted-foreground">تتبع كل أوردر من دخوله المصنع وحتى جاهزيته للتسليم</p>
+              <p className="font-semibold">تجديد في المصنع</p>
+              <p className="text-sm text-muted-foreground">طلاء جديد وجودة مضمونة في مصانعنا بالقاهرة والإسكندرية</p>
             </CardContent>
           </Card>
           <Card className="animate-fade-in-up border-0 shadow-md" style={{ animationDelay: "220ms" }}>
@@ -98,7 +102,7 @@ export default async function HomePage() {
                 <ShieldCheck className="size-5" />
               </div>
               <p className="font-semibold">تسليم موثّق</p>
-              <p className="text-sm text-muted-foreground">كود تأكيد لكل عملية تسليم، وسجل كامل لحركة الأوردر أولًا بأول</p>
+              <p className="text-sm text-muted-foreground">كود تأكيد لكل عملية تسليم، وسجل كامل لحركة إناءك أولًا بأول</p>
             </CardContent>
           </Card>
         </div>

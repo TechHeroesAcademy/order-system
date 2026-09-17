@@ -29,7 +29,7 @@ export function FactoryOrderCard({ order }: { order: FactoryOrderRow }) {
 
         <dl className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm">
           <div>
-            <dt className="text-xs text-muted-foreground">عدد القطع</dt>
+            <dt className="text-xs text-muted-foreground">عدد الأواني</dt>
             <dd>{order.pieces_count}</dd>
           </div>
           <div>
@@ -38,19 +38,19 @@ export function FactoryOrderCard({ order }: { order: FactoryOrderRow }) {
           </div>
           {order.color && (
             <div>
-              <dt className="text-xs text-muted-foreground">اللون</dt>
+              <dt className="text-xs text-muted-foreground">اللون الجديد</dt>
               <dd>{order.color}</dd>
             </div>
           )}
           {order.work_required && (
             <div className="col-span-2">
-              <dt className="text-xs text-muted-foreground">المطلوب عمله</dt>
+              <dt className="text-xs text-muted-foreground">نوع الخدمة المطلوبة</dt>
               <dd>{order.work_required}</dd>
             </div>
           )}
           {order.piece_details && (
             <div className="col-span-2">
-              <dt className="text-xs text-muted-foreground">تفاصيل القطع</dt>
+              <dt className="text-xs text-muted-foreground">تفاصيل الإناء</dt>
               <dd>{order.piece_details}</dd>
             </div>
           )}

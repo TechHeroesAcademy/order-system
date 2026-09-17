@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Loader2, MapPin, Plus, UserPlus, Users, Factory } from "lucide-react";
+import { Loader2, MapPin, Plus, UserPlus, Users, Factory, Warehouse } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -45,7 +45,8 @@ import { createStaffAccountSchema, regionNameSchema } from "@/lib/domain/validat
 import { ToggleActiveButton, ResetPasswordButton } from "./staff-actions";
 import { FactoriesMapPanel } from "./factories-map-panel";
 import { AddFactoryPanel } from "./add-factory-panel";
-import type { Profile, Region, UserRole } from "@/types/database";
+import { PickupPointsPanel } from "./pickup-points-panel";
+import type { Profile, Region, PickupPoint, UserRole } from "@/types/database";
 
 const ROLE_LABELS_AR: Record<UserRole, string> = {
   owner: "مدير",
@@ -63,12 +64,17 @@ export function TeamManager({
   staff,
   regions,
   driverRegionsMap,
+  pickupPoints,
+  pickupPointRegionsMap,
   viewerRole,
 }: {
   staff: Profile[];
   regions: Region[];
   driverRegionsMap: Record<string, string[]>;
-  /** Owner sees/can do everything; Moderator is scoped to driver/factory accounts. */
+  pickupPoints: PickupPoint[];
+  pickupPointRegionsMap: Record<string, string[]>;
+  /** Owner sees/can do everything; Moderator is scoped to driver/factory accounts
+   * (pickup points are the one exception — both roles manage those, see PickupPointsPanel). */
   viewerRole: UserRole;
 }) {
   const [staffList, setStaffList] = useState(staff);
@@ -93,6 +99,10 @@ export function TeamManager({
     setPrevDriverRegionsMap(driverRegionsMap);
     setRegionsByDriver(driverRegionsMap);
   }
+
+  // Pickup points' own list + region map are tracked inside
+  // PickupPointsPanel itself (same adjust-on-prop-change pattern as above),
+  // so nothing extra is needed here beyond passing the props through.
 
   const isModerator = viewerRole === "moderator";
 
@@ -147,6 +157,10 @@ export function TeamManager({
               إضافة مصنع
             </TabsTrigger>
           )}
+          <TabsTrigger value="pickup-points">
+            <Warehouse className="size-4" />
+            نقاط التجميع ({pickupPoints.length})
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="workers" className="space-y-4">
@@ -238,6 +252,14 @@ export function TeamManager({
             />
           </TabsContent>
         )}
+
+        <TabsContent value="pickup-points">
+          <PickupPointsPanel
+            pickupPoints={pickupPoints}
+            regions={regionsList}
+            pickupPointRegionsMap={pickupPointRegionsMap}
+          />
+        </TabsContent>
       </Tabs>
     </div>
   );

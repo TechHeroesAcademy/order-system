@@ -4,7 +4,13 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireRole } from "@/lib/auth";
-import { createStaffAccountSchema, regionNameSchema, updateStaffLocationSchema } from "@/lib/domain/validators";
+import {
+  createStaffAccountSchema,
+  regionNameSchema,
+  updateStaffLocationSchema,
+  pickupPointSchema,
+  pickupPointRegionsSchema,
+} from "@/lib/domain/validators";
 import { normalizePhone } from "@/lib/domain/phone";
 import { ok, fail, toErrorMessage, type ActionResult } from "./types";
 import type { z } from "zod";
@@ -211,4 +217,88 @@ export async function createRegionAction(
   revalidatePath("/owner/team");
   revalidatePath("/order/new");
   return ok({ id: data.id as string });
+}
+
+// ---------- pickup points (migration 0026) ----------
+//
+// Owner AND Moderator can manage these (unlike the staff-account actions
+// above, which are Owner-only) — this is day-to-day driver logistics, the
+// same reasoning that already lets a Moderator set a driver's coverage
+// areas via setDriverRegionsAction. Enforced both here (requireRole) and
+// again server-side in the RPCs themselves (is_owner_or_moderator()).
+
+function revalidatePickupPointPaths() {
+  revalidatePath("/owner/team");
+  revalidatePath("/moderator/team");
+  revalidatePath("/driver/pickup-points");
+}
+
+export async function createPickupPointAction(
+  input: z.infer<typeof pickupPointSchema>,
+): Promise<ActionResult<{ id: string }>> {
+  await requireRole("owner", "moderator");
+  const parsed = pickupPointSchema.safeParse(input);
+  if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? "بيانات غير صالحة");
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("create_pickup_point", {
+    p_name: parsed.data.name,
+    p_address: parsed.data.address ?? null,
+    p_maps_url: parsed.data.maps_url ?? null,
+    p_region_names: parsed.data.region_names,
+  });
+  if (error || !data) return fail(toErrorMessage(error, "تعذر إضافة نقطة التجميع"));
+
+  revalidatePickupPointPaths();
+  return ok({ id: data as string });
+}
+
+export async function updatePickupPointAction(
+  id: string,
+  input: Omit<z.infer<typeof pickupPointSchema>, "region_names">,
+): Promise<ActionResult> {
+  await requireRole("owner", "moderator");
+  const parsed = pickupPointSchema.omit({ region_names: true }).safeParse(input);
+  if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? "بيانات غير صالحة");
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("update_pickup_point", {
+    p_id: id,
+    p_name: parsed.data.name,
+    p_address: parsed.data.address ?? null,
+    p_maps_url: parsed.data.maps_url ?? null,
+  });
+  if (error) return fail(toErrorMessage(error));
+
+  revalidatePickupPointPaths();
+  return ok(undefined);
+}
+
+export async function setPickupPointActiveAction(id: string, isActive: boolean): Promise<ActionResult> {
+  await requireRole("owner", "moderator");
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("set_pickup_point_active", { p_id: id, p_is_active: isActive });
+  if (error) return fail(toErrorMessage(error));
+
+  revalidatePickupPointPaths();
+  return ok(undefined);
+}
+
+export async function setPickupPointRegionsAction(
+  id: string,
+  input: z.infer<typeof pickupPointRegionsSchema>,
+): Promise<ActionResult> {
+  await requireRole("owner", "moderator");
+  const parsed = pickupPointRegionsSchema.safeParse(input);
+  if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? "بيانات غير صالحة");
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("set_pickup_point_regions", {
+    p_pickup_point_id: id,
+    p_region_names: parsed.data.region_names,
+  });
+  if (error) return fail(toErrorMessage(error));
+
+  revalidatePickupPointPaths();
+  return ok(undefined);
 }
