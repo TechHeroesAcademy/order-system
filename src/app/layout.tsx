@@ -15,10 +15,15 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     title: "EL REWAD",
-    // "black-translucent" lets content draw under the iOS status bar, which
-    // is why viewportFit is already "cover" below (safe-area insets handle
-    // the rest app-wide).
-    statusBarStyle: "black-translucent",
+    // "default" (opaque status bar, iOS reserves its own space above the
+    // page) — NOT "black-translucent". Translucent draws the page content
+    // full-bleed *underneath* the status bar instead, and nothing in this
+    // app was actually padding for that (no env(safe-area-inset-top)
+    // anywhere), so the sticky AppShell header ended up rendering partly
+    // behind the notch/status-bar icons the moment the app was opened from
+    // the home screen — that's the "header disappeared" report. "default"
+    // makes iOS handle the reserved space itself, no CSS needed.
+    statusBarStyle: "default",
   },
 };
 

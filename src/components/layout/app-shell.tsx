@@ -46,8 +46,14 @@ export function AppShell({
     <div className="flex min-h-screen flex-col">
       <IdleLogoutWatcher />
       {/* Bold yellow top bar, DHL-style — the brand block lives here since
-          this is the one element present on every screen for every role. */}
-      <header className="sticky top-0 z-40 bg-primary text-primary-foreground shadow-sm">
+          this is the one element present on every screen for every role.
+          pt-[env(safe-area-inset-top)] is defensive: the iOS status bar is
+          set to "default" (opaque, reserves its own space) in layout.tsx's
+          appleWebApp config, so this is normally 0px — but it means this
+          header stays correct even if that ever changes back to a
+          translucent/edge-to-edge status bar, instead of silently breaking
+          again the way it did with no safe-area handling at all. */}
+      <header className="sticky top-0 z-40 bg-primary pt-[env(safe-area-inset-top)] text-primary-foreground shadow-sm">
         <div className="flex h-14 items-center gap-3 px-4">
           {/* White mount behind the badge for contrast against the bar's own
               (yellow) brand color — the badge's own red doesn't need to
