@@ -117,6 +117,11 @@
   --animate-pop-in: pop-in 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
   --animate-draw-line: draw-line 0.6s ease-out both;
   --animate-shimmer: shimmer 1.6s ease-in-out infinite;
+  /* HeroBackground's drifting cooking pots (see hero-background.tsx) — one
+     shared keyframe, one per-instance duration/delay set inline so each
+     pot travels at its own speed/offset instead of moving in lockstep. */
+  --animate-pot-drift: pot-drift 24s linear infinite;
+  --animate-steam-rise: steam-rise 5s ease-in-out infinite;
 }
 
 @keyframes fade-in-up {
@@ -160,6 +165,49 @@
   }
   50% {
     opacity: 0.55;
+  }
+}
+
+/* Right-to-left drift across the hero (matches the site's own RTL reading
+   direction) — travels a fixed distance in vw so it fully clears the
+   screen at any viewport width, rather than a percentage of the pot's own
+   (tiny) size. Each pot starts positioned off the right edge (see
+   hero-background.tsx) and a negative animation-delay staggers where in
+   the loop it starts, so the whole set doesn't spawn bunched at the edge
+   together on first paint. */
+@keyframes pot-drift {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-160vw);
+  }
+}
+
+@keyframes steam-rise {
+  0% {
+    transform: translateY(0) scale(0.85);
+    opacity: 0;
+  }
+  30% {
+    opacity: 0.5;
+  }
+  100% {
+    transform: translateY(-34px) scale(1.15);
+    opacity: 0;
+  }
+}
+
+/* Someone who's set the OS-level "reduce motion" preference doesn't want a
+   background full of continuously drifting/pulsing shapes, even gentle
+   ones — freeze every HeroBackground layer on its opening frame instead of
+   looping, same as a scroll-triggered animation is expected to respect
+   this preference. */
+@media (prefers-reduced-motion: reduce) {
+  .hero-drift,
+  .hero-drift * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
   }
 }
 
