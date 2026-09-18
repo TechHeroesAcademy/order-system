@@ -4,6 +4,7 @@ import { listStaff } from "@/lib/data/staff";
 import { OrdersFilterBar } from "@/components/orders/orders-filter-bar";
 import { OrderStatusTabs } from "@/components/orders/order-status-tabs";
 import { OrdersTable } from "@/components/orders/orders-table";
+import { ExportCsvButton } from "@/components/orders/export-csv-button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import type { OrderStatus } from "@/types/database";
@@ -34,11 +35,14 @@ export default async function OwnerOrdersPage({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-xl font-bold">الأوردرات</h1>
-        <Button asChild size="sm">
-          <Link href="/moderator/orders/new">أوردر جديد</Link>
-        </Button>
+        <div className="flex gap-2">
+          <ExportCsvButton />
+          <Button asChild size="sm">
+            <Link href="/moderator/orders/new">أوردر جديد</Link>
+          </Button>
+        </div>
       </div>
 
       <OrderStatusTabs basePath="/owner/orders" />

@@ -4,6 +4,9 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth";
 import { orderFormSchema, editOrderSchema, trackOrderSchema } from "@/lib/domain/validators";
+import { listAllOrdersForExport } from "@/lib/data/orders";
+import { buildCsv } from "@/lib/domain/csv";
+import { ORDER_STATUS_LABELS_AR } from "@/lib/domain/order-status";
 import { ok, fail, toErrorMessage, type ActionResult } from "./types";
 import type {
   NewOrderResult,
@@ -424,4 +427,68 @@ export async function sendOrderMessageAction(
   });
   if (error) return fail(toErrorMessage(error, "تعذر إرسال الرسالة"));
   return ok(data as OrderMessage);
+}
+
+/**
+ * Owner-only "تحميل كل البيانات" button — every order, unpaginated, as a
+ * CSV. Built server-side (rather than shipping listAllOrdersForExport's
+ * result to the client and building the file there) so the export can't be
+ * trivially recreated for any other role, and so it's one round trip
+ * regardless of row count. Returns the CSV text directly in the action
+ * result; the button turns it into a Blob download client-side (a Server
+ * Action can't set a Content-Disposition response header — this file never
+ * touches the network as an actual download until the browser does).
+ */
+export async function exportOrdersCsvAction(): Promise<ActionResult<{ csv: string; filename: string }>> {
+  await requireRole("owner");
+
+  const orders = await listAllOrdersForExport();
+
+  const headers = [
+    "رقم الأوردر",
+    "الحالة",
+    "المصدر",
+    "اسم العميل",
+    "هاتف العميل",
+    "العنوان",
+    "المنطقة",
+    "عدد الأواني",
+    "تفاصيل الإناء",
+    "اللون",
+    "الخدمة المطلوبة",
+    "ملاحظات العميل",
+    "المندوب",
+    "المصنع",
+    "تاريخ الإنشاء",
+    "تاريخ التسليم",
+    "تاريخ الإلغاء",
+    "سبب الإلغاء",
+    "سبب الرفض",
+  ];
+
+  const rows = orders.map((o) => [
+    o.order_number,
+    ORDER_STATUS_LABELS_AR[o.status] ?? o.status,
+    o.source,
+    o.customer_name,
+    o.customer_phone,
+    o.customer_address,
+    o.region?.name ?? "",
+    o.pieces_count,
+    o.piece_details ?? "",
+    o.color ?? "",
+    o.work_required ?? "",
+    o.customer_notes ?? "",
+    o.assigned_driver_name ?? "",
+    o.assigned_factory_name ?? "",
+    o.created_at,
+    o.delivered_at ?? "",
+    o.cancelled_at ?? "",
+    o.cancel_reason ?? "",
+    o.refusal_reason ?? "",
+  ]);
+
+  const csv = buildCsv(headers, rows);
+  const filename = `orders-export-${new Date().toISOString().slice(0, 10)}.csv`;
+  return ok({ csv, filename });
 }

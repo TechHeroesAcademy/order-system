@@ -89,6 +89,33 @@ export async function listOrders(filters: OrderFilters = {}): Promise<OrderListR
   return { orders: (data as unknown as OrderListRow[]) ?? [], total: count ?? 0 };
 }
 
+/**
+ * Every order, unpaginated, for the "تحميل كل البيانات" CSV export
+ * (Owner-only — enforced by orders_select_staff RLS same as everywhere
+ * else, exportOrdersCsvAction also checks requireRole("owner") before
+ * calling this). Supabase caps a single request at 1000 rows regardless of
+ * .range(), so this pages through in 1000-row batches rather than assuming
+ * one request covers "all" — correct today and still correct once this
+ * business has more than 1000 orders.
+ */
+export async function listAllOrdersForExport(): Promise<OrderListRow[]> {
+  const supabase = await createClient();
+  const pageSize = 1000;
+  const rows: OrderListRow[] = [];
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await supabase
+      .from("orders")
+      .select("*, region:regions(name)")
+      .order("created_at", { ascending: false })
+      .range(from, from + pageSize - 1);
+    if (error) throw error;
+    const batch = (data as unknown as OrderListRow[]) ?? [];
+    rows.push(...batch);
+    if (batch.length < pageSize) break;
+  }
+  return rows;
+}
+
 export async function getOrderById(id: string): Promise<Order | null> {
   const supabase = await createClient();
   const { data, error } = await supabase.from("orders").select("*").eq("id", id).maybeSingle();
