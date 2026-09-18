@@ -256,6 +256,14 @@ export interface OrderMessage {
   sender_role: UserRole;
   body: string;
   created_at: string;
+  /**
+   * Which driver's "stint" this message belongs to (migration 0029) — set
+   * to the order's assigned_driver_id at the moment it was sent, null for
+   * the factory channel. RLS uses this to keep a newly-assigned driver from
+   * reading a prior driver's conversation on the same order; Owner/Moderator
+   * always see everything regardless.
+   */
+  driver_id: string | null;
   /** Joined from profiles — present on every read, absent only on the just-inserted row returned by send_order_message(). */
   sender?: { full_name: string } | null;
 }
