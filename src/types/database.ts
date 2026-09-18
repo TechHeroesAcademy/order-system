@@ -49,24 +49,6 @@ export interface DriverRegion {
   region_id: string;
 }
 
-/**
- * A drop-off location for collected cooking utensils (migration 0026) —
- * not a `profiles` row, since a pickup point has no login of its own. Same
- * address/lat/lng/maps_url shape as a factory's location, so mapsUrlFor()
- * works on it unchanged.
- */
-export interface PickupPoint {
-  id: string;
-  name: string;
-  address: string | null;
-  lat: number | null;
-  lng: number | null;
-  maps_url: string | null;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-}
-
 export interface Order {
   id: string;
   order_number: string;

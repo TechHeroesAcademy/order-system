@@ -159,24 +159,6 @@ export const updateStaffLocationSchema = z.object({
   lng: z.number().min(-180).max(180).nullable(),
 });
 
-/**
- * A pickup point — a drop-off location for collected cooking utensils,
- * region-scoped the same way a driver's coverage areas are (migration
- * 0026). Shared by both the create and update forms; update just omits
- * region_names (that's its own dialog/action, same split as
- * DriverRegionsCell/setDriverRegionsAction).
- */
-export const pickupPointSchema = z.object({
-  name: z.string().trim().min(2, "اسم نقطة التجميع قصير جدًا").max(120, "الاسم طويل جدًا"),
-  address: z.string().trim().max(500).optional().nullable(),
-  maps_url: mapsUrlField,
-  region_names: z.array(z.string().trim().min(2).max(100)).optional().default([]),
-});
-
-export const pickupPointRegionsSchema = z.object({
-  region_names: z.array(z.string().trim().min(2).max(100)).optional().default([]),
-});
-
 /** Step 1 of the phone-based login: just the phone number. */
 export const phoneLookupSchema = z.object({
   phone: z
