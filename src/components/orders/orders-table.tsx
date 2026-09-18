@@ -39,7 +39,7 @@ export function OrdersTable({
   factories?: Profile[];
   /** Delivery codes for this page's orders, keyed by order id — batch-fetched once by the page (see getOrderDeliveryCodesMap). */
   deliveryCodes?: Record<string, string>;
-  /** Owner only (migration 0024) — shows the inline change-driver/change-factory buttons. A Moderator still sees everything else in this row (cancel, status, codes). */
+  /** Owner only (migration 0024/0030) — shows the inline change-driver/change-factory buttons and the cancel button. A Moderator still sees everything else in this row (status, codes). */
   canAssign?: boolean;
 }) {
   if (orders.length === 0) {
@@ -92,26 +92,22 @@ export function OrdersTable({
               </TableCell>
               <TableCell className="text-muted-foreground">{formatDateTime(order.created_at)}</TableCell>
               <TableCell>
-                {isTerminal ? (
+                {isTerminal || !canAssign ? (
                   <p className="text-center text-xs text-muted-foreground">—</p>
                 ) : (
                   <div className="flex items-center justify-center gap-0.5">
-                    {canAssign && (
-                      <>
-                        <ChangeDriverButton
-                          orderId={order.id}
-                          currentDriverId={order.assigned_driver_id}
-                          drivers={drivers}
-                          compact
-                        />
-                        <ChangeFactoryButton
-                          orderId={order.id}
-                          currentFactoryId={order.assigned_factory_id}
-                          factories={factories}
-                          compact
-                        />
-                      </>
-                    )}
+                    <ChangeDriverButton
+                      orderId={order.id}
+                      currentDriverId={order.assigned_driver_id}
+                      drivers={drivers}
+                      compact
+                    />
+                    <ChangeFactoryButton
+                      orderId={order.id}
+                      currentFactoryId={order.assigned_factory_id}
+                      factories={factories}
+                      compact
+                    />
                     <CancelOrderButton orderId={order.id} compact />
                   </div>
                 )}

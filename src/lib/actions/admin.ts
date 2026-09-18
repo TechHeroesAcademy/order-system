@@ -94,7 +94,6 @@ export async function createStaffAccountAction(
   }
 
   revalidatePath("/owner/team");
-  revalidatePath("/moderator/team");
   return ok({ userId: data.user.id });
 }
 
@@ -112,7 +111,6 @@ export async function setStaffActiveAction(userId: string, isActive: boolean): P
   const { error } = await supabase.from("profiles").update({ is_active: isActive }).eq("id", userId);
   if (error) return fail(toErrorMessage(error));
   revalidatePath("/owner/team");
-  revalidatePath("/moderator/team");
   return ok(undefined);
 }
 
@@ -142,7 +140,6 @@ export async function resetStaffPasswordAction(userId: string): Promise<ActionRe
   await admin.from("profiles").update({ password_set: false }).eq("id", userId);
 
   revalidatePath("/owner/team");
-  revalidatePath("/moderator/team");
   return ok(undefined);
 }
 
@@ -163,7 +160,6 @@ export async function setDriverRegionsAction(driverId: string, regionNames: stri
   if (error) return fail(toErrorMessage(error));
 
   revalidatePath("/owner/team");
-  revalidatePath("/moderator/team");
   return ok(undefined);
 }
 
@@ -197,7 +193,6 @@ export async function updateStaffLocationAction(
   if (error) return fail(toErrorMessage(error));
 
   revalidatePath("/owner/team");
-  revalidatePath("/moderator/team");
   return ok(undefined);
 }
 

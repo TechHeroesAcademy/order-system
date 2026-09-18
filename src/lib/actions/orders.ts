@@ -270,8 +270,9 @@ export async function reassignOrderFactoryAction(orderId: string, newFactoryId: 
   return ok(undefined);
 }
 
+/** Owner only (migration 0030) — a Moderator can no longer cancel an order. */
 export async function cancelOrderAction(orderId: string, reason: string): Promise<ActionResult> {
-  await requireRole("owner", "moderator");
+  await requireRole("owner");
   const supabase = await createClient();
   const { error } = await supabase.rpc("owner_cancel_order", { p_order_id: orderId, p_reason: reason });
   if (error) return fail(toErrorMessage(error));

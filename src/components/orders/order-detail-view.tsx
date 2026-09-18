@@ -67,9 +67,10 @@ export function OrderDetailView({
   const delayed = isOrderDelayed(order.status, order.created_at);
   const isTerminal = ["delivered", "refused", "cancelled"].includes(order.status);
   // Assigning/changing who handles an order (driver or factory) is Manager-
-  // only now — see migration 0024. Everything else canManageDistribution
-  // already gates (editing order details, the delivery/pickup codes,
-  // cancelling, chat) is unaffected and stays available to Moderator too.
+  // only (migration 0024), and so is cancelling it (migration 0030) — both
+  // gated on canAssign below. Everything else canManageDistribution gates
+  // (editing order details, the delivery/pickup codes, chat) stays
+  // available to Moderator too.
   const canAssign = viewerProfile.role === "owner";
 
   return (
@@ -271,7 +272,7 @@ export function OrderDetailView({
           </Card>
         )}
 
-        {canManageDistribution && !isTerminal && (
+        {canAssign && !isTerminal && (
           <Card>
             <CardContent className="pt-6">
               <CancelOrderButton orderId={order.id} />
