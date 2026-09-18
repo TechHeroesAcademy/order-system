@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- App/PWA icon mark: a cooking pot, replacing the previous "ER" monogram.
+       Fits EL REWAD's actual business (cookware/pot re-coating) better than
+       initials, and reads clearly at small sizes (favicon, home-screen icon).
+       Full-bleed red background + generous white-glyph margin on all sides
+       so it also works unmodified as a maskable icon (Android circle-crops
+       up to ~10% per edge; nothing here sits closer than that to an edge). -->
+  <rect width="512" height="512" rx="115" fill="#C50211" />
+
+  <!-- steam -->
+  <path d="M 196 118 C 196 98, 216 98, 216 78 C 216 58, 196 58, 196 42"
+        fill="none" stroke="#ffffff" stroke-width="14" stroke-linecap="round" opacity="0.9" />
+  <path d="M 256 118 C 256 98, 276 98, 276 78 C 276 58, 256 58, 256 42"
+        fill="none" stroke="#ffffff" stroke-width="14" stroke-linecap="round" />
+  <path d="M 316 118 C 316 98, 336 98, 336 78 C 336 58, 316 58, 316 42"
+        fill="none" stroke="#ffffff" stroke-width="14" stroke-linecap="round" opacity="0.9" />
+
+  <!-- lid -->
+  <rect x="176" y="150" width="160" height="16" rx="8" fill="#ffffff" />
+  <circle cx="256" cy="136" r="16" fill="#ffffff" />
+  <ellipse cx="256" cy="166" rx="92" ry="20" fill="#ffffff" />
+
+  <!-- pot handles -->
+  <rect x="92" y="222" width="62" height="34" rx="17" fill="#ffffff" />
+  <rect x="358" y="222" width="62" height="34" rx="17" fill="#ffffff" />
+
+  <!-- pot body (wider at the rim, tapering to a rounded base) -->
+  <path d="M 146 206
+           L 366 206
+           L 350 366
+           C 347 394, 317 414, 256 414
+           C 195 414, 165 394, 162 366
+           Z"
+        fill="#ffffff" />
+
+  <!-- rim highlight groove -->
+  <rect x="146" y="206" width="220" height="18" rx="9" fill="#C50211" opacity="0.14" />
+</svg>
