@@ -154,7 +154,7 @@ export default async function ReportsPage() {
                   items={driverPerf.map((d) => ({ label: d.full_name, value: Math.round(d.on_time_rate ?? 0) }))}
                   colorClassName="bg-success"
                   max={100}
-                  formatValue={(v) => `${v}%`}
+                  valueSuffix="%"
                 />
               </CardContent>
             </Card>

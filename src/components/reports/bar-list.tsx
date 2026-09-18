@@ -16,13 +16,22 @@ export function BarList({
   items,
   colorClassName = "bg-primary",
   max,
-  formatValue,
+  valueSuffix,
 }: {
   items: { label: string; value: number }[];
   colorClassName?: string;
   /** Fixed max (e.g. 100 for a percentage scale) instead of the tallest bar. */
   max?: number;
-  formatValue?: (value: number) => string;
+  /**
+   * Appended after each bar's numeric value (e.g. "%"). A plain string, not a
+   * formatter function — this component is rendered from a Server Component
+   * (the reports page), and a function prop can't cross that boundary unless
+   * it's a genuine Server Action reference (see the onConfirm comment in
+   * order-detail-view.tsx for the same class of bug). The only formatting
+   * this ever needed was a fixed suffix, so a string prop covers it without
+   * needing a function at all.
+   */
+  valueSuffix?: string;
 }) {
   const [animated, setAnimated] = useState(false);
   useEffect(() => {
@@ -49,7 +58,8 @@ export function BarList({
             />
           </div>
           <span className="w-12 shrink-0 text-end text-sm tabular-nums text-muted-foreground">
-            {formatValue ? formatValue(item.value) : item.value}
+            {item.value}
+            {valueSuffix}
           </span>
         </div>
       ))}

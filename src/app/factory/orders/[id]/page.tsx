@@ -74,11 +74,18 @@ export default async function FactoryOrderDetailPage({ params }: { params: Promi
             )}
           </dl>
 
+          {/* .bind(null, order.id), not () => factoryConfirmReceiptAction(order.id) — this
+              page is a Server Component and ConfirmActionButton is a Client Component, so
+              onConfirm has to cross that boundary. A real Server Action reference survives
+              that (Next.js serializes it specially, including a .bind()'s pre-bound args),
+              but a plain arrow-function closure wrapping one does not — React throws
+              "Event handlers cannot be passed to Client Component props" the instant this
+              renders, which is exactly what's been showing up here as digest 250852290. */}
           {order.status === "collected" && (
             <ConfirmActionButton
               label="تأكيد استلام الأوردر"
               confirmTitle="تأكيد استلام الأوردر في المصنع"
-              onConfirm={() => factoryConfirmReceiptAction(order.id)}
+              onConfirm={factoryConfirmReceiptAction.bind(null, order.id)}
               successMessage="تم تأكيد الاستلام"
               icon={<PackageCheck />}
             />
@@ -89,7 +96,7 @@ export default async function FactoryOrderDetailPage({ params }: { params: Promi
               label="الأوردر جاهز للتسليم"
               confirmTitle="تأكيد جاهزية الأوردر"
               confirmDescription="سيتم إشعار المندوب المسؤول لاستلام الأوردر."
-              onConfirm={() => factoryMarkReadyAction(order.id)}
+              onConfirm={factoryMarkReadyAction.bind(null, order.id)}
               successMessage="تم تجهيز الأوردر للتسليم"
               icon={<CheckCircle2 />}
             />

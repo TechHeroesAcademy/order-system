@@ -247,11 +247,21 @@ export function OrderDetailView({
               <CardTitle className="text-base">إجراءات المصنع</CardTitle>
             </CardHeader>
             <CardContent className="pt-0">
+              {/* .bind(null, order.id), not () => factoryConfirmReceiptAction(order.id) — this
+                  component is a Server Component and ConfirmActionButton is a Client
+                  Component, so onConfirm has to cross that boundary. A real Server Action
+                  reference survives that (Next.js serializes it specially, including a
+                  .bind()'s pre-bound args), but a plain arrow-function closure wrapping one
+                  does not — React throws "Event handlers cannot be passed to Client
+                  Component props" the instant this renders. Since this card shows for
+                  Owner/Moderator on any order sitting at collected/at_factory, this crashed
+                  the order-detail page for both roles too, not just the factory account's
+                  own page (digest 250852290). */}
               {order.status === "collected" && (
                 <ConfirmActionButton
                   label="تأكيد استلام المصنع"
                   confirmTitle="تأكيد استلام الأوردر في المصنع"
-                  onConfirm={() => factoryConfirmReceiptAction(order.id)}
+                  onConfirm={factoryConfirmReceiptAction.bind(null, order.id)}
                   successMessage="تم تأكيد الاستلام في المصنع"
                   icon={<PackageCheck />}
                   variant="outline"
@@ -262,7 +272,7 @@ export function OrderDetailView({
                   label="الأوردر جاهز للتسليم"
                   confirmTitle="تأكيد جاهزية الأوردر"
                   confirmDescription="سيتم إشعار المندوب المسؤول لاستلام الأوردر."
-                  onConfirm={() => factoryMarkReadyAction(order.id)}
+                  onConfirm={factoryMarkReadyAction.bind(null, order.id)}
                   successMessage="تم تجهيز الأوردر للتسليم"
                   icon={<CheckCircle2 />}
                   variant="outline"
