@@ -15,7 +15,7 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { updateStaffLocationAction } from "@/lib/actions/admin";
 import { updateStaffLocationSchema } from "@/lib/domain/validators";
 import { mapsUrlFor } from "@/lib/domain/maps";
-import { ToggleActiveButton, ResetPasswordButton } from "./staff-actions";
+import { ToggleActiveButton, ResetPasswordButton, DeleteStaffButton } from "./staff-actions";
 import type { Profile } from "@/types/database";
 import type { FactoryPin } from "@/components/maps/factories-overview-map";
 
@@ -39,6 +39,8 @@ export function FactoriesMapPanel({
   factories,
   onSaved,
   onToggled,
+  onDeleted,
+  canDelete,
 }: {
   factories: Profile[];
   onSaved: (
@@ -46,6 +48,9 @@ export function FactoriesMapPanel({
     next: { address: string | null; lat: number | null; lng: number | null; maps_url: string | null },
   ) => void;
   onToggled: (id: string, isActive: boolean) => void;
+  onDeleted: (id: string) => void;
+  /** Owner only — deleteStaffAccountAction rejects a Moderator server-side too, this just hides the control. */
+  canDelete: boolean;
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [address, setAddress] = useState("");
@@ -257,6 +262,13 @@ export function FactoriesMapPanel({
                             onToggled={(isActive) => onToggled(member.id, isActive)}
                           />
                           <ResetPasswordButton userId={member.id} />
+                          {canDelete && (
+                            <DeleteStaffButton
+                              userId={member.id}
+                              fullName={member.full_name}
+                              onDeleted={() => onDeleted(member.id)}
+                            />
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>

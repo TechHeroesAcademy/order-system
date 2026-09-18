@@ -19,7 +19,6 @@ export default async function ModeratorOrderDetailPage({ params }: { params: Pro
   if (!order) notFound();
 
   const region = regions.find((r) => r.id === order.region_id) ?? null;
-  const assignedDriver = drivers.find((d) => d.id === order.assigned_driver_id) ?? null;
   const assignedFactory = factories.find((f) => f.id === order.assigned_factory_id) ?? null;
 
   return (
@@ -27,8 +26,10 @@ export default async function ModeratorOrderDetailPage({ params }: { params: Pro
       order={order}
       history={history}
       region={region}
-      assignedDriverName={assignedDriver?.full_name ?? null}
-      assignedFactoryName={assignedFactory?.full_name ?? null}
+      // See the same comment in owner/orders/[id]/page.tsx — snapshot
+      // columns on the order, not a live staff lookup.
+      assignedDriverName={order.assigned_driver_name}
+      assignedFactoryName={order.assigned_factory_name}
       assignedFactoryAddress={assignedFactory?.address ?? null}
       assignedFactoryLat={assignedFactory?.lat ?? null}
       assignedFactoryLng={assignedFactory?.lng ?? null}

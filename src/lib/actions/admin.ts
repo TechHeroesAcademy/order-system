@@ -144,6 +144,44 @@ export async function resetStaffPasswordAction(userId: string): Promise<ActionRe
 }
 
 /**
+ * Owner-only: permanently erases a worker account — deletes the
+ * auth.users row via the Auth Admin API, which cascades to delete
+ * `profiles` (see 0002's `on delete cascade`). Unlike setStaffActiveAction
+ * ("إيقاف"), which just flips is_active and keeps the account around,
+ * there's no undo: the worker can never sign in again and disappears from
+ * every list/dropdown.
+ *
+ * Every order this worker ever touched stays exactly where it is —
+ * migration 0032 changed `orders.assigned_driver_id` /
+ * `assigned_factory_id` (and the other, non-displayed profiles(id)
+ * columns) to `on delete set null` specifically so this delete can't be
+ * blocked by order history, and added `assigned_driver_name` /
+ * `assigned_factory_name` snapshot columns so the name that was on those
+ * orders keeps showing even once the id goes null.
+ *
+ * Owner only (a Moderator can suspend/reset-password for driver/factory
+ * accounts, per 0024/0030, but never delete anyone — this isn't scoped
+ * down for Moderator at all, same as createStaffAccountAction). An owner
+ * can't delete themselves or another owner account from here.
+ */
+export async function deleteStaffAccountAction(userId: string): Promise<ActionResult> {
+  const me = await requireRole("owner");
+  if (userId === me.id) return fail("لا يمكنك حذف حسابك الخاص");
+
+  const supabase = await createClient();
+  const { data: target } = await supabase.from("profiles").select("role, full_name").eq("id", userId).maybeSingle();
+  if (!target) return fail("الحساب غير موجود");
+  if (target.role === "owner") return fail("لا يمكن حذف حساب مدير من هنا");
+
+  const admin = createAdminClient();
+  const { error } = await admin.auth.admin.deleteUser(userId);
+  if (error) return fail(toErrorMessage(error, "تعذر حذف الحساب"));
+
+  revalidatePath("/owner/team");
+  return ok(undefined);
+}
+
+/**
  * Owner/Moderator editing a driver's covered areas — typed names now
  * (migration 0025), resolved/auto-created and swapped in atomically by
  * set_driver_regions_by_name(), which keeps the same Owner+Moderator

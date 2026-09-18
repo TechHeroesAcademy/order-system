@@ -42,7 +42,7 @@ import {
   setDriverRegionsAction,
 } from "@/lib/actions/admin";
 import { createStaffAccountSchema, regionNameSchema } from "@/lib/domain/validators";
-import { ToggleActiveButton, ResetPasswordButton } from "./staff-actions";
+import { ToggleActiveButton, ResetPasswordButton, DeleteStaffButton } from "./staff-actions";
 import { FactoriesMapPanel } from "./factories-map-panel";
 import { AddFactoryPanel } from "./add-factory-panel";
 import type { Profile, Region, UserRole } from "@/types/database";
@@ -105,6 +105,10 @@ export function TeamManager({
 
   function toggleActive(id: string, isActive: boolean) {
     updateMember(id, { is_active: isActive });
+  }
+
+  function removeMember(id: string) {
+    setStaffList((prev) => prev.filter((m) => m.id !== id));
   }
 
   const [activeTab, setActiveTab] = useState("workers");
@@ -208,6 +212,16 @@ export function TeamManager({
                                 onToggled={(isActive) => toggleActive(member.id, isActive)}
                               />
                               <ResetPasswordButton userId={member.id} />
+                              {/* Deleting is Owner-only (deleteStaffAccountAction rejects
+                                  everyone else server-side too) and never offered for
+                                  another owner's row. */}
+                              {!isModerator && member.role !== "owner" && (
+                                <DeleteStaffButton
+                                  userId={member.id}
+                                  fullName={member.full_name}
+                                  onDeleted={() => removeMember(member.id)}
+                                />
+                              )}
                             </div>
                           )}
                         </TableCell>
@@ -225,6 +239,8 @@ export function TeamManager({
             factories={factories}
             onSaved={(id, next) => updateMember(id, next)}
             onToggled={(id, isActive) => toggleActive(id, isActive)}
+            onDeleted={(id) => removeMember(id)}
+            canDelete={!isModerator}
           />
         </TabsContent>
 

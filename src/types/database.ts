@@ -68,10 +68,14 @@ export interface Order {
   customer_notes: string | null;
 
   assigned_driver_id: string | null;
+  /** Snapshot of the driver's name at assignment time (migration 0032) — stays put even after the driver account is deleted, so a deleted worker's name never disappears from an order they were assigned to. Prefer this over looking the id up in a live staff list. */
+  assigned_driver_name: string | null;
   suggested_driver_id: string | null;
   distribution_approved_at: string | null;
   distribution_approved_by: string | null;
   assigned_factory_id: string | null;
+  /** Snapshot of the factory's name at assignment time (migration 0032) — same rationale as assigned_driver_name. */
+  assigned_factory_name: string | null;
   handed_to_factory_at: string | null;
 
   collected_at: string | null;

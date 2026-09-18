@@ -19,7 +19,6 @@ export default async function OwnerOrderDetailPage({ params }: { params: Promise
   if (!order) notFound();
 
   const region = regions.find((r) => r.id === order.region_id) ?? null;
-  const assignedDriver = drivers.find((d) => d.id === order.assigned_driver_id) ?? null;
   const assignedFactory = factories.find((f) => f.id === order.assigned_factory_id) ?? null;
 
   return (
@@ -27,8 +26,11 @@ export default async function OwnerOrderDetailPage({ params }: { params: Promise
       order={order}
       history={history}
       region={region}
-      assignedDriverName={assignedDriver?.full_name ?? null}
-      assignedFactoryName={assignedFactory?.full_name ?? null}
+      // Names come off the order's own snapshot columns (migration 0032),
+      // not the live drivers/factories list — that list only has active
+      // accounts, so a deleted worker's name would otherwise vanish here.
+      assignedDriverName={order.assigned_driver_name}
+      assignedFactoryName={order.assigned_factory_name}
       assignedFactoryAddress={assignedFactory?.address ?? null}
       assignedFactoryLat={assignedFactory?.lat ?? null}
       assignedFactoryLng={assignedFactory?.lng ?? null}

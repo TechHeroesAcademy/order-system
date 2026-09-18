@@ -79,8 +79,8 @@ export function OrdersTable({
                 </div>
               </TableCell>
               <TableCell>{order.region?.name ?? "—"}</TableCell>
-              <TableCell>{order.assigned_driver?.full_name ?? "—"}</TableCell>
-              <TableCell>{order.assigned_factory?.full_name ?? "—"}</TableCell>
+              <TableCell>{order.assigned_driver_name ?? "—"}</TableCell>
+              <TableCell>{order.assigned_factory_name ?? "—"}</TableCell>
               <TableCell>
                 <DeliveryCodeCell code={deliveryCodes[order.id] ?? null} />
               </TableCell>

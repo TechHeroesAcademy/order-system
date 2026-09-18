@@ -1,10 +1,19 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { Loader2, KeyRound } from "lucide-react";
+import { Loader2, KeyRound, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { setStaffActiveAction, resetStaffPasswordAction } from "@/lib/actions/admin";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { setStaffActiveAction, resetStaffPasswordAction, deleteStaffAccountAction } from "@/lib/actions/admin";
 
 /**
  * Shared row-actions used by both the workers table (TeamManager) and the
@@ -66,5 +75,71 @@ export function ResetPasswordButton({ userId }: { userId: string }) {
     <Button size="sm" variant="outline" onClick={reset} disabled={pending} title="إعادة تعيين كلمة المرور">
       {pending ? <Loader2 className="animate-spin" /> : <KeyRound className="size-4" />}
     </Button>
+  );
+}
+
+/**
+ * Owner-only, permanent — deletes the account entirely (see
+ * deleteStaffAccountAction). Every order this worker ever touched keeps
+ * showing their name; only the account itself is gone. Gated behind a
+ * confirmation dialog like CancelOrderButton, since there's no undo here
+ * either.
+ */
+export function DeleteStaffButton({
+  userId,
+  fullName,
+  onDeleted,
+}: {
+  userId: string;
+  fullName: string;
+  onDeleted: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [pending, startTransition] = useTransition();
+
+  function handleConfirm() {
+    startTransition(async () => {
+      const res = await deleteStaffAccountAction(userId);
+      if (!res.ok) {
+        toast.error(res.error);
+        return;
+      }
+      toast.success("تم حذف الحساب نهائيًا");
+      setOpen(false);
+      onDeleted();
+    });
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button
+          size="sm"
+          variant="ghost"
+          className="text-destructive hover:text-destructive"
+          title="حذف الحساب نهائيًا"
+        >
+          <Trash2 className="size-4" />
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>حذف حساب {fullName} نهائيًا</DialogTitle>
+          <DialogDescription>
+            سيتم حذف الحساب بالكامل ولن يتمكن من تسجيل الدخول مرة أخرى. لا يمكن التراجع عن هذا الإجراء.
+            أوردرات هذا الحساب تبقى محفوظة وتظهر باسمه كما هي.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setOpen(false)} disabled={pending}>
+            تراجع
+          </Button>
+          <Button variant="destructive" onClick={handleConfirm} disabled={pending}>
+            {pending && <Loader2 className="animate-spin" />}
+            حذف نهائيًا
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

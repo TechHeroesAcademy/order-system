@@ -31,8 +31,6 @@ export interface OrderFilters {
 
 export interface OrderListRow extends Order {
   region: { name: string } | null;
-  assigned_driver: { full_name: string } | null;
-  assigned_factory: { full_name: string } | null;
 }
 
 export interface OrderListResult {
@@ -48,12 +46,13 @@ export async function listOrders(filters: OrderFilters = {}): Promise<OrderListR
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
 
+  // assigned_driver_name / assigned_factory_name come straight off orders
+  // (migration 0032) rather than a live join to profiles — a join would
+  // silently lose the name the moment that driver/factory account is
+  // deleted, which is exactly the case this list needs to keep showing.
   let query = supabase
     .from("orders")
-    .select(
-      "*, region:regions(name), assigned_driver:profiles!orders_assigned_driver_id_fkey(full_name), assigned_factory:profiles!orders_assigned_factory_id_fkey(full_name)",
-      { count: "exact" },
-    )
+    .select("*, region:regions(name)", { count: "exact" })
     .order("created_at", { ascending: false });
 
   if (filters.status && filters.status !== "all") {
