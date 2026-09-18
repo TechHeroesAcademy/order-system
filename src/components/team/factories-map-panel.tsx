@@ -1,9 +1,9 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import dynamic from "next/dynamic";
 import { toast } from "sonner";
-import { Loader2, Factory, MapPin, MapPinOff, Map as MapIcon, X } from "lucide-react";
+import { Loader2, Factory, MapPin, MapPinOff, Map as MapIcon, X, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,7 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { EmptyState } from "@/components/shared/empty-state";
-import { updateStaffLocationAction } from "@/lib/actions/admin";
+import { updateStaffLocationAction, resolveMapsUrlCoordsAction } from "@/lib/actions/admin";
 import { updateStaffLocationSchema } from "@/lib/domain/validators";
 import { mapsUrlFor } from "@/lib/domain/maps";
 import { ToggleActiveButton, ResetPasswordButton, DeleteStaffButton } from "./staff-actions";
@@ -56,8 +56,20 @@ export function FactoriesMapPanel({
   const [address, setAddress] = useState("");
   const [mapsUrlValue, setMapsUrlValue] = useState("");
   const [pin, setPin] = useState<{ lat: number; lng: number } | null>(null);
+  // Set only right after a successful link extraction — see FactoriesMap's
+  // focusPin prop. Kept separate from `pin` so selecting a factory or
+  // clicking/dragging on the map (which don't need the view to jump) don't
+  // also trigger a pan.
+  const [focusPin, setFocusPin] = useState<{ lat: number; lng: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+
+  // "extract the lat/lng from the link and pin on the map" — tried once per
+  // distinct pasted value (the ref guards against re-firing on a blur that
+  // didn't actually change anything, e.g. tabbing through with no edit).
+  const [extractStatus, setExtractStatus] = useState<"idle" | "loading" | "found" | "not_found">("idle");
+  const [extracting, startExtractTransition] = useTransition();
+  const lastExtractedUrlRef = useRef<string | null>(null);
 
   const selected = factories.find((f) => f.id === selectedId) ?? null;
 
@@ -74,12 +86,43 @@ export function FactoriesMapPanel({
     setAddress(factory.address ?? "");
     setMapsUrlValue(factory.maps_url ?? "");
     setPin(factory.lat != null && factory.lng != null ? { lat: factory.lat, lng: factory.lng } : null);
+    setFocusPin(null);
     setError(null);
+    setExtractStatus("idle");
+    lastExtractedUrlRef.current = factory.maps_url ?? null;
+  }
+
+  /**
+   * Fires when the موقع field loses focus (covers both pasting a link and
+   * typing one out) — extracts coordinates from it and drops the pin on
+   * the map automatically, same as clicking the map by hand would. Only
+   * ever *sets* a pin from a successful extraction; it never clears an
+   * existing one just because the link didn't carry coordinates, so
+   * pasting a plain-text search link after already placing a pin by hand
+   * doesn't wipe that out.
+   */
+  function handleMapsUrlBlur() {
+    const trimmed = mapsUrlValue.trim();
+    if (!trimmed || trimmed === lastExtractedUrlRef.current) return;
+    lastExtractedUrlRef.current = trimmed;
+    setExtractStatus("loading");
+    startExtractTransition(async () => {
+      const res = await resolveMapsUrlCoordsAction(trimmed);
+      if (res.ok && res.data) {
+        setPin(res.data);
+        setFocusPin(res.data);
+        setExtractStatus("found");
+      } else {
+        setExtractStatus("not_found");
+      }
+    });
   }
 
   function clearSelection() {
     setSelectedId(null);
     setError(null);
+    setExtractStatus("idle");
+    setFocusPin(null);
   }
 
   function save() {
@@ -146,6 +189,7 @@ export function FactoriesMapPanel({
             factories={pins}
             selectedId={selectedId}
             selectedPin={pin}
+            focusPin={focusPin}
             onSelectPin={(id) => {
               const factory = factories.find((f) => f.id === id);
               if (factory) select(factory);
@@ -180,11 +224,30 @@ export function FactoriesMapPanel({
                   dir="ltr"
                   value={mapsUrlValue}
                   onChange={(e) => setMapsUrlValue(e.target.value)}
+                  onBlur={handleMapsUrlBlur}
+                  disabled={extracting}
                   placeholder="https://www.google.com/maps/place/..."
                 />
                 <p className="text-xs text-muted-foreground">
                   إن وُجد، يُستخدم هذا الرابط مباشرة بدلًا من العنوان النصي أو تحديد الخريطة — أدق وأسرع للمندوب.
                 </p>
+                {extractStatus === "loading" && (
+                  <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <Loader2 className="size-3 animate-spin" />
+                    جارٍ استخراج الموقع من الرابط...
+                  </p>
+                )}
+                {extractStatus === "found" && (
+                  <p className="flex items-center gap-1.5 text-xs text-emerald-600">
+                    <Wand2 className="size-3" />
+                    تم تحديد الموقع تلقائيًا من الرابط — عدّله بالسحب على الخريطة لو احتاج ضبطًا.
+                  </p>
+                )}
+                {extractStatus === "not_found" && (
+                  <p className="text-xs text-muted-foreground">
+                    لم نستطع استخراج إحداثيات من هذا الرابط — حدد الموقع يدويًا بالنقر على الخريطة أعلاه.
+                  </p>
+                )}
               </div>
               <p className="text-xs text-muted-foreground">
                 {pin
@@ -192,7 +255,7 @@ export function FactoriesMapPanel({
                   : "لا يوجد موقع محدد على الخريطة بعد — انقر في أي مكان على الخريطة أعلاه لتحديده"}
               </p>
               {error && <p className="text-sm text-destructive">{error}</p>}
-              <Button size="sm" onClick={save} disabled={pending}>
+              <Button size="sm" onClick={save} disabled={pending || extracting}>
                 {pending && <Loader2 className="animate-spin" />}
                 حفظ
               </Button>

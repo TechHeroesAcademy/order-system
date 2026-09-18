@@ -10,6 +10,7 @@ import {
   updateStaffLocationSchema,
 } from "@/lib/domain/validators";
 import { normalizePhone } from "@/lib/domain/phone";
+import { extractLatLngFromMapsUrl, isShortMapsUrl } from "@/lib/domain/maps";
 import { ok, fail, toErrorMessage, type ActionResult } from "./types";
 import type { z } from "zod";
 
@@ -232,6 +233,65 @@ export async function updateStaffLocationAction(
 
   revalidatePath("/owner/team");
   return ok(undefined);
+}
+
+/**
+ * Follows a shortened Google Maps share link's HTTP redirect(s) to reach
+ * the real maps.google.com URL, without downloading the (large, JS-heavy)
+ * page itself — only the Location header of each hop is read. Best-effort:
+ * any network failure just means "couldn't resolve it," never an error the
+ * caller needs to surface, since pasting a maps_url always succeeds on its
+ * own regardless of whether a pin can be auto-extracted from it.
+ */
+async function resolveRedirectUrl(url: string, maxHops = 6): Promise<string> {
+  let current = url;
+  for (let i = 0; i < maxHops; i++) {
+    let res: Response;
+    try {
+      res = await fetch(current, {
+        method: "GET",
+        redirect: "manual",
+        signal: AbortSignal.timeout(5000),
+      });
+    } catch {
+      return current;
+    }
+    // Body is never read (we only want the redirect target) — drop it so
+    // the connection doesn't hang open waiting to be consumed.
+    res.body?.cancel().catch(() => {});
+    if (res.status < 300 || res.status >= 400) return current;
+    const location = res.headers.get("location");
+    if (!location) return current;
+    current = new URL(location, current).toString();
+  }
+  return current;
+}
+
+/**
+ * "extract the lat/lng from the [Google Maps] link and pin on the map" —
+ * powers the factory location forms (AddFactoryPanel, FactoriesMapPanel):
+ * paste a Maps link, this returns the coordinates it points to (or null if
+ * it doesn't carry any), and the caller sets the map pin from that instead
+ * of requiring a manual click. A "long" link (already has @lat,lng or
+ * !3d!4d in it) resolves with no network call at all; a shortened
+ * maps.app.goo.gl/goo.gl share link needs its redirect followed first — see
+ * resolveRedirectUrl above.
+ */
+export async function resolveMapsUrlCoordsAction(
+  url: string,
+): Promise<ActionResult<{ lat: number; lng: number } | null>> {
+  await requireRole("owner", "moderator");
+
+  const trimmed = url.trim();
+  if (!trimmed) return ok(null);
+
+  const direct = extractLatLngFromMapsUrl(trimmed);
+  if (direct) return ok(direct);
+
+  if (!isShortMapsUrl(trimmed)) return ok(null);
+
+  const resolved = await resolveRedirectUrl(trimmed);
+  return ok(extractLatLngFromMapsUrl(resolved));
 }
 
 export async function createRegionAction(

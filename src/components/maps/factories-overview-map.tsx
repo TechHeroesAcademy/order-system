@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useRef } from "react";
-import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from "react-leaflet";
+import { useEffect, useMemo, useRef } from "react";
+import { MapContainer, TileLayer, Marker, Popup, useMapEvents, useMap } from "react-leaflet";
 import type { Marker as LeafletMarker } from "leaflet";
 import { createPinIcon } from "./pin-icon";
 
@@ -32,6 +32,24 @@ function ClickToPlace({ onPick }: { onPick?: (lat: number, lng: number) => void 
 }
 
 /**
+ * MapContainer's `center` prop (below) only applies on first mount —
+ * react-leaflet doesn't re-center the view just because it changes later.
+ * That's fine for a manual click or drag (already happened inside the
+ * visible map), but a pin set from an extracted link (lib/actions/admin.ts
+ * resolveMapsUrlCoordsAction) can land anywhere, including well outside
+ * whatever's currently in view. This flies the view to the selected pin
+ * every time it changes, so "extract the lat/lng and pin on the map"
+ * actually shows the pin, not just places it somewhere off-screen.
+ */
+function PanToPin({ lat, lng }: { lat: number; lng: number }) {
+  const map = useMap();
+  useEffect(() => {
+    map.flyTo([lat, lng], Math.max(map.getZoom(), 14), { duration: 0.8 });
+  }, [lat, lng, map]);
+  return null;
+}
+
+/**
  * The one general factories map (Team management, Factories tab) — every
  * factory with a saved pin, plus a distinct-colored, draggable marker for
  * whichever factory is currently selected in <FactoriesMapPanel>. Clicking
@@ -48,6 +66,7 @@ export function FactoriesMap({
   factories,
   selectedId = null,
   selectedPin = null,
+  focusPin = null,
   onSelectPin,
   onPinChange,
 }: {
@@ -56,6 +75,15 @@ export function FactoriesMap({
   selectedId?: string | null;
   /** The selected factory's current (possibly unsaved/not-yet-saved) pin position — drives the draggable highlighted marker. */
   selectedPin?: { lat: number; lng: number } | null;
+  /**
+   * Set only right after a pin is auto-extracted from a pasted Maps link
+   * (see resolveMapsUrlCoordsAction) — pans/zooms the view there once,
+   * since that point can land anywhere. Deliberately separate from
+   * selectedPin: selecting a factory, clicking the map, or dragging the
+   * marker already happen within the visible view, so those don't need —
+   * and shouldn't trigger — the view jumping around too.
+   */
+  focusPin?: { lat: number; lng: number } | null;
   onSelectPin?: (id: string) => void;
   onPinChange?: (lat: number, lng: number) => void;
 }) {
@@ -84,6 +112,7 @@ export function FactoriesMap({
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         <ClickToPlace onPick={selectedId ? onPinChange : undefined} />
+        {focusPin && <PanToPin lat={focusPin.lat} lng={focusPin.lng} />}
         {others.map((f) => (
           <Marker
             key={f.id}
