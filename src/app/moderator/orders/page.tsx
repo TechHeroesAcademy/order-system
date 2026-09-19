@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { listOrders, listRegions, getOrderDeliveryCodesMap } from "@/lib/data/orders";
 import { listStaff } from "@/lib/data/staff";
+import { listFactories } from "@/lib/data/factories";
 import { requireRole } from "@/lib/auth";
 import { OrdersFilterBar } from "@/components/orders/orders-filter-bar";
 import { OrderStatusTabs } from "@/components/orders/order-status-tabs";
@@ -33,7 +34,7 @@ export default async function ModeratorOrdersPage({
     listOrders({ status, regionId, driverId, search, dateFrom, dateTo, minPieces, maxPieces, page, pageSize: 25 }),
     listRegions(),
     listStaff("driver"),
-    listStaff("factory"),
+    listFactories(),
   ]);
   const deliveryCodes = await getOrderDeliveryCodesMap(orders.map((o) => o.id));
 

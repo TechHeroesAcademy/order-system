@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Loader2, MapPin, Plus, UserPlus, Users, Factory } from "lucide-react";
+import { Loader2, MapPin, Plus, UserPlus, Users, Factory as FactoryIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -45,7 +45,7 @@ import { createStaffAccountSchema, regionNameSchema } from "@/lib/domain/validat
 import { ToggleActiveButton, ResetPasswordButton, DeleteStaffButton } from "./staff-actions";
 import { FactoriesMapPanel } from "./factories-map-panel";
 import { AddFactoryPanel } from "./add-factory-panel";
-import type { Profile, Region, UserRole } from "@/types/database";
+import type { Profile, Region, UserRole, Factory } from "@/types/database";
 
 const ROLE_LABELS_AR: Record<UserRole, string> = {
   owner: "مدير",
@@ -61,11 +61,14 @@ const ROLE_OPTIONS: UserRole[] = ["moderator", "driver", "owner"];
 
 export function TeamManager({
   staff,
+  factories,
   regions,
   driverRegionsMap,
   viewerRole,
 }: {
   staff: Profile[];
+  /** Workshops, from their own table — not staff accounts (migration 0033). */
+  factories: Factory[];
   regions: Region[];
   driverRegionsMap: Record<string, string[]>;
   /** Owner sees/can do everything; Moderator is scoped to driver/factory accounts. */
@@ -96,8 +99,20 @@ export function TeamManager({
 
   const isModerator = viewerRole === "moderator";
 
+  // "factory" can still appear on historical rows, so this filter stays even
+  // though no new account can have that role.
   const workers = useMemo(() => staffList.filter((m) => m.role !== "factory"), [staffList]);
-  const factories = useMemo(() => staffList.filter((m) => m.role === "factory"), [staffList]);
+
+  const [factoryList, setFactoryList] = useState(factories);
+  const [prevFactories, setPrevFactories] = useState(factories);
+  if (factories !== prevFactories) {
+    setPrevFactories(factories);
+    setFactoryList(factories);
+  }
+
+  function updateFactory(id: string, patch: Partial<Factory>) {
+    setFactoryList((prev) => prev.map((f) => (f.id === id ? { ...f, ...patch } : f)));
+  }
 
   function updateMember(id: string, patch: Partial<Profile>) {
     setStaffList((prev) => prev.map((m) => (m.id === id ? { ...m, ...patch } : m)));
@@ -142,8 +157,8 @@ export function TeamManager({
             الموظفون ({workers.length})
           </TabsTrigger>
           <TabsTrigger value="factories">
-            <Factory className="size-4" />
-            المصانع ({factories.length})
+            <FactoryIcon className="size-4" />
+            المصانع ({factoryList.length})
           </TabsTrigger>
           {!isModerator && (
             <TabsTrigger value="add-factory">
@@ -236,10 +251,10 @@ export function TeamManager({
 
         <TabsContent value="factories">
           <FactoriesMapPanel
-            factories={factories}
-            onSaved={(id, next) => updateMember(id, next)}
-            onToggled={(id, isActive) => toggleActive(id, isActive)}
-            onDeleted={(id) => removeMember(id)}
+            factories={factoryList}
+            onSaved={(id, next) => updateFactory(id, next)}
+            onToggled={(id, isActive) => updateFactory(id, { is_active: isActive })}
+            onDeleted={(id) => setFactoryList((prev) => prev.filter((f) => f.id !== id))}
             canDelete={!isModerator}
           />
         </TabsContent>
@@ -247,8 +262,8 @@ export function TeamManager({
         {!isModerator && (
           <TabsContent value="add-factory">
             <AddFactoryPanel
-              onCreated={(profile) => {
-                setStaffList((prev) => [profile, ...prev]);
+              onCreated={(factory) => {
+                setFactoryList((prev) => [factory, ...prev]);
                 setActiveTab("factories");
               }}
             />

@@ -2,14 +2,15 @@
 
 import { useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
-import { Loader2, Factory, Wand2 } from "lucide-react";
+import { Loader2, Factory as FactoryIcon, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { createStaffAccountAction, resolveMapsUrlCoordsAction } from "@/lib/actions/admin";
-import { createStaffAccountSchema } from "@/lib/domain/validators";
-import type { Profile } from "@/types/database";
+import { resolveMapsUrlCoordsAction } from "@/lib/actions/admin";
+import { createFactoryAction } from "@/lib/actions/factories";
+import { factoryDetailsSchema } from "@/lib/domain/validators";
+import type { Factory } from "@/types/database";
 
 /**
  * "إضافة مصنع" — its own tab next to "الموظفون"/"المصانع" (not a dialog,
@@ -23,10 +24,9 @@ import type { Profile } from "@/types/database";
  * pick this factory from the table in the Factories tab and click its spot
  * on the map.
  */
-export function AddFactoryPanel({ onCreated }: { onCreated: (profile: Profile) => void }) {
+export function AddFactoryPanel({ onCreated }: { onCreated: (factory: Factory) => void }) {
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
-  const [email, setEmail] = useState("");
   const [address, setAddress] = useState("");
   const [mapsUrl, setMapsUrl] = useState("");
   const [pin, setPin] = useState<{ lat: number; lng: number } | null>(null);
@@ -40,7 +40,6 @@ export function AddFactoryPanel({ onCreated }: { onCreated: (profile: Profile) =
   function reset() {
     setFullName("");
     setPhone("");
-    setEmail("");
     setAddress("");
     setMapsUrl("");
     setPin(null);
@@ -67,12 +66,9 @@ export function AddFactoryPanel({ onCreated }: { onCreated: (profile: Profile) =
   }
 
   function submit() {
-    const parsed = createStaffAccountSchema.safeParse({
-      full_name: fullName,
-      phone,
-      email: email || undefined,
-      role: "factory",
-      region_names: [],
+    const parsed = factoryDetailsSchema.safeParse({
+      name: fullName,
+      phone: phone || null,
       address,
       maps_url: mapsUrl,
       lat: pin?.lat ?? null,
@@ -84,23 +80,20 @@ export function AddFactoryPanel({ onCreated }: { onCreated: (profile: Profile) =
     }
     setError(null);
     startTransition(async () => {
-      const res = await createStaffAccountAction(parsed.data);
+      const res = await createFactoryAction(parsed.data);
       if (!res.ok) {
         setError(res.error);
         return;
       }
-      const profile: Profile = {
-        id: res.data.userId,
-        full_name: parsed.data.full_name,
-        phone: parsed.data.phone,
-        role: "factory",
-        region_id: null,
+      const factory: Factory = {
+        id: res.data.id,
+        name: parsed.data.name,
+        phone: parsed.data.phone?.trim() || null,
         address: parsed.data.address?.trim() || null,
         lat: parsed.data.lat ?? null,
         lng: parsed.data.lng ?? null,
         maps_url: parsed.data.maps_url?.trim() || null,
         is_active: true,
-        password_set: false,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
@@ -108,11 +101,11 @@ export function AddFactoryPanel({ onCreated }: { onCreated: (profile: Profile) =
       // this fires, where the new row now appears in the table — that jump
       // is the success confirmation, so there's no separate "done" screen
       // to show here (it would just flash and disappear).
-      onCreated(profile);
+      onCreated(factory);
       toast.success(
         pin
-          ? `تم إنشاء حساب المصنع "${parsed.data.full_name}" وتحديد موقعه على الخريطة من الرابط`
-          : `تم إنشاء حساب المصنع "${parsed.data.full_name}" — لتحديد موقعه بدقة، اختره من الجدول ثم انقر على مكانه على الخريطة`,
+          ? `تمت إضافة المصنع "${parsed.data.name}" وتحديد موقعه على الخريطة من الرابط`
+          : `تمت إضافة المصنع "${parsed.data.name}" — لتحديد موقعه بدقة، اختره من الجدول ثم انقر على مكانه على الخريطة`,
       );
       reset();
     });
@@ -122,7 +115,7 @@ export function AddFactoryPanel({ onCreated }: { onCreated: (profile: Profile) =
     <Card className="mx-auto max-w-lg">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
-          <Factory className="size-4" />
+          <FactoryIcon className="size-4" />
           إضافة مصنع جديد
         </CardTitle>
         <CardDescription>يسجل دخوله برقم هاتفه، وينشئ كلمة مرور بنفسه أول مرة يدخل بها.</CardDescription>
@@ -141,11 +134,7 @@ export function AddFactoryPanel({ onCreated }: { onCreated: (profile: Profile) =
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
           />
-          <p className="text-xs text-muted-foreground">هذا هو رقم تسجيل الدخول — لازم يكون صحيحًا.</p>
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="factory-email">البريد الإلكتروني (اختياري)</Label>
-          <Input id="factory-email" type="email" dir="ltr" value={email} onChange={(e) => setEmail(e.target.value)} />
+          <p className="text-xs text-muted-foreground">للتواصل مع المصنع فقط — المصنع ليس له حساب دخول.</p>
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="factory-address">عنوان المصنع (اختياري)</Label>

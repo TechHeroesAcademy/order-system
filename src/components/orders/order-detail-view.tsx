@@ -16,7 +16,7 @@ import { formatDateTime } from "@/lib/domain/format";
 import { isOrderDelayed } from "@/lib/domain/order-status";
 import { mapsUrlFor } from "@/lib/domain/maps";
 import { PackageCheck, CheckCircle2, MapPin } from "lucide-react";
-import type { Order, OrderHistoryEntry, Region, Profile } from "@/types/database";
+import type { Order, OrderHistoryEntry, Region, Profile, Factory } from "@/types/database";
 
 // customer_address is rendered separately below (with a Maps link), not
 // through this generic loop.
@@ -60,7 +60,7 @@ export function OrderDetailView({
   /** Active drivers, for the "change driver" control below — only needed when canManageDistribution. */
   drivers?: Profile[];
   /** Active factories, for the "change factory" control below — only needed when canManageDistribution. */
-  factories?: Profile[];
+  factories?: Factory[];
   /** All regions, for the edit-order dialog's region picker — only needed when canManageDistribution. */
   regions?: Region[];
 }) {

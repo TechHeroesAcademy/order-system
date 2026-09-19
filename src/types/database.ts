@@ -4,7 +4,17 @@
  * `supabase gen types typescript` once you have a live project — see README).
  */
 
+/**
+ * "factory" is retained here for historical rows only — `order_history.actor_role`
+ * and `order_messages.sender_role` still hold it for work done back when factories
+ * were login accounts, and those records must keep rendering. No new account can
+ * have this role; use `CreatableUserRole` anywhere an account is being created.
+ * (Postgres has no way to drop an enum value either — see migration 0033.)
+ */
 export type UserRole = "owner" | "moderator" | "driver" | "factory";
+
+/** The roles a new staff account may actually be given. */
+export type CreatableUserRole = Exclude<UserRole, "factory">;
 
 export type OrderStatus =
   | "new"
@@ -34,6 +44,27 @@ export interface Profile {
   maps_url: string | null;
   is_active: boolean;
   password_set: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * A workshop an order is routed to. Factories used to be `profiles` rows with
+ * role="factory" — i.e. staff accounts with a login — which is why the address
+ * and map fields still exist on Profile above. Since migration 0033 they are
+ * their own table with no login at all.
+ */
+export interface Factory {
+  id: string;
+  name: string;
+  phone: string | null;
+  address: string | null;
+  /** Precise coordinates, set by clicking the factory's pin on the factories map. Takes priority over `address` when building a Maps link. */
+  lat: number | null;
+  lng: number | null;
+  /** Optional pasted Google Maps "share" link. Wins over lat/lng and address in mapsUrlFor(). */
+  maps_url: string | null;
+  is_active: boolean;
   created_at: string;
   updated_at: string;
 }

@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { getOrderById, getOrderHistory, listRegions } from "@/lib/data/orders";
 import { listStaff } from "@/lib/data/staff";
+import { listFactories } from "@/lib/data/factories";
 import { requireRole } from "@/lib/auth";
 import { OrderDetailView } from "@/components/orders/order-detail-view";
 
@@ -13,7 +14,7 @@ export default async function OwnerOrderDetailPage({ params }: { params: Promise
     getOrderHistory(id),
     listRegions(),
     listStaff("driver"),
-    listStaff("factory"),
+    listFactories(),
   ]);
 
   if (!order) notFound();

@@ -3,7 +3,7 @@
 import { useMemo, useRef, useState, useTransition } from "react";
 import dynamic from "next/dynamic";
 import { toast } from "sonner";
-import { Loader2, Factory, MapPin, MapPinOff, Map as MapIcon, X, Wand2 } from "lucide-react";
+import { Loader2, Factory as FactoryIcon, MapPin, MapPinOff, Map as MapIcon, X, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,11 +12,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { EmptyState } from "@/components/shared/empty-state";
-import { updateStaffLocationAction, resolveMapsUrlCoordsAction } from "@/lib/actions/admin";
-import { updateStaffLocationSchema } from "@/lib/domain/validators";
+import { resolveMapsUrlCoordsAction } from "@/lib/actions/admin";
+import { updateFactoryAction } from "@/lib/actions/factories";
+import { factoryDetailsSchema } from "@/lib/domain/validators";
 import { mapsUrlFor } from "@/lib/domain/maps";
-import { ToggleActiveButton, ResetPasswordButton, DeleteStaffButton } from "./staff-actions";
-import type { Profile } from "@/types/database";
+import { ToggleFactoryActiveButton, DeleteFactoryButton } from "./factory-actions";
+import type { Factory } from "@/types/database";
 import type { FactoryPin } from "@/components/maps/factories-overview-map";
 
 // Leaflet touches `window` at render time, so this loads client-only —
@@ -42,14 +43,14 @@ export function FactoriesMapPanel({
   onDeleted,
   canDelete,
 }: {
-  factories: Profile[];
+  factories: Factory[];
   onSaved: (
     id: string,
     next: { address: string | null; lat: number | null; lng: number | null; maps_url: string | null },
   ) => void;
   onToggled: (id: string, isActive: boolean) => void;
   onDeleted: (id: string) => void;
-  /** Owner only — deleteStaffAccountAction rejects a Moderator server-side too, this just hides the control. */
+  /** Owner only — deleteFactoryAction rejects a Moderator server-side too, this just hides the control. */
   canDelete: boolean;
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -76,12 +77,12 @@ export function FactoriesMapPanel({
   const pins: FactoryPin[] = useMemo(
     () =>
       factories
-        .filter((f): f is Profile & { lat: number; lng: number } => f.lat != null && f.lng != null)
-        .map((f) => ({ id: f.id, full_name: f.full_name, address: f.address, lat: f.lat, lng: f.lng })),
+        .filter((f): f is Factory & { lat: number; lng: number } => f.lat != null && f.lng != null)
+        .map((f) => ({ id: f.id, name: f.name, address: f.address, lat: f.lat, lng: f.lng })),
     [factories],
   );
 
-  function select(factory: Profile) {
+  function select(factory: Factory) {
     setSelectedId(factory.id);
     setAddress(factory.address ?? "");
     setMapsUrlValue(factory.maps_url ?? "");
@@ -127,7 +128,9 @@ export function FactoriesMapPanel({
 
   function save() {
     if (!selected) return;
-    const parsed = updateStaffLocationSchema.safeParse({
+    const parsed = factoryDetailsSchema.safeParse({
+      name: selected.name,
+      phone: selected.phone,
       address,
       maps_url: mapsUrlValue,
       lat: pin?.lat ?? null,
@@ -139,15 +142,15 @@ export function FactoriesMapPanel({
     }
     setError(null);
     startTransition(async () => {
-      const res = await updateStaffLocationAction(selected.id, parsed.data);
+      const res = await updateFactoryAction(selected.id, parsed.data);
       if (!res.ok) {
         setError(res.error);
         return;
       }
       onSaved(selected.id, {
         address: parsed.data.address?.trim() || null,
-        lat: parsed.data.lat,
-        lng: parsed.data.lng,
+        lat: parsed.data.lat ?? null,
+        lng: parsed.data.lng ?? null,
         maps_url: parsed.data.maps_url?.trim() || null,
       });
       toast.success("تم تحديث موقع المصنع");
@@ -201,8 +204,8 @@ export function FactoriesMapPanel({
             <div className="space-y-3 rounded-lg border bg-muted/30 p-4">
               <div className="flex items-center justify-between">
                 <p className="flex items-center gap-1.5 text-sm font-medium">
-                  <Factory className="size-4" />
-                  {selected.full_name}
+                  <FactoryIcon className="size-4" />
+                  {selected.name}
                 </p>
                 <Button variant="ghost" size="icon" onClick={clearSelection} title="إلغاء التحديد">
                   <X className="size-4" />
@@ -270,7 +273,7 @@ export function FactoriesMapPanel({
         </CardHeader>
         <CardContent className="p-0">
           {factories.length === 0 ? (
-            <EmptyState icon={Factory} title="لا يوجد حساب مصنع بعد" />
+            <EmptyState icon={FactoryIcon} title="لا يوجد حساب مصنع بعد" />
           ) : (
             <Table>
               <TableHeader>
@@ -294,7 +297,7 @@ export function FactoriesMapPanel({
                     <TableRow key={member.id} className={member.id === selectedId ? "bg-muted/50" : undefined}>
                       <TableCell className="font-medium">
                         <button type="button" className="text-start hover:underline" onClick={() => select(member)}>
-                          {member.full_name}
+                          {member.name}
                         </button>
                       </TableCell>
                       <TableCell className="text-muted-foreground" dir="ltr">
@@ -319,16 +322,15 @@ export function FactoriesMapPanel({
                       </TableCell>
                       <TableCell>
                         <div className="flex gap-2">
-                          <ToggleActiveButton
-                            userId={member.id}
+                          <ToggleFactoryActiveButton
+                            factoryId={member.id}
                             isActive={member.is_active}
                             onToggled={(isActive) => onToggled(member.id, isActive)}
                           />
-                          <ResetPasswordButton userId={member.id} />
                           {canDelete && (
-                            <DeleteStaffButton
-                              userId={member.id}
-                              fullName={member.full_name}
+                            <DeleteFactoryButton
+                              factoryId={member.id}
+                              name={member.name}
                               onDeleted={() => onDeleted(member.id)}
                             />
                           )}

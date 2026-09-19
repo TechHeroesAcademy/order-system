@@ -1,5 +1,5 @@
 import { listRegions } from "@/lib/data/orders";
-import { listStaff } from "@/lib/data/staff";
+import { listFactories } from "@/lib/data/factories";
 import { requireRole } from "@/lib/auth";
 import { createModeratorOrderAction } from "@/lib/actions/orders";
 import { OrderForm } from "@/components/orders/order-form";
@@ -18,7 +18,7 @@ import { Info } from "lucide-react";
 export default async function ModeratorNewOrderPage() {
   await requireRole("owner", "moderator");
 
-  const [regions, factories] = await Promise.all([listRegions(), listStaff("factory")]);
+  const [regions, factories] = await Promise.all([listRegions(), listFactories()]);
   const activeFactories = factories.filter((f) => f.is_active);
 
   return (

@@ -14,7 +14,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card, CardContent } from "@/components/ui/card";
-import type { Region, Profile, NewOrderResult } from "@/types/database";
+import type { Region, Factory, NewOrderResult } from "@/types/database";
 import type { ActionResult } from "@/lib/actions/types";
 
 export function OrderForm({
@@ -26,8 +26,8 @@ export function OrderForm({
   submitLabel = "إنشاء الأوردر",
 }: {
   regions: Region[];
-  /** Active factory accounts, for the "route to factory" field below — leave the field unassigned and it stays visible to every factory account (unless requireFactory). */
-  factories?: Profile[];
+  /** Active factories, for the "route to factory" field below. */
+  factories?: Factory[];
   /**
    * Whether picking a factory is mandatory before submitting. See
    * createModeratorOrderAction. Ignored when showFactoryField is false.
@@ -255,7 +255,7 @@ export function OrderForm({
                       )}
                       {factories.map((f) => (
                         <SelectItem key={f.id} value={f.id}>
-                          {f.full_name}
+                          {f.name}
                           {f.address ? ` — ${f.address}` : ""}
                         </SelectItem>
                       ))}

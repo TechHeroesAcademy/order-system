@@ -18,7 +18,7 @@ import { formatDateTime } from "@/lib/domain/format";
 import { isOrderDelayed } from "@/lib/domain/order-status";
 import { PackageSearch } from "lucide-react";
 import type { OrderListRow } from "@/lib/data/orders";
-import type { Region, Profile } from "@/types/database";
+import type { Region, Profile, Factory } from "@/types/database";
 
 const TERMINAL_STATUSES = new Set(["delivered", "refused", "cancelled"]);
 
@@ -36,7 +36,7 @@ export function OrdersTable({
   /** Active drivers, for the inline "change driver" action — Owner only, see canAssign. */
   drivers?: Profile[];
   /** Active factories, for the inline "change factory" action — Owner only, see canAssign. */
-  factories?: Profile[];
+  factories?: Factory[];
   /** Delivery codes for this page's orders, keyed by order id — batch-fetched once by the page (see getOrderDeliveryCodesMap). */
   deliveryCodes?: Record<string, string>;
   /** Owner only (migration 0024/0030) — shows the inline change-driver/change-factory buttons and the cancel button. A Moderator still sees everything else in this row (status, codes). */

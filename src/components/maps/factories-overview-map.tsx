@@ -16,7 +16,7 @@ const SELECTED_COLOR = "#2563eb";
 
 export interface FactoryPin {
   id: string;
-  full_name: string;
+  name: string;
   address: string | null;
   lat: number;
   lng: number;
@@ -121,7 +121,7 @@ export function FactoriesMap({
             eventHandlers={{ click: () => onSelectPin?.(f.id) }}
           >
             <Popup>
-              <p className="font-medium">{f.full_name}</p>
+              <p className="font-medium">{f.name}</p>
               {f.address && <p className="text-xs text-muted-foreground">{f.address}</p>}
             </Popup>
           </Marker>

@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Loader2, Factory } from "lucide-react";
+import { Loader2, Factory as FactoryIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { reassignOrderFactoryAction } from "@/lib/actions/orders";
-import type { Profile } from "@/types/database";
+import type { Factory } from "@/types/database";
 
 /**
  * Lets the Owner/Moderator route an order to a different factory at any
@@ -33,7 +33,7 @@ export function ChangeFactoryButton({
 }: {
   orderId: string;
   currentFactoryId: string | null;
-  factories: Profile[];
+  factories: Factory[];
   /** Icon-only trigger for tight spaces (an orders-table row) instead of the full-width labeled button. */
   compact?: boolean;
 }) {
@@ -65,11 +65,11 @@ export function ChangeFactoryButton({
       <DialogTrigger asChild>
         {compact ? (
           <Button variant="ghost" size="icon" title={hasFactory ? "تغيير المصنع" : "تحديد المصنع"}>
-            <Factory className="size-4" />
+            <FactoryIcon className="size-4" />
           </Button>
         ) : (
           <Button variant="outline" size="sm" className="w-full">
-            <Factory className="size-4" />
+            <FactoryIcon className="size-4" />
             {hasFactory ? "تغيير المصنع" : "تحديد المصنع"}
           </Button>
         )}
@@ -93,7 +93,7 @@ export function ChangeFactoryButton({
             <SelectContent>
               {options.map((f) => (
                 <SelectItem key={f.id} value={f.id}>
-                  {f.full_name}
+                  {f.name}
                 </SelectItem>
               ))}
             </SelectContent>

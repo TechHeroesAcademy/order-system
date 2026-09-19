@@ -31,7 +31,7 @@ import { mapsUrlFor } from "@/lib/domain/maps";
 import type { Order } from "@/types/database";
 
 type FactoryInfo = {
-  full_name: string;
+  name: string;
   address: string | null;
   lat?: number | null;
   lng?: number | null;
@@ -45,7 +45,7 @@ function FactoryLocationNote({ factory }: { factory: FactoryInfo }) {
     <div className="mb-3 flex items-start gap-2 rounded-lg border bg-accent/40 p-3 text-sm">
       <Factory className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
       <div className="min-w-0 flex-1">
-        <p className="font-medium">{factory?.full_name ?? "لم يُحدد مصنع لهذا الأوردر"}</p>
+        <p className="font-medium">{factory?.name ?? "لم يُحدد مصنع لهذا الأوردر"}</p>
         {mapsUrl ? (
           <a
             href={mapsUrl}

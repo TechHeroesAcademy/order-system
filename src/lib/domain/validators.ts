@@ -130,33 +130,29 @@ export const createStaffAccountSchema = z.object({
   // their phone number and never need an email. When left blank we generate
   // an internal one — it's never shown to them or used for login.
   email: z.string().trim().email("بريد إلكتروني غير صالح").optional().or(z.literal("")),
-  role: z.enum(["owner", "moderator", "driver", "factory"]),
+  // No "factory" — factories stopped being accounts in migration 0033. The
+  // enum value still exists in the database for historical rows, but nothing
+  // may create one (see CreatableUserRole in types/database.ts).
+  role: z.enum(["owner", "moderator", "driver"]),
   // Typed area names, not ids picked from a checkbox list (migration
   // 0025) — resolved/auto-created server-side via find_or_create_region().
   region_names: z
     .array(z.string().trim().min(2).max(100))
     .optional()
     .default([]),
-  // Only meaningful for role="factory" — where the driver drops off/picks
-  // up orders. Left optional rather than required-when-factory so an
-  // existing flow that doesn't collect it yet (or a factory added before a
-  // location is known) still works; it can be filled in later.
-  address: z.string().trim().max(500).optional().nullable(),
-  // Precise coordinates from the map picker, alongside the free-text
-  // address above — also optional/fill-in-later for the same reason.
-  lat: z.number().min(-90).max(90).optional().nullable(),
-  lng: z.number().min(-180).max(180).optional().nullable(),
-  // Optional pasted Google Maps link — preferred over lat/lng/address in
-  // mapsUrlFor() whenever present, same idea as the order form's field above.
-  maps_url: mapsUrlField,
 });
 
-/** Owner/Moderator editing an existing factory account's location. */
-export const updateStaffLocationSchema = z.object({
-  address: z.string().trim().max(500).nullable(),
+/**
+ * A factory's details. Factories are workshops rather than accounts since
+ * migration 0033, so this no longer rides on the staff-account schema.
+ */
+export const factoryDetailsSchema = z.object({
+  name: z.string().trim().min(2, "اسم المصنع مطلوب").max(120),
+  phone: z.string().trim().max(30).optional().nullable(),
+  address: z.string().trim().max(500).optional().nullable(),
+  lat: z.number().min(-90).max(90).optional().nullable(),
+  lng: z.number().min(-180).max(180).optional().nullable(),
   maps_url: mapsUrlField,
-  lat: z.number().min(-90).max(90).nullable(),
-  lng: z.number().min(-180).max(180).nullable(),
 });
 
 /** Step 1 of the phone-based login: just the phone number. */

@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { getOrderById, getOrderHistory, listRegions } from "@/lib/data/orders";
-import { listStaff } from "@/lib/data/staff";
+import { listFactories } from "@/lib/data/factories";
 import { requireRole } from "@/lib/auth";
 import { OrderStatusBadge } from "@/components/orders/order-status-badge";
 import { OrderTimeline } from "@/components/orders/order-timeline";
@@ -20,7 +20,7 @@ export default async function DriverOrderDetailPage({ params }: { params: Promis
     getOrderById(id),
     getOrderHistory(id),
     listRegions(),
-    listStaff("factory"),
+    listFactories(),
   ]);
 
   if (!order) notFound();
@@ -123,7 +123,7 @@ export default async function DriverOrderDetailPage({ params }: { params: Promis
         factory={
           assignedFactory
             ? {
-                full_name: assignedFactory.full_name,
+                name: assignedFactory.name,
                 address: assignedFactory.address,
                 lat: assignedFactory.lat,
                 lng: assignedFactory.lng,
