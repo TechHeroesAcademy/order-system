@@ -146,17 +146,11 @@ async function main() {
     await asUser(pool, ownerId, (client) => client.query("select set_order_distribution($1,$2,false)", [orderId, driverAId]));
     await asUser(pool, ownerId, (client) => client.query("select approve_distribution($1)", [orderId]));
     await asUser(pool, driverAId, (client) => client.query("select driver_mark_collected($1,$2)", [orderId, created.pickup_code]));
-    await asUser(pool, driverAId, (client) => client.query("select driver_hand_to_factory($1)", [orderId]));
-    const factoryRow = await admin_query(pool, "select id from public.profiles where role = 'factory' and is_active limit 1");
-    const factoryId = factoryRow[0]?.id;
-    if (factoryId) {
-      await asUser(pool, factoryId, (client) => client.query("select factory_confirm_receipt($1)", [orderId]));
-      await asUser(pool, factoryId, (client) => client.query("select factory_mark_ready($1)", [orderId]));
-    } else {
-      // No factory account seeded — fast-forward status directly (test setup
-      // only; the RPCs above are what's actually under test elsewhere).
-      await admin_query(pool, "update public.orders set status = 'ready' where id = $1", [orderId]);
-    }
+    // The assigned driver records the factory steps themselves (migration
+    // 0034) — no factory account to look up, and no fast-forward fallback
+    // that could silently skip the RPCs being exercised here.
+    await asUser(pool, driverAId, (client) => client.query("select factory_confirm_receipt($1)", [orderId]));
+    await asUser(pool, driverAId, (client) => client.query("select factory_mark_ready($1)", [orderId]));
     await asUser(pool, driverAId, (client) => client.query("select driver_confirm_factory_pickup($1)", [orderId]));
     return { orderId, code };
   }
@@ -217,24 +211,19 @@ async function main() {
     await asUser(pool, ownerId, (client) => client.query("select set_order_distribution($1,$2,false)", [orderId, driverAId]));
     await asUser(pool, ownerId, (client) => client.query("select approve_distribution($1)", [orderId]));
     await asUser(pool, driverAId, (client) => client.query("select driver_mark_collected($1,$2)", [orderId, created.pickup_code]));
-    await asUser(pool, driverAId, (client) => client.query("select driver_hand_to_factory($1)", [orderId]));
-
-    const factoryRows = await admin_query(pool, "select id from public.profiles where role = 'factory' and is_active limit 1");
-    if (!factoryRows[0]) {
-      console.log("  (skipped — no factory account seeded in this database)");
-    } else {
-      const factoryId = factoryRows[0].id;
-      const attempt = () => asUser(pool, factoryId, (client) => client.query("select factory_confirm_receipt($1)", [orderId]));
-      const results = await Promise.all(Array.from({ length: CONCURRENCY }, attempt));
-      const successes = results.filter((r) => r.ok).length;
-      const historyRows = await admin_query(
-        pool,
-        "select count(*)::int as n from public.order_history where order_id = $1 and event_type = 'factory_confirmed_receipt'",
-        [orderId],
-      );
-      check("exactly 1 of the concurrent confirmations succeeded", successes === 1, `${successes} succeeded`);
-      check("exactly one 'factory_confirmed_receipt' history entry", historyRows[0].n === 1, `${historyRows[0].n} entries`);
-    }
+    // Pressed by the assigned driver now — this used to look up a factory
+    // account and quietly skip the whole test when none was seeded, which
+    // meant the exactly-once guarantee went unchecked without anyone noticing.
+    const attempt = () => asUser(pool, driverAId, (client) => client.query("select factory_confirm_receipt($1)", [orderId]));
+    const results = await Promise.all(Array.from({ length: CONCURRENCY }, attempt));
+    const successes = results.filter((r) => r.ok).length;
+    const historyRows = await admin_query(
+      pool,
+      "select count(*)::int as n from public.order_history where order_id = $1 and event_type = 'factory_confirmed_receipt'",
+      [orderId],
+    );
+    check("exactly 1 of the concurrent confirmations succeeded", successes === 1, `${successes} succeeded`);
+    check("exactly one 'factory_confirmed_receipt' history entry", historyRows[0].n === 1, `${historyRows[0].n} entries`);
   }
 
   // ---------- Test 5: concurrent approve_distribution double-clicks ----------

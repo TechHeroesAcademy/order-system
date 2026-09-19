@@ -20,7 +20,8 @@ const ORDER_DETAIL_BASE: Record<UserRole, string> = {
   owner: "/owner/orders",
   moderator: "/moderator/orders",
   driver: "/driver/orders",
-  factory: "/factory/orders",
+  // retired role, kept only so the Record<UserRole, ...> stays exhaustive
+  factory: "/login",
 };
 
 export function NotificationBell({

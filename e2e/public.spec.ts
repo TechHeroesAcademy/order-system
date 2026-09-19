@@ -107,7 +107,7 @@ test.describe("staff login (/login)", () => {
 });
 
 test.describe("role-gated dashboards redirect anonymous visitors to /login", () => {
-  for (const path of ["/owner", "/moderator", "/driver", "/factory"]) {
+  for (const path of ["/owner", "/moderator", "/driver"]) {
     test(`${path} redirects with a return-to next param`, async ({ page }) => {
       await page.goto(path);
       await expect(page).toHaveURL(new RegExp(`/login\\?next=${encodeURIComponent(path).replace(/\//g, "%2F")}`));

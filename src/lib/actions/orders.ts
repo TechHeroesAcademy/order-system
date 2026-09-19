@@ -269,7 +269,6 @@ export async function reassignOrderFactoryAction(orderId: string, newFactoryId: 
   revalidatePath("/owner");
   revalidatePath("/moderator");
   revalidatePath("/driver");
-  revalidatePath("/factory");
   return ok(undefined);
 }
 
@@ -306,16 +305,6 @@ export async function driverMarkCollectedAction(
   revalidatePath("/driver");
   revalidatePath("/owner");
   return ok({ success: Boolean(data) });
-}
-
-export async function driverHandToFactoryAction(orderId: string): Promise<ActionResult> {
-  await requireRole("owner", "driver");
-  const supabase = await createClient();
-  const { error } = await supabase.rpc("driver_hand_to_factory", { p_order_id: orderId });
-  if (error) return fail(toErrorMessage(error));
-  revalidatePath("/driver");
-  revalidatePath("/factory");
-  return ok(undefined);
 }
 
 export async function driverConfirmFactoryPickupAction(orderId: string): Promise<ActionResult> {
@@ -365,11 +354,10 @@ export async function driverLogRefusalAction(orderId: string, reason: string): P
 // page has no other way to do it — see order-detail-view.tsx's "factory
 // actions" panel.
 export async function factoryConfirmReceiptAction(orderId: string): Promise<ActionResult> {
-  await requireRole("owner", "moderator", "factory");
+  await requireRole("owner", "moderator", "driver");
   const supabase = await createClient();
   const { error } = await supabase.rpc("factory_confirm_receipt", { p_order_id: orderId });
   if (error) return fail(toErrorMessage(error));
-  revalidatePath("/factory");
   revalidatePath("/driver");
   revalidatePath("/owner");
   revalidatePath("/moderator");
@@ -377,11 +365,10 @@ export async function factoryConfirmReceiptAction(orderId: string): Promise<Acti
 }
 
 export async function factoryMarkReadyAction(orderId: string): Promise<ActionResult> {
-  await requireRole("owner", "moderator", "factory");
+  await requireRole("owner", "moderator", "driver");
   const supabase = await createClient();
   const { error } = await supabase.rpc("factory_mark_ready", { p_order_id: orderId });
   if (error) return fail(toErrorMessage(error));
-  revalidatePath("/factory");
   revalidatePath("/driver");
   revalidatePath("/owner");
   revalidatePath("/moderator");

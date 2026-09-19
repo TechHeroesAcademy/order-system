@@ -275,6 +275,11 @@ export interface NewOrderResult {
 }
 
 /** Which per-order conversation a message belongs to — see migration 0019. */
+/**
+ * "factory" remains only for messages sent before factories stopped being
+ * accounts — send_order_message rejects it now (migration 0034). New
+ * messages are always "driver".
+ */
 export type OrderChatChannel = "driver" | "factory";
 
 /**

@@ -25,25 +25,22 @@ const CHANNEL_TITLES_AR: Record<OrderChatChannel, string> = {
 const POLL_INTERVAL_MS = 4000;
 
 /**
- * One of the two independent per-order chat channels (migrations
- * 0018/0019 — order_messages + send_order_message()): 'driver' (the
- * assigned driver <-> Owner/Moderator) or 'factory' (the assigned factory
- * <-> Owner/Moderator). No realtime channel: this app doesn't use Supabase
- * Realtime anywhere else, so a short poll while the panel is open follows
- * the same architecture as the rest of the app (RPC writes,
- * revalidated/refetched reads) instead of introducing a new pattern that
- * nothing here has been verified against. Polling pauses while the tab is
- * hidden (document.visibilitychange) and catches up immediately when it
- * becomes visible again, instead of burning a request every 4s in a
- * background tab nobody is looking at.
+ * The per-order conversation between the assigned driver and a Manager
+ * (order_messages + send_order_message(); migrations 0018/0019, narrowed in
+ * 0034). There used to be a second 'factory' channel, closed when factories
+ * stopped being accounts — old factory messages stay readable by a Manager
+ * as history, but nothing writes to that channel any more, and Moderators
+ * are no longer part of these conversations at all (they see no messages;
+ * the RLS policy, not just this component, is what enforces that).
  *
- * Rendered for Owner/Moderator on the order-detail page (both channels,
- * always — they can always message either side, even before a driver or
- * factory is assigned), for the assigned driver on their own order page
- * (driver channel only), and for the assigned factory on their own order
- * page (factory channel only). The two channels are genuinely separate
- * conversations — a driver can never see the factory channel and vice
- * versa, enforced by the RPC/RLS, not just by what this component renders.
+ * No realtime channel: this app doesn't use Supabase Realtime anywhere
+ * else, so a short poll while the panel is open follows the same
+ * architecture as the rest of the app (RPC writes, revalidated/refetched
+ * reads) instead of introducing a new pattern that nothing here has been
+ * verified against. Polling pauses while the tab is hidden
+ * (document.visibilitychange) and catches up immediately when it becomes
+ * visible again, instead of burning a request every 4s in a background tab
+ * nobody is looking at.
  */
 export function OrderChat({
   orderId,

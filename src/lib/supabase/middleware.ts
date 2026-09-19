@@ -6,14 +6,16 @@ const ROLE_HOME: Record<UserRole, string> = {
   owner: "/owner",
   moderator: "/moderator",
   driver: "/driver",
-  factory: "/factory",
+  // Factories stopped being accounts in migration 0033. The role only
+  // survives on historical records, so anyone somehow still carrying it is
+  // sent to the login screen rather than a route that no longer exists.
+  factory: "/login",
 };
 
 const AREA_ALLOWED_ROLES: { prefix: string; roles: UserRole[] }[] = [
   { prefix: "/owner", roles: ["owner"] },
   { prefix: "/moderator", roles: ["owner", "moderator"] },
   { prefix: "/driver", roles: ["owner", "driver"] },
-  { prefix: "/factory", roles: ["owner", "factory"] },
 ];
 
 const PUBLIC_PATHS = ["/", "/login", "/track", "/setup", "/order/new"];
@@ -116,6 +118,16 @@ export async function updateSession(request: NextRequest) {
 
   if (!profile || !profile.is_active || !role) {
     // No profile yet, or deactivated — send to login with an explanation.
+    //
+    // Unless we're already on /login: redirecting /login to /login is a
+    // redirect-to-self loop, and the browser gives up with
+    // ERR_TOO_MANY_REDIRECTS instead of ever showing the login form — so the
+    // one screen that could explain the problem is the one screen they can't
+    // reach. This bit anyone deactivated, and would have caught every
+    // retired factory account the moment their profile row went away.
+    if (pathname === "/login") {
+      return buildResponse();
+    }
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     url.searchParams.set("error", "account_inactive");

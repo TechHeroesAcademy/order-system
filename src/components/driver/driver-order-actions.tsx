@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Loader2, PackageCheck, Factory, Truck, KeyRound, Ban, MapPin, Clock } from "lucide-react";
+import { Loader2, PackageCheck, Factory as FactoryIcon, Truck, KeyRound, Ban, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -20,13 +20,13 @@ import {
 import { ConfirmActionButton } from "@/components/shared/confirm-action-button";
 import {
   driverMarkCollectedAction,
-  driverHandToFactoryAction,
   driverConfirmFactoryPickupAction,
+  factoryConfirmReceiptAction,
+  factoryMarkReadyAction,
   driverDeliverToCustomerAction,
   driverLogRefusalAction,
 } from "@/lib/actions/orders";
 import { deliveryCodeSchema, pickupCodeSchema, refusalReasonSchema } from "@/lib/domain/validators";
-import { formatDateTime } from "@/lib/domain/format";
 import { mapsUrlFor } from "@/lib/domain/maps";
 import type { Order } from "@/types/database";
 
@@ -43,7 +43,7 @@ function FactoryLocationNote({ factory }: { factory: FactoryInfo }) {
   const mapsUrl = factory ? mapsUrlFor(factory) : null;
   return (
     <div className="mb-3 flex items-start gap-2 rounded-lg border bg-accent/40 p-3 text-sm">
-      <Factory className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+      <FactoryIcon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
       <div className="min-w-0 flex-1">
         <p className="font-medium">{factory?.name ?? "لم يُحدد مصنع لهذا الأوردر"}</p>
         {mapsUrl ? (
@@ -69,34 +69,28 @@ export function DriverOrderActions({ order, factory = null }: { order: Order; fa
     case "assigned":
       return <CollectFromCustomerCard orderId={order.id} />;
 
+    // The driver records every factory step themselves now — there is no
+    // factory account to wait on. The old two-step "توجهت للمصنع" press
+    // (driver_hand_to_factory) is gone from the UI: dropping the order off
+    // IS the hand-off, and factory_confirm_receipt stamps
+    // handed_to_factory_at itself so the timeline and the daily report stay
+    // exactly as they were.
     case "collected":
-      // Status stays 'collected' through this whole step — only the factory
-      // confirming receipt moves it to 'at_factory' — so handed_to_factory_at
-      // (not order.status) is what tells "not handed off yet" apart from
-      // "handed off, now waiting on the factory to confirm". Without this,
-      // the same button kept reappearing after being pressed, which read as
-      // the step not having registered at all.
       return (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">التوجه للمصنع</CardTitle>
+            <CardTitle className="text-base">تسليم الأوردر للمصنع</CardTitle>
           </CardHeader>
           <CardContent className="pt-0">
             <FactoryLocationNote factory={factory} />
-            {order.handed_to_factory_at ? (
-              <div className="flex items-center gap-2 rounded-lg border py-3 px-3 text-sm text-muted-foreground">
-                <Clock className="size-4 shrink-0" />
-                تم تسجيل توجهك للمصنع {formatDateTime(order.handed_to_factory_at)} — بانتظار تأكيد الاستلام من المصنع.
-              </div>
-            ) : (
-              <ConfirmActionButton
-                label="تم التوجه بالأوردر للمصنع"
-                confirmTitle="تأكيد تسليم الأوردر للمصنع"
-                onConfirm={() => driverHandToFactoryAction(order.id)}
-                successMessage="تم تسجيل التوجه للمصنع"
-                icon={<Factory />}
-              />
-            )}
+            <ConfirmActionButton
+              label="سلّمت الأوردر للمصنع"
+              confirmTitle="تأكيد تسليم الأوردر للمصنع"
+              confirmDescription="اضغط بعد تسليم الأوردر فعليًا في المصنع."
+              onConfirm={() => factoryConfirmReceiptAction(order.id)}
+              successMessage="تم تسجيل تسليم الأوردر للمصنع"
+              icon={<FactoryIcon />}
+            />
           </CardContent>
         </Card>
       );
@@ -109,9 +103,17 @@ export function DriverOrderActions({ order, factory = null }: { order: Order; fa
           </CardHeader>
           <CardContent className="pt-0">
             <FactoryLocationNote factory={factory} />
-            <p className="py-3 text-center text-sm text-muted-foreground">
-              الأوردر داخل المصنع حاليًا — بانتظار تجهيزه. لا يمكنك استلامه إلا بعد أن يضغط المصنع &quot;جاهز للتسليم&quot;.
+            <p className="mb-3 text-sm text-muted-foreground">
+              الأوردر داخل المصنع حاليًا. اضغط بعد ما المصنع يخلّص الشغل عشان تقدر تستلمه.
             </p>
+            <ConfirmActionButton
+              label="المصنع خلّص الشغل"
+              confirmTitle="تأكيد جاهزية الأوردر"
+              confirmDescription="اضغط بعد ما المصنع ينهي العمل في الأوردر فعليًا."
+              onConfirm={() => factoryMarkReadyAction(order.id)}
+              successMessage="تم تسجيل جاهزية الأوردر"
+              icon={<PackageCheck />}
+            />
           </CardContent>
         </Card>
       );

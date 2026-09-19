@@ -66,12 +66,19 @@ export function OrderDetailView({
 }) {
   const delayed = isOrderDelayed(order.status, order.created_at);
   const isTerminal = ["delivered", "refused", "cancelled"].includes(order.status);
-  // Assigning/changing who handles an order (driver or factory) is Manager-
-  // only (migration 0024), and so is cancelling it (migration 0030) — both
-  // gated on canAssign below. Everything else canManageDistribution gates
-  // (editing order details, the delivery/pickup codes, chat) stays
-  // available to Moderator too.
+  // Three distinct permissions, deliberately kept as three named flags
+  // rather than reusing one for all of them — they diverge:
+  //   canManageDistribution — editing order details, delivery/pickup codes.
+  //                           Moderator included.
+  //   canAssign             — changing who handles an order (0024) and
+  //                           cancelling it (0030). Manager only.
+  //   canChat               — the driver conversation. Manager only: chat is
+  //                           between the driver and the manager, and the
+  //                           database enforces the same rule (0034), so a
+  //                           Moderator sees no messages even if this were
+  //                           wrong.
   const canAssign = viewerProfile.role === "owner";
+  const canChat = viewerProfile.role === "owner";
 
   return (
     <div className="grid gap-4 lg:grid-cols-3">
@@ -290,12 +297,7 @@ export function OrderDetailView({
           </Card>
         )}
 
-        {canManageDistribution && (
-          <>
-            <OrderChat orderId={order.id} channel="driver" viewerId={viewerProfile.id} />
-            <OrderChat orderId={order.id} channel="factory" viewerId={viewerProfile.id} />
-          </>
-        )}
+        {canChat && <OrderChat orderId={order.id} channel="driver" viewerId={viewerProfile.id} />}
       </div>
     </div>
   );

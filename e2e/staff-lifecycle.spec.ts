@@ -12,14 +12,12 @@ import { test, expect, type Page } from "@playwright/test";
  *   E2E_OWNER_PHONE / E2E_OWNER_PASSWORD
  *   E2E_MODERATOR_PHONE / E2E_MODERATOR_PASSWORD
  *   E2E_DRIVER_PHONE / E2E_DRIVER_PASSWORD
- *   E2E_FACTORY_PHONE / E2E_FACTORY_PASSWORD
  *
  * Run with:
  *   E2E_BASE_URL=https://staging.example.com \
  *   E2E_OWNER_PHONE=01000000001 E2E_OWNER_PASSWORD=... \
  *   E2E_MODERATOR_PHONE=01000000002 E2E_MODERATOR_PASSWORD=... \
  *   E2E_DRIVER_PHONE=01000000003 E2E_DRIVER_PASSWORD=... \
- *   E2E_FACTORY_PHONE=01000000005 E2E_FACTORY_PASSWORD=... \
  *   npm run test:e2e -- e2e/staff-lifecycle.spec.ts
  *
  * See e2e/README.md for the full setup.
@@ -29,14 +27,13 @@ const creds = {
   owner: { phone: process.env.E2E_OWNER_PHONE, password: process.env.E2E_OWNER_PASSWORD },
   moderator: { phone: process.env.E2E_MODERATOR_PHONE, password: process.env.E2E_MODERATOR_PASSWORD },
   driver: { phone: process.env.E2E_DRIVER_PHONE, password: process.env.E2E_DRIVER_PASSWORD },
-  factory: { phone: process.env.E2E_FACTORY_PHONE, password: process.env.E2E_FACTORY_PASSWORD },
 };
 
 const haveStaffCreds = Object.values(creds).every((c) => c.phone && c.password);
 
 test.skip(
   !haveStaffCreds,
-  "Set E2E_BASE_URL + E2E_{OWNER,MODERATOR,DRIVER,FACTORY}_{PHONE,PASSWORD} to run the authenticated " +
+  "Set E2E_BASE_URL + E2E_{OWNER,MODERATOR,DRIVER}_{PHONE,PASSWORD} to run the authenticated " +
     "lifecycle suite against a real Supabase project. See e2e/README.md.",
 );
 
@@ -60,12 +57,10 @@ test.describe("full order lifecycle across all four roles", () => {
     const modContext = await browser.newContext();
     const ownerContext = await browser.newContext();
     const driverContext = await browser.newContext();
-    const factoryContext = await browser.newContext();
 
     const mod = await modContext.newPage();
     const owner = await ownerContext.newPage();
     const driver = await driverContext.newPage();
-    const factory = await factoryContext.newPage();
 
     // 1) Moderator registers an order phoned/messaged in (spec section 2,
     // channel 2).
@@ -97,21 +92,18 @@ test.describe("full order lifecycle across all four roles", () => {
     await owner.getByRole("button", { name: "اعتماد التوزيع" }).click();
     await expect(owner.getByText("بانتظار الاعتماد")).toHaveCount(0);
 
-    // 3) Driver receives from customer, delivers to factory (spec sections
-    // 6, 9, 10).
+    // 3) Driver receives from customer, then records the factory steps
+    // themselves — there is no factory account to wait on any more
+    // (migration 0034), so steps 3 and 4 are one continuous driver flow.
     await loginAs(driver, "driver");
     await driver.goto("/driver");
     await driver.getByText(orderNumber!).click();
     await driver.getByRole("button", { name: "تم الاستلام من العميل" }).click();
-    await driver.getByRole("button", { name: "توجهت للمصنع" }).click();
 
-    // 4) Factory confirms receipt, then marks ready (spec sections 10, 11).
-    await loginAs(factory, "factory");
-    await factory.goto("/factory");
-    await factory.getByPlaceholder(/رقم الأوردر/).fill(orderNumber!);
-    await factory.keyboard.press("Enter");
-    await factory.getByRole("button", { name: "تأكيد الاستلام" }).click();
-    await factory.getByRole("button", { name: "جاهز للتسليم" }).click();
+    // 4) Driver drops it at the factory and later records that the work is
+    // finished (spec sections 10, 11 — same transitions, driver-operated).
+    await driver.getByRole("button", { name: "سلّمت الأوردر للمصنع" }).click();
+    await driver.getByRole("button", { name: "المصنع خلّص الشغل" }).click();
 
     // 5) Same driver (spec section 12) picks up from factory and delivers
     // to the customer with the confirmation code (spec section 13).
@@ -130,7 +122,7 @@ test.describe("full order lifecycle across all four roles", () => {
     await customer.getByRole("button", { name: "بحث" }).click();
     await expect(customer.getByText("تم التسليم")).toBeVisible();
 
-    for (const ctx of [modContext, ownerContext, driverContext, factoryContext]) await ctx.close();
+    for (const ctx of [modContext, ownerContext, driverContext]) await ctx.close();
   });
 
   // Spec section 13's explicit security requirement — a wrong code must
