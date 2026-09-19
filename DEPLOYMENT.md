@@ -135,20 +135,31 @@ Run this once in the Supabase SQL editor, with your real domain and the
 same secret you just put in Vercel:
 
 ```sql
-alter database postgres
-  set app.push_endpoint_url = 'https://orders.yourbusiness.com/api/push/dispatch';
-alter database postgres
-  set app.push_webhook_secret = 'the same value as PUSH_WEBHOOK_SECRET';
+insert into public.app_settings (key, value) values
+  ('push_endpoint_url', 'https://orders.yourbusiness.com/api/push/dispatch'),
+  ('push_webhook_secret', 'the same value as PUSH_WEBHOOK_SECRET')
+on conflict (key) do update set value = excluded.value, updated_at = now();
 ```
 
 These are deliberately not in any migration file — a committed migration is
-the wrong place for a credential. They take effect on new database
-connections, so allow a minute before testing.
+the wrong place for a credential. They take effect immediately.
+
+`app_settings` is not reachable through the API: `anon` and `authenticated`
+have no grant on it at all, so neither a signed-in user nor an anonymous one
+can read the secret or point the endpoint somewhere else. Only the
+security-definer trigger reads it.
+
+(An earlier version of this section used `alter database postgres set
+app.push_endpoint_url = ...`. That cannot work on Supabase — setting a
+custom parameter at database level needs superuser, and Supabase's
+`postgres` role is not one; it fails with `42501: permission denied to set
+parameter`. Migration `0042` replaced it with the table above, which also
+replays on any Postgres, Neon included.)
 
 To switch push off later without reverting anything:
 
 ```sql
-alter database postgres reset app.push_webhook_secret;
+delete from public.app_settings where key = 'push_webhook_secret';
 ```
 
 ### Turn it on, per person and per device
