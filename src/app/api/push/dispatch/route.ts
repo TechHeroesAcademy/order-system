@@ -156,6 +156,13 @@ export async function POST(request: Request) {
   const gone: string[] = [];
   const failed: string[] = [];
   const delivered: string[] = [];
+  // Why each failure happened, echoed back in the response. pg_net stores
+  // that response in net._http_response, so this is what makes a failure
+  // diagnosable from the SQL editor. Without it the only signal is a count,
+  // and "failed: 1" is indistinguishable between a wrong VAPID subject
+  // (Apple is strict about it and answers BadJwtToken where Google shrugs),
+  // a clock skew problem, and a push service simply being down.
+  const errors: string[] = [];
 
   results.forEach((result, i) => {
     const subscription = subscriptions[i];
@@ -163,9 +170,25 @@ export async function POST(request: Request) {
       delivered.push(subscription.id);
       return;
     }
-    const status = (result.reason as { statusCode?: number } | undefined)?.statusCode;
-    if (status === 404 || status === 410) gone.push(subscription.id);
-    else failed.push(subscription.id);
+    const reason = result.reason as { statusCode?: number; body?: string; message?: string } | undefined;
+    const status = reason?.statusCode;
+    if (status === 404 || status === 410) {
+      gone.push(subscription.id);
+      return;
+    }
+    failed.push(subscription.id);
+    // Truncated because several of these land in one response, and a push
+    // service can return a long HTML error page.
+    const detail = (reason?.body || reason?.message || "unknown").slice(0, 300);
+    // The host identifies which push service refused — Apple, Google and
+    // Mozilla fail in different ways and for different reasons.
+    let host = "unknown";
+    try {
+      host = new URL(subscription.endpoint).host;
+    } catch {
+      // A malformed endpoint is itself worth seeing in the output.
+    }
+    errors.push(`${host} → ${status ?? "no status"}: ${detail}`);
   });
 
   if (gone.length) {
@@ -188,5 +211,8 @@ export async function POST(request: Request) {
     sent: delivered.length,
     removed: gone.length,
     failed: failed.length,
+    // Present only when something went wrong, so a healthy response stays
+    // small — pg_net keeps every one of these.
+    ...(errors.length ? { errors } : {}),
   });
 }
