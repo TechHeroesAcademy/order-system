@@ -91,14 +91,25 @@ export function AppShell({
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
-        <nav className="flex gap-1 overflow-x-auto border-t border-primary-foreground/15 px-2 py-1.5">
+        {/* Wraps rather than scrolling sideways. It used to be overflow-x-auto,
+            which silently pushed later items off the edge of a phone screen
+            with nothing to indicate more existed — measured at 375px and
+            below, adding a fifth item hid exactly التقارير and الفريق, which
+            read as them having been deleted.
+
+            The icons are decorative (every item has a label) and cost ~22px
+            each, so they're dropped below sm — that's what keeps all five on
+            a single row at 375px+ instead of forcing a second row and eating
+            another 32px of a phone screen. Narrower than that it wraps, which
+            is fine: a taller menu beats a hidden one. */}
+        <nav className="flex flex-wrap gap-1 border-t border-primary-foreground/15 px-2 py-1.5">
           {navItems.map((item) => (
             <Link
               key={item.href}
               href={item.href}
               className="flex shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium text-primary-foreground/75 transition-colors hover:bg-primary-foreground/10 hover:text-primary-foreground"
             >
-              <item.icon className="size-4" />
+              <item.icon className="hidden size-4 sm:block" />
               {item.label}
             </Link>
           ))}
