@@ -234,6 +234,7 @@ export function TeamManager({
                                 <DeleteStaffButton
                                   userId={member.id}
                                   fullName={member.full_name}
+                                  isDriver={member.role === "driver"}
                                   onDeleted={() => removeMember(member.id)}
                                 />
                               )}

@@ -88,10 +88,13 @@ export function ResetPasswordButton({ userId }: { userId: string }) {
 export function DeleteStaffButton({
   userId,
   fullName,
+  isDriver = false,
   onDeleted,
 }: {
   userId: string;
   fullName: string;
+  /** Drivers have their active orders moved before the account goes — see deleteStaffAccountAction. */
+  isDriver?: boolean;
   onDeleted: () => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -104,7 +107,21 @@ export function DeleteStaffButton({
         toast.error(res.error);
         return;
       }
-      toast.success("تم حذف الحساب نهائيًا");
+      const { reassigned, resuggested, unallocated } = res.data;
+      const moved = reassigned + resuggested;
+
+      // Say what happened to their work, now, rather than leaving the manager
+      // to find out later — especially the orders nobody could take.
+      if (unallocated > 0) {
+        toast.warning(
+          `تم حذف الحساب. تم نقل ${moved} أوردر، و${unallocated} أوردر بحاجة لتعيين مندوب يدويًا — موجودة في صفحة التوزيع.`,
+          { duration: 10000 },
+        );
+      } else if (moved > 0) {
+        toast.success(`تم حذف الحساب ونقل ${moved} أوردر إلى مندوبين آخرين في نفس المنطقة`);
+      } else {
+        toast.success("تم حذف الحساب نهائيًا");
+      }
       setOpen(false);
       onDeleted();
     });
@@ -128,6 +145,9 @@ export function DeleteStaffButton({
           <DialogDescription>
             سيتم حذف الحساب بالكامل ولن يتمكن من تسجيل الدخول مرة أخرى. لا يمكن التراجع عن هذا الإجراء.
             أوردرات هذا الحساب تبقى محفوظة وتظهر باسمه كما هي.
+            {isDriver
+              ? " الأوردرات النشطة هتتنقل تلقائيًا لمندوب تاني بيغطي نفس المنطقة، وأي أوردر مفيش حد يغطيه هيتعلّم عليه عشان تعيّنه بنفسك."
+              : ""}
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>

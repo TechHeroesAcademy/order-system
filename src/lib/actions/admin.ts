@@ -160,7 +160,40 @@ export async function resetStaffPasswordAction(userId: string): Promise<ActionRe
  * down for Moderator at all, same as createStaffAccountAction). An owner
  * can't delete themselves or another owner account from here.
  */
-export async function deleteStaffAccountAction(userId: string): Promise<ActionResult> {
+export type DriverReassignmentOutcome = {
+  order_id: string;
+  order_number: string;
+  order_status: string;
+  new_driver_id: string | null;
+  new_driver_name: string | null;
+  outcome: "reassigned" | "resuggested" | "unallocated";
+};
+
+export type DeleteStaffResult = {
+  reassigned: number;
+  resuggested: number;
+  unallocated: number;
+};
+
+/**
+ * Removing a worker, in an order that is load-bearing and not safe to shuffle.
+ *
+ * 1. Deactivate first. Between reassigning and deleting there is a window
+ *    where an incoming order could be auto-suggested to the very driver being
+ *    removed — the picker skips inactive drivers, so this closes that race
+ *    outright rather than hoping it doesn't happen.
+ * 2. Move their work. If this fails we stop and delete nothing: the driver is
+ *    deactivated but completely intact, which is recoverable. Doing it the
+ *    other way round is not — deleting first cascades their area coverage
+ *    away, nulls the driver on every order with no flag, and takes their
+ *    notifications with it.
+ * 3. Delete the account last. If this fails the orders are already safely
+ *    moved, and retrying is harmless: the driver now has no active orders, so
+ *    a second reassignment pass finds nothing to do.
+ */
+export async function deleteStaffAccountAction(
+  userId: string,
+): Promise<ActionResult<DeleteStaffResult>> {
   const me = await requireRole("owner");
   if (userId === me.id) return fail("لا يمكنك حذف حسابك الخاص");
 
@@ -169,12 +202,43 @@ export async function deleteStaffAccountAction(userId: string): Promise<ActionRe
   if (!target) return fail("الحساب غير موجود");
   if (target.role === "owner") return fail("لا يمكن حذف حساب مدير من هنا");
 
+  const summary: DeleteStaffResult = { reassigned: 0, resuggested: 0, unallocated: 0 };
+
+  if (target.role === "driver") {
+    const { error: deactivateError } = await supabase
+      .from("profiles")
+      .update({ is_active: false })
+      .eq("id", userId);
+    if (deactivateError) return fail(toErrorMessage(deactivateError, "تعذر إيقاف حساب المندوب قبل الحذف"));
+
+    const { data: moved, error: reassignError } = await supabase.rpc("reassign_orders_from_driver", {
+      p_driver_id: userId,
+    });
+    if (reassignError) {
+      return fail(
+        toErrorMessage(reassignError, "تعذر نقل أوردرات المندوب — لم يتم حذف الحساب، وهو موقوف الآن"),
+      );
+    }
+
+    for (const row of (moved as DriverReassignmentOutcome[]) ?? []) {
+      if (row.outcome === "reassigned") summary.reassigned += 1;
+      else if (row.outcome === "resuggested") summary.resuggested += 1;
+      else summary.unallocated += 1;
+    }
+  }
+
   const admin = createAdminClient();
   const { error } = await admin.auth.admin.deleteUser(userId);
-  if (error) return fail(toErrorMessage(error, "تعذر حذف الحساب"));
+  if (error) {
+    return fail(
+      toErrorMessage(error, "تم نقل أوردرات المندوب لكن تعذر حذف الحساب — الحساب موقوف الآن، أعد المحاولة"),
+    );
+  }
 
   revalidatePath("/owner/team");
-  return ok(undefined);
+  revalidatePath("/moderator/distribution");
+  revalidatePath("/owner");
+  return ok(summary);
 }
 
 /**
