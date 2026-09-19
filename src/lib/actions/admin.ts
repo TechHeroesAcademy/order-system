@@ -247,8 +247,36 @@ export async function deleteStaffAccountAction(
  * set_driver_regions_by_name(), which keeps the same Owner+Moderator
  * authorization this used to enforce here via two separate client calls.
  */
+/** Correct a worker's name. Also updates the name shown on their past orders. */
+export async function updateStaffProfileAction(
+  userId: string,
+  fullName: string,
+): Promise<ActionResult> {
+  await requireRole("owner");
+  const name = fullName.trim();
+  if (name.length < 2) return fail("الاسم قصير جدًا");
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("update_staff_profile", {
+    p_user_id: userId,
+    p_full_name: name,
+  });
+  if (error) return fail(toErrorMessage(error, "تعذر تحديث البيانات"));
+
+  revalidatePath("/owner/team");
+  revalidatePath("/owner/orders");
+  revalidatePath("/moderator/orders");
+  return ok(undefined);
+}
+
+/**
+ * Editing a driver's details is Manager-only. Coverage areas moved here from
+ * Manager-or-Moderator deliberately (migration 0037): coverage decides which
+ * driver gets auto-suggested for an area, so it is an assignment decision in
+ * all but name, and belongs with the role that approves assignments.
+ */
 export async function setDriverRegionsAction(driverId: string, regionNames: string[]): Promise<ActionResult> {
-  await requireRole("owner", "moderator");
+  await requireRole("owner");
   const supabase = await createClient();
 
   const { error } = await supabase.rpc("set_driver_regions_by_name", {

@@ -36,13 +36,10 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/shared/empty-state";
-import {
-  createStaffAccountAction,
-  createRegionAction,
-  setDriverRegionsAction,
-} from "@/lib/actions/admin";
+import { createStaffAccountAction, createRegionAction } from "@/lib/actions/admin";
 import { createStaffAccountSchema, regionNameSchema } from "@/lib/domain/validators";
 import { ToggleActiveButton, ResetPasswordButton, DeleteStaffButton } from "./staff-actions";
+import { EditDriverButton } from "./edit-driver-dialog";
 import { FactoriesMapPanel } from "./factories-map-panel";
 import { AddFactoryPanel } from "./add-factory-panel";
 import type { Profile, Region, UserRole, Factory } from "@/types/database";
@@ -201,7 +198,6 @@ export function TeamManager({
                         <TableCell>
                           {member.role === "driver" ? (
                             <DriverRegionsCell
-                              driverId={member.id}
                               regions={regionsList}
                               assignedIds={regionsByDriver[member.id] ?? []}
                             />
@@ -221,6 +217,20 @@ export function TeamManager({
                             <span className="text-xs text-muted-foreground">—</span>
                           ) : (
                             <div className="flex gap-2">
+                              {/* Editing a driver's name and coverage is
+                                  Manager-only (migration 0037). */}
+                              {!isModerator && member.role === "driver" && (
+                                <EditDriverButton
+                                  driverId={member.id}
+                                  fullName={member.full_name}
+                                  phone={member.phone}
+                                  regions={regionsList}
+                                  assignedRegionNames={regionsList
+                                    .filter((r) => (regionsByDriver[member.id] ?? []).includes(r.id))
+                                    .map((r) => r.name)}
+                                  onSaved={(fullName) => updateMember(member.id, { full_name: fullName })}
+                                />
+                              )}
                               <ToggleActiveButton
                                 userId={member.id}
                                 isActive={member.is_active}
@@ -275,67 +285,23 @@ export function TeamManager({
   );
 }
 
-function DriverRegionsCell({
-  driverId,
-  regions,
-  assignedIds,
-}: {
-  driverId: string;
-  regions: Region[];
-  assignedIds: string[];
-}) {
-  const [open, setOpen] = useState(false);
+/**
+ * Read-only display of the areas a driver covers. Editing lives in
+ * EditDriverButton alongside the name, so there's one place to change a
+ * driver rather than two dialogs that each do half of it.
+ */
+function DriverRegionsCell({ regions, assignedIds }: { regions: Region[]; assignedIds: string[] }) {
   const assignedNames = regions.filter((r) => assignedIds.includes(r.id)).map((r) => r.name);
-  const [names, setNames] = useState<string[]>(assignedNames);
-  const [pending, startTransition] = useTransition();
-  const router = useRouter();
-
-  function save() {
-    startTransition(async () => {
-      const res = await setDriverRegionsAction(driverId, names);
-      if (!res.ok) {
-        toast.error(res.error);
-        return;
-      }
-      toast.success("تم تحديث مناطق المندوب");
-      setOpen(false);
-      // A typed name may have created a brand-new region — refresh so the
-      // regions list and this driver's assigned ids stay in sync with it.
-      router.refresh();
-    });
-  }
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(next) => {
-        setOpen(next);
-        if (next) setNames(assignedNames);
-      }}
-    >
-      <DialogTrigger asChild>
-        <button className="flex items-center gap-1 text-start text-sm hover:underline">
-          <MapPin className="size-3.5 text-muted-foreground" />
-          {assignedNames.length > 0 ? assignedNames.join("، ") : "تحديد المناطق"}
-        </button>
-      </DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>مناطق تغطية المندوب</DialogTitle>
-          <DialogDescription>اكتب المناطق التي يغطيها هذا المندوب لترشيحه تلقائيًا لأوردراتها.</DialogDescription>
-        </DialogHeader>
-        <RegionTagsInput value={names} onChange={setNames} regions={regions} />
-        <DialogFooter>
-          <Button variant="outline" onClick={() => setOpen(false)} disabled={pending}>
-            تراجع
-          </Button>
-          <Button onClick={save} disabled={pending}>
-            {pending && <Loader2 className="animate-spin" />}
-            حفظ
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <span className="flex items-center gap-1 text-sm">
+      <MapPin className="size-3.5 shrink-0 text-muted-foreground" />
+      {assignedNames.length > 0 ? (
+        assignedNames.join("، ")
+      ) : (
+        <span className="text-muted-foreground">لا توجد مناطق</span>
+      )}
+    </span>
   );
 }
 
