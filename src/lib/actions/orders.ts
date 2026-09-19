@@ -229,6 +229,66 @@ export async function clearOrderDistributionAction(orderId: string): Promise<Act
   return ok(undefined);
 }
 
+/**
+ * Bulk versions for the distribution board. Partial success rides in the
+ * data, not in `ok`: every existing caller in this codebase reads `ok:false`
+ * as "the call didn't happen", so using it for "3 of 12 failed" would make
+ * all of them report that nothing was approved. `ok:false` here still means
+ * exactly that — not a manager, or the call itself failed.
+ */
+export type BulkOutcome = {
+  order_id: string;
+  order_number: string | null;
+  succeeded: boolean;
+  error: string | null;
+};
+
+export type BulkResult = { approved: number; failures: BulkOutcome[] };
+
+function summarizeBulk(rows: BulkOutcome[]): BulkResult {
+  return {
+    approved: rows.filter((r) => r.succeeded).length,
+    failures: rows.filter((r) => !r.succeeded),
+  };
+}
+
+export async function approveDistributionBulkAction(
+  orderIds: string[],
+): Promise<ActionResult<BulkResult>> {
+  await requireRole("owner");
+  if (orderIds.length === 0) return fail("لم يتم تحديد أي أوردر");
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("approve_distribution_bulk", { p_order_ids: orderIds });
+  if (error) return fail(toErrorMessage(error, "تعذر اعتماد التوزيع"));
+
+  revalidatePath("/moderator/distribution");
+  revalidatePath("/owner");
+  revalidatePath("/moderator");
+  revalidatePath("/driver");
+  return ok(summarizeBulk((data as BulkOutcome[]) ?? []));
+}
+
+export async function setOrderDistributionBulkAction(
+  orderIds: string[],
+  driverId: string,
+): Promise<ActionResult<BulkResult>> {
+  await requireRole("owner");
+  if (orderIds.length === 0) return fail("لم يتم تحديد أي أوردر");
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("set_order_distribution_bulk", {
+    p_order_ids: orderIds,
+    p_driver_id: driverId,
+  });
+  if (error) return fail(toErrorMessage(error, "تعذر تغيير المندوب"));
+
+  revalidatePath("/moderator/distribution");
+  revalidatePath("/owner");
+  revalidatePath("/moderator");
+  return ok(summarizeBulk((data as BulkOutcome[]) ?? []));
+}
+
 export async function approveDistributionAction(orderId: string): Promise<ActionResult> {
   await requireRole("owner");
   const supabase = await createClient();

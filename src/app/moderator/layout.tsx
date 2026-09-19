@@ -1,4 +1,4 @@
-import { LayoutDashboard, ListOrdered, PackagePlus, Users } from "lucide-react";
+import { LayoutDashboard, ListOrdered, PackagePlus, Users, Split } from "lucide-react";
 import { requireRole } from "@/lib/auth";
 import { AppShell, type NavItem } from "@/components/layout/app-shell";
 
@@ -14,6 +14,7 @@ export default async function ModeratorLayout({ children }: { children: React.Re
   const navItems: NavItem[] = [
     { href: "/moderator", label: "الرئيسية", icon: LayoutDashboard },
     { href: "/moderator/orders", label: "الأوردرات", icon: ListOrdered },
+    { href: "/moderator/distribution", label: "التوزيع", icon: Split },
     { href: "/moderator/orders/new", label: "أوردر جديد", icon: PackagePlus },
     ...(profile.role === "owner" ? [{ href: "/owner/team", label: "الفريق", icon: Users }] : []),
   ];

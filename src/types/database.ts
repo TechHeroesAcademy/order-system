@@ -108,6 +108,9 @@ export interface Order {
   /** Snapshot of the factory's name at assignment time (migration 0032) — same rationale as assigned_driver_name. */
   assigned_factory_name: string | null;
   handed_to_factory_at: string | null;
+  /** Set when an order was left without a driver by something other than normal backlog (today: the assigned driver being removed with nobody covering the area). Cleared automatically the moment a driver is assigned — see migration 0035. */
+  needs_allocation_at: string | null;
+  needs_allocation_reason: string | null;
 
   collected_at: string | null;
   factory_received_at: string | null;
