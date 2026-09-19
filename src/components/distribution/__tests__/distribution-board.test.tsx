@@ -9,7 +9,7 @@ import type { Profile, Factory } from "@/types/database";
 const refresh = vi.fn();
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh, push: vi.fn() }),
-  usePathname: () => "/moderator/distribution",
+  usePathname: () => "/owner/distribution",
   useSearchParams: () => new URLSearchParams(),
 }));
 

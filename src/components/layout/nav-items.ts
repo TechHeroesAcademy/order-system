@@ -25,9 +25,7 @@ export function navItemsForRole(role: UserRole): NavItem[] {
     return [
       { href: "/owner", label: "الرئيسية", icon: LayoutDashboard },
       { href: "/owner/orders", label: "الأوردرات", icon: ListOrdered },
-      // Shared with Moderators; a Manager arriving here gets the full
-      // controls, including approval.
-      { href: "/moderator/distribution", label: "التوزيع", icon: Split },
+      { href: "/owner/distribution", label: "التوزيع", icon: Split },
       { href: "/owner/reports", label: "التقارير", icon: BarChart3 },
       { href: "/owner/team", label: "الفريق", icon: Users },
     ];
@@ -40,7 +38,8 @@ export function navItemsForRole(role: UserRole): NavItem[] {
   return [
     { href: "/moderator", label: "الرئيسية", icon: LayoutDashboard },
     { href: "/moderator/orders", label: "الأوردرات", icon: ListOrdered },
-    { href: "/moderator/distribution", label: "التوزيع", icon: Split },
+    // No التوزيع: distributing orders and approving who delivers them are
+    // Manager decisions, and always were at the database level.
     { href: "/moderator/orders/new", label: "أوردر جديد", icon: PackagePlus },
   ];
 }

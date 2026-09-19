@@ -262,7 +262,7 @@ export async function approveDistributionBulkAction(
   const { data, error } = await supabase.rpc("approve_distribution_bulk", { p_order_ids: orderIds });
   if (error) return fail(toErrorMessage(error, "تعذر اعتماد التوزيع"));
 
-  revalidatePath("/moderator/distribution");
+  revalidatePath("/owner/distribution");
   revalidatePath("/owner");
   revalidatePath("/moderator");
   revalidatePath("/driver");
@@ -283,7 +283,7 @@ export async function setOrderDistributionBulkAction(
   });
   if (error) return fail(toErrorMessage(error, "تعذر تغيير المندوب"));
 
-  revalidatePath("/moderator/distribution");
+  revalidatePath("/owner/distribution");
   revalidatePath("/owner");
   revalidatePath("/moderator");
   return ok(summarizeBulk((data as BulkOutcome[]) ?? []));

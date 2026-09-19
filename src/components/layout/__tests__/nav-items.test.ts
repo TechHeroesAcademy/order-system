@@ -22,17 +22,21 @@ describe("navItemsForRole", () => {
     expect(labels("owner")).toEqual(["الرئيسية", "الأوردرات", "التوزيع", "التقارير", "الفريق"]);
   });
 
-  it("keeps التقارير in a Manager's menu even though التوزيع lives under /moderator", () => {
-    // The regression. The distribution board's URL is in the moderator tree;
-    // the menu must not change because of that.
-    const owner = navItemsForRole("owner");
-    expect(owner.find((i) => i.label === "التوزيع")?.href).toBe("/moderator/distribution");
-    expect(owner.map((i) => i.label)).toContain("التقارير");
+  it("keeps every Manager destination inside /owner, so no screen switches layout", () => {
+    // The regression this guards. التوزيع used to point at
+    // /moderator/distribution; Next.js picks the layout from the URL, so
+    // opening it rendered a Manager with the moderator layout and its menu —
+    // one with no التقارير in it. A Manager's menu leading anywhere outside
+    // /owner brings that back, whatever the labels say.
+    for (const item of navItemsForRole("owner")) {
+      expect(item.href.startsWith("/owner")).toBe(true);
+    }
   });
 
   it("points a Manager's own screens at /owner, not the moderator copies", () => {
     const byLabel = Object.fromEntries(navItemsForRole("owner").map((i) => [i.label, i.href]));
     expect(byLabel["الرئيسية"]).toBe("/owner");
+    expect(byLabel["التوزيع"]).toBe("/owner/distribution");
     expect(byLabel["الأوردرات"]).toBe("/owner/orders");
     expect(byLabel["التقارير"]).toBe("/owner/reports");
     expect(byLabel["الفريق"]).toBe("/owner/team");
@@ -42,10 +46,14 @@ describe("navItemsForRole", () => {
     const moderator = labels("moderator");
     expect(moderator).not.toContain("التقارير");
     expect(moderator).not.toContain("الفريق");
+    // Distribution and approving who delivers an order are Manager
+    // decisions — every RPC behind that board is is_owner(), so showing a
+    // Moderator the link only ever led to buttons the database refused.
+    expect(moderator).not.toContain("التوزيع");
   });
 
   it("gives a Moderator their own working set", () => {
-    expect(labels("moderator")).toEqual(["الرئيسية", "الأوردرات", "التوزيع", "أوردر جديد"]);
+    expect(labels("moderator")).toEqual(["الرئيسية", "الأوردرات", "أوردر جديد"]);
   });
 
   it("keeps every menu to five items or fewer", () => {

@@ -186,7 +186,7 @@ export function DistributionBoard({
             {unallocated.map((order) => (
               <Link
                 key={order.id}
-                href={`/moderator/orders/${order.id}`}
+                href={`/owner/orders/${order.id}`}
                 className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border bg-warning/5 p-3 text-sm transition-colors hover:bg-warning/10"
               >
                 <span className="font-medium" dir="ltr">
@@ -252,7 +252,7 @@ export function DistributionBoard({
                       />
                     )}
                     <Link
-                      href={`/moderator/orders/${order.id}`}
+                      href={`/owner/orders/${order.id}`}
                       className="font-medium hover:underline"
                       dir="ltr"
                     >

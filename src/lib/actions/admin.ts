@@ -236,7 +236,7 @@ export async function deleteStaffAccountAction(
   }
 
   revalidatePath("/owner/team");
-  revalidatePath("/moderator/distribution");
+  revalidatePath("/owner/distribution");
   revalidatePath("/owner");
   return ok(summary);
 }

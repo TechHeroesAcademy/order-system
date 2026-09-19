@@ -69,9 +69,15 @@ export function OrderDetailView({
   // Three distinct permissions, deliberately kept as three named flags
   // rather than reusing one for all of them — they diverge:
   //   canManageDistribution — editing order details, delivery/pickup codes.
-  //                           Moderator included.
-  //   canAssign             — changing who handles an order (0024) and
-  //                           cancelling it (0030). Manager only.
+  //                           Moderator included. Despite the name it no
+  //                           longer covers distribution itself; renaming it
+  //                           touches every order page and is a separate
+  //                           change.
+  //   canAssign             — deciding who delivers an order: the
+  //                           distribution panel, changing the driver or
+  //                           factory (0024), and cancelling (0030). Manager
+  //                           only, matching the database — every RPC behind
+  //                           these is is_owner().
   //   canChat               — the driver conversation. Manager only: chat is
   //                           between the driver and the manager, and the
   //                           database enforces the same rule (0034), so a
@@ -225,13 +231,18 @@ export function OrderDetailView({
           </Card>
         )}
 
-        {canManageDistribution && order.status === "new" && (
+        {/* Manager only. A Moderator used to see this panel with both its
+            buttons hidden — a read-only view of a decision they cannot make,
+            which also cost a suggested-drivers lookup on every order page for
+            no purpose. Who the driver is stays visible to them above
+            ("المندوب المسؤول"), so nothing is hidden that they need. */}
+        {canAssign && order.status === "new" && (
           <DistributionPanel
             orderId={order.id}
             assignedDriverId={order.assigned_driver_id}
             assignedDriverName={assignedDriverName}
-            canAssign={canAssign}
-            canApprove={viewerProfile.role === "owner"}
+            canAssign
+            canApprove
           />
         )}
 
