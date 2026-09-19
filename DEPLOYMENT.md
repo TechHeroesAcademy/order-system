@@ -82,7 +82,97 @@ In **Authentication → URL Configuration**, set:
    - `NEXT_PUBLIC_SUPABASE_URL`
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
    - `SUPABASE_SERVICE_ROLE_KEY`
+
+   Plus four more if you want phone push notifications — see
+   [§5a](#5a-push-notifications-optional). Without them the app runs
+   exactly as before, with in-app notifications only.
 5. Deploy. Vercel will run `npm run build` automatically.
+
+## 5a. Push notifications (optional)
+
+Drivers get a notification on their phone the moment an order is assigned
+to them, and managers get one when a driver writes on an order for a
+factory they cover. This uses the browser's own Web Push — no Firebase, no
+third-party account, no SDK. Skip this section entirely and everything else
+still works; notifications just stay inside the app.
+
+### Generate the keys
+
+Run this once, on your own machine, in a checkout of this repo:
+
+```bash
+node -e "const w=require('web-push'),c=require('crypto');const k=w.generateVAPIDKeys();
+console.log('NEXT_PUBLIC_VAPID_PUBLIC_KEY='+k.publicKey);
+console.log('VAPID_PRIVATE_KEY='+k.privateKey);
+console.log('PUSH_WEBHOOK_SECRET='+c.randomBytes(32).toString('base64url'));"
+```
+
+Generate these yourself rather than accepting keys from anyone — the
+private key is what proves a push came from your server, and anyone holding
+it can send notifications to your staff's phones.
+
+Keep the output. **If you lose the VAPID private key, or change it, every
+device that already turned notifications on stops receiving them** and each
+person has to switch them on again. Store it wherever you keep the Supabase
+service-role key.
+
+### Add them to Vercel
+
+Four variables, **Production and Preview**:
+
+| Variable | Value |
+|---|---|
+| `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | from the command above (this one is public — it ships to the browser by design) |
+| `VAPID_PRIVATE_KEY` | from the command above — secret |
+| `PUSH_WEBHOOK_SECRET` | from the command above — secret |
+| `VAPID_SUBJECT` | `mailto:you@yourbusiness.com` — a contact address, required by the spec so a push service can reach you |
+
+Redeploy after adding them.
+
+### Point the database at the app
+
+Run this once in the Supabase SQL editor, with your real domain and the
+same secret you just put in Vercel:
+
+```sql
+alter database postgres
+  set app.push_endpoint_url = 'https://orders.yourbusiness.com/api/push/dispatch';
+alter database postgres
+  set app.push_webhook_secret = 'the same value as PUSH_WEBHOOK_SECRET';
+```
+
+These are deliberately not in any migration file — a committed migration is
+the wrong place for a credential. They take effect on new database
+connections, so allow a minute before testing.
+
+To switch push off later without reverting anything:
+
+```sql
+alter database postgres reset app.push_webhook_secret;
+```
+
+### Turn it on, per person and per device
+
+Each person taps **تفعيل الإشعارات** on their dashboard and allows the
+browser prompt. It is per device, so someone using a phone and a laptop
+turns it on twice.
+
+**On iPhone and iPad this only works after adding the app to the Home
+Screen**, on iOS 16.4 or newer. That is an Apple platform rule, not
+something the app can work around: iOS gives web apps notifications only
+once installed, and never in a normal Safari tab. The app detects this and
+shows the install steps instead of a button that would fail. Android needs
+no install — it works straight from the browser.
+
+### Assign managers to factories
+
+A manager's phone only rings for chat on orders belonging to a factory they
+cover, and **a manager with no factories assigned gets no chat
+notifications at all**. Set this at `/owner/team` → the factory button on
+each manager's row.
+
+This affects notifications only. Every manager still sees every order and
+every notification in the bell, exactly as before.
 
 ## 6. Create the first Owner account
 

@@ -73,8 +73,7 @@ drop index if exists public.orders_status_idx;
 -- index can serve — and splits current from previous with FILTER clauses.
 -- v_prev_end was always exactly v_start, so "created_at < v_start" inside
 -- the scanned range is precisely the previous month; no row can fall in
--- both halves or in neither. Measured: 23 scans of `orders` per call down
--- to 2.
+-- both halves or in neither.
 --
 -- Return values are unchanged, including every NULL case: avg over no
 -- delivered orders is still NULL, on_time_rate over no delivered orders is

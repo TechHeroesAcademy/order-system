@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatDateTime } from "@/lib/domain/format";
 import { isOrderDelayed } from "@/lib/domain/order-status";
 import { PackageSearch } from "lucide-react";
+import { PushSetupCard } from "@/components/notifications/push-setup-card";
 
 export default async function DriverOrdersPage() {
   const profile = await requireRole("driver");
@@ -26,6 +27,11 @@ export default async function DriverOrdersPage() {
   return (
     <div className="space-y-4">
       <h1 className="text-xl font-bold">أوردراتي</h1>
+
+      {/* The driver is the person this matters most for: an order landing
+          in their list is the signal to start work, and without a push it
+          is only visible if they happen to have the app open. */}
+      <PushSetupCard vapidPublicKey={process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? ""} />
 
       <Tabs defaultValue="active">
         <TabsList>

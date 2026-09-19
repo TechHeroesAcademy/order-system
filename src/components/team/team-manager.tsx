@@ -40,6 +40,7 @@ import { createStaffAccountAction, createRegionAction } from "@/lib/actions/admi
 import { createStaffAccountSchema, regionNameSchema } from "@/lib/domain/validators";
 import { ToggleActiveButton, ResetPasswordButton, DeleteStaffButton } from "./staff-actions";
 import { EditDriverButton } from "./edit-driver-dialog";
+import { ManagerFactoriesButton } from "./manager-factories-dialog";
 import { FactoriesMapPanel } from "./factories-map-panel";
 import { AddFactoryPanel } from "./add-factory-panel";
 import type { Profile, Region, UserRole, Factory } from "@/types/database";
@@ -61,6 +62,7 @@ export function TeamManager({
   factories,
   regions,
   driverRegionsMap,
+  managerFactoriesMap,
   viewerRole,
 }: {
   staff: Profile[];
@@ -68,6 +70,8 @@ export function TeamManager({
   factories: Factory[];
   regions: Region[];
   driverRegionsMap: Record<string, string[]>;
+  /** Factory ids per manager (migration 0040). Governs push routing only — see ManagerFactoriesButton. */
+  managerFactoriesMap: Record<string, string[]>;
   /** Owner sees/can do everything; Moderator is scoped to driver/factory accounts. */
   viewerRole: UserRole;
 }) {
@@ -92,6 +96,13 @@ export function TeamManager({
   if (driverRegionsMap !== prevDriverRegionsMap) {
     setPrevDriverRegionsMap(driverRegionsMap);
     setRegionsByDriver(driverRegionsMap);
+  }
+
+  const [factoriesByManager, setFactoriesByManager] = useState(managerFactoriesMap);
+  const [prevManagerFactoriesMap, setPrevManagerFactoriesMap] = useState(managerFactoriesMap);
+  if (managerFactoriesMap !== prevManagerFactoriesMap) {
+    setPrevManagerFactoriesMap(managerFactoriesMap);
+    setFactoriesByManager(managerFactoriesMap);
   }
 
   const isModerator = viewerRole === "moderator";
@@ -180,7 +191,7 @@ export function TeamManager({
                       <TableHead>الاسم</TableHead>
                       <TableHead>الهاتف</TableHead>
                       <TableHead>الدور</TableHead>
-                      <TableHead>المناطق</TableHead>
+                      <TableHead>التغطية</TableHead>
                       <TableHead>الحالة</TableHead>
                       <TableHead />
                     </TableRow>
@@ -202,7 +213,10 @@ export function TeamManager({
                               assignedIds={regionsByDriver[member.id] ?? []}
                             />
                           ) : (
-                            <span className="text-muted-foreground">—</span>
+                            <ManagerFactoriesCell
+                              factories={factoryList}
+                              assignedIds={factoriesByManager[member.id] ?? []}
+                            />
                           )}
                         </TableCell>
                         <TableCell>
@@ -219,6 +233,21 @@ export function TeamManager({
                             <div className="flex gap-2">
                               {/* Editing a driver's name and coverage is
                                   Manager-only (migration 0037). */}
+                              {/* Factory coverage decides which orders'
+                                  chat messages reach this manager's phone.
+                                  Owner-only, matching set_manager_factories
+                                  (migration 0040). */}
+                              {!isModerator && member.role !== "driver" && (
+                                <ManagerFactoriesButton
+                                  managerId={member.id}
+                                  managerName={member.full_name}
+                                  factories={factoryList}
+                                  assignedIds={factoriesByManager[member.id] ?? []}
+                                  onSaved={(ids) =>
+                                    setFactoriesByManager((prev) => ({ ...prev, [member.id]: ids }))
+                                  }
+                                />
+                              )}
                               {!isModerator && member.role === "driver" && (
                                 <EditDriverButton
                                   driverId={member.id}
@@ -300,6 +329,26 @@ function DriverRegionsCell({ regions, assignedIds }: { regions: Region[]; assign
         assignedNames.join("، ")
       ) : (
         <span className="text-muted-foreground">لا توجد مناطق</span>
+      )}
+    </span>
+  );
+}
+
+/**
+ * A manager's factory coverage. Reads "لا توجد مصانع" rather than an em dash
+ * when empty, because empty here has a consequence — no chat notifications
+ * reach that manager's phone — and a dash reads as "not applicable".
+ */
+function ManagerFactoriesCell({ factories, assignedIds }: { factories: Factory[]; assignedIds: string[] }) {
+  const assignedNames = factories.filter((f) => assignedIds.includes(f.id)).map((f) => f.name);
+
+  return (
+    <span className="flex items-center gap-1 text-sm">
+      <FactoryIcon className="size-3.5 shrink-0 text-muted-foreground" />
+      {assignedNames.length > 0 ? (
+        assignedNames.join("، ")
+      ) : (
+        <span className="text-muted-foreground">لا توجد مصانع</span>
       )}
     </span>
   );

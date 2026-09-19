@@ -54,3 +54,26 @@ export async function listNotifications(userId: string, limit = 20) {
   if (error) throw error;
   return data ?? [];
 }
+
+/**
+ * Which factories each manager covers, keyed by manager id (migration 0040).
+ *
+ * One query for the whole team rather than one per manager — same reason as
+ * listAllDriverRegionIds above.
+ *
+ * This is used for one thing only: deciding whose phone rings for a chat
+ * message on an order. It does not scope what any manager can see. They all
+ * still see every order and every in-app notification, which was a
+ * deliberate decision and is unchanged.
+ */
+export async function listManagerFactoryIds(): Promise<Record<string, string[]>> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("manager_factories").select("manager_id, factory_id");
+  if (error) throw error;
+  const map: Record<string, string[]> = {};
+  for (const row of data ?? []) {
+    const managerId = row.manager_id as string;
+    (map[managerId] ??= []).push(row.factory_id as string);
+  }
+  return map;
+}
