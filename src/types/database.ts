@@ -160,30 +160,6 @@ export interface AppNotification {
   created_at: string;
 }
 
-export interface FactoryOrderRow {
-  id: string;
-  order_number: string;
-  status: OrderStatus;
-  pieces_count: number;
-  piece_details: string | null;
-  color: string | null;
-  work_required: string | null;
-  assigned_driver_id: string | null;
-  assigned_driver_name: string | null;
-  assigned_factory_id: string | null;
-  assigned_factory_name: string | null;
-  assigned_factory_address: string | null;
-  collected_at: string | null;
-  handed_to_factory_at: string | null;
-  factory_received_at: string | null;
-  factory_ready_at: string | null;
-  /** Added in 0022 alongside permanent factory history access — when the driver picked the order back up from the factory. */
-  driver_pickup_at: string | null;
-  /** Added in 0022 — when the order was delivered to the customer, for history rows past the factory's own steps. */
-  delivered_at: string | null;
-  created_at: string;
-}
-
 export interface DashboardStats {
   total_orders: number;
   new_orders: number;

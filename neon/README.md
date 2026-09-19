@@ -8,12 +8,12 @@ This directory is **not** part of the Supabase migration chain in `supabase/migr
 
 The migration file itself has a guard at the top that aborts if it detects Supabase-specific columns on `auth.users` — verified directly (it does abort against a Supabase-shaped database, and does proceed against a bare Postgres one) — but the guard is a second line of defense, not a reason to get casual about where this file lives or how it's applied.
 
-**Rule: never apply anything under `neon/migrations/` to the Supabase project. It's for a Neon (or other non-Supabase) Postgres database only, after `supabase/migrations/` 0001–0032 have already been replayed against it.**
+**Rule: never apply anything under `neon/migrations/` to the Supabase project. It's for a Neon (or other non-Supabase) Postgres database only, after every migration in `supabase/migrations/` has already been replayed against it.**
 
 ## Applying this today (Phase 0/1 only — no production impact)
 
 1. Create a Neon project (or a disposable Neon branch for testing).
-2. Apply `supabase/migrations/0001` through `0032` against it, in order, exactly as `DEPLOYMENT.md` describes for a fresh Supabase project — this part is unmodified and portable as-is.
+2. Apply every migration in `supabase/migrations/`, in numeric order, exactly as `DEPLOYMENT.md` describes for a fresh Supabase project — that whole chain is portable as-is. (Stated as "all of them" rather than a fixed range on purpose: a hardcoded number goes stale the next time a migration is added, and silently under-applies the schema.)
 3. Apply `neon/migrations/0001_auth_shim.sql`.
 4. Set real login passwords for the `app_user` and `app_admin` roles this migration creates — **never in a committed file**:
    ```sql
