@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { requireRole } from "@/lib/auth";
 import { listMyDriverOrders, listRegions } from "@/lib/data/orders";
-import { isTerminalStatus } from "@/lib/domain/order-status";
 import { OrderStatusBadge } from "@/components/orders/order-status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -13,10 +12,15 @@ import { PackageSearch } from "lucide-react";
 
 export default async function DriverOrdersPage() {
   const profile = await requireRole("driver");
-  const [orders, regions] = await Promise.all([listMyDriverOrders(profile.id), listRegions()]);
+  // The completed tab has always shown at most 30 cards, so only 30 are
+  // fetched. completedTotal is the exact database count, so the tab's
+  // number is the same one it displayed when the whole history was loaded.
+  const COMPLETED_SHOWN = 30;
+  const [{ active, completed, completedTotal }, regions] = await Promise.all([
+    listMyDriverOrders(profile.id, COMPLETED_SHOWN),
+    listRegions(),
+  ]);
 
-  const active = orders.filter((o) => !isTerminalStatus(o.status));
-  const completed = orders.filter((o) => isTerminalStatus(o.status));
   const regionName = (id: string | null) => regions.find((r) => r.id === id)?.name ?? "—";
 
   return (
@@ -26,7 +30,7 @@ export default async function DriverOrdersPage() {
       <Tabs defaultValue="active">
         <TabsList>
           <TabsTrigger value="active">نشطة ({active.length})</TabsTrigger>
-          <TabsTrigger value="completed">مكتملة ({completed.length})</TabsTrigger>
+          <TabsTrigger value="completed">مكتملة ({completedTotal})</TabsTrigger>
         </TabsList>
 
         <TabsContent value="active" className="pt-3">
@@ -63,11 +67,11 @@ export default async function DriverOrdersPage() {
         </TabsContent>
 
         <TabsContent value="completed" className="pt-3">
-          {completed.length === 0 ? (
+          {completedTotal === 0 ? (
             <EmptyState icon={PackageSearch} title="لا يوجد أوردرات مكتملة بعد" />
           ) : (
             <ul className="stagger-children space-y-2">
-              {completed.slice(0, 30).map((order) => (
+              {completed.map((order) => (
                 <li key={order.id}>
                   <Link href={`/driver/orders/${order.id}`}>
                     <Card className="transition-[transform,box-shadow,background-color] duration-200 hover:-translate-y-0.5 hover:bg-accent/40 hover:shadow-md">

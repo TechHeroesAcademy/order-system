@@ -1,5 +1,10 @@
 @import "tailwindcss";
-@import "leaflet/dist/leaflet.css";
+/* Leaflet's stylesheet used to be imported here, which put ~15KB of map CSS
+   on every page in the app — including the driver's phone screens, which
+   never show a map. It now lives in factories-overview-map.tsx so it ships
+   inside that component's next/dynamic chunk, alongside the Leaflet JS it
+   styles. Its selectors are all .leaflet-* namespaced, so nothing else
+   depended on it being global. */
 @plugin "tailwindcss-animate";
 
 @custom-variant dark (&:is(.dark *));

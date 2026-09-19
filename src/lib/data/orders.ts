@@ -1,5 +1,6 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
+import { TERMINAL_STATUSES } from "@/lib/domain/order-status";
 import type {
   DashboardStats,
   DelayedOrderRow,
@@ -154,14 +155,25 @@ export async function getOrderDeliveryCodesMap(orderIds: string[]): Promise<Reco
  */
 export async function getOrderMessages(orderId: string, channel: OrderChatChannel): Promise<OrderMessage[]> {
   const supabase = await createClient();
+  // Capped because the open chat panel re-reads this thread on a timer, so
+  // an unbounded select is paid again every few seconds rather than once.
+  // 200 is far above any real thread — this is one conversation about one
+  // pot-recoating job between a driver and a manager, not a group channel —
+  // so in practice nothing is ever cut; it only stops a pathological thread
+  // from being re-downloaded in full on every poll.
+  //
+  // Newest-first with a limit, then reversed, so the cap keeps the *most
+  // recent* 200 messages. Ordering ascending and limiting would keep the
+  // oldest 200 and hide everything current, which is the opposite of useful.
   const { data, error } = await supabase
     .from("order_messages")
     .select("*, sender:profiles!order_messages_sender_id_fkey(full_name)")
     .eq("order_id", orderId)
     .eq("channel", channel)
-    .order("created_at", { ascending: true });
+    .order("created_at", { ascending: false })
+    .limit(200);
   if (error) throw error;
-  return (data as unknown as OrderMessage[]) ?? [];
+  return ((data as unknown as OrderMessage[]) ?? []).reverse();
 }
 
 export async function getOrderHistory(orderId: string): Promise<OrderHistoryEntry[]> {
@@ -175,16 +187,82 @@ export async function getOrderHistory(orderId: string): Promise<OrderHistoryEntr
   return (data as OrderHistoryEntry[]) ?? [];
 }
 
-/** Orders assigned to the current driver (RLS already scopes this, but we also filter for clarity). */
-export async function listMyDriverOrders(driverId: string): Promise<Order[]> {
+/**
+ * The columns the driver's own order list actually renders. Selecting `*`
+ * here shipped roughly forty columns per row to a phone — including every
+ * lifecycle timestamp, both code-attempt counters, the customer's maps link
+ * and the notes — to render a card showing six of them.
+ */
+const DRIVER_LIST_COLUMNS =
+  "id, order_number, status, customer_name, customer_address, region_id, created_at, delivered_at, refused_at";
+
+export type DriverListOrder = Pick<
+  Order,
+  | "id"
+  | "order_number"
+  | "status"
+  | "customer_name"
+  | "customer_address"
+  | "region_id"
+  | "created_at"
+  | "delivered_at"
+  | "refused_at"
+>;
+
+export interface DriverOrders {
+  /** Every non-terminal order. Unbounded on purpose — a driver must see all of their open work. */
+  active: DriverListOrder[];
+  /** Only the page-size most recent finished orders. */
+  completed: DriverListOrder[];
+  /** Exact total of finished orders, independent of how many were fetched. */
+  completedTotal: number;
+}
+
+/**
+ * Orders assigned to the current driver (RLS already scopes this, but we
+ * also filter for clarity).
+ *
+ * This used to be a single unbounded `select *`, and the page then threw
+ * most of it away: it renders every active order but only `.slice(0, 30)`
+ * of the completed ones. A driver with a long history was downloading their
+ * entire career to a phone over mobile data to show thirty cards.
+ *
+ * Two bounded queries instead of one unbounded one. That is one extra round
+ * trip, taken deliberately: the completed query asks for `count: "exact"`,
+ * so the exact total still comes back — in the Content-Range header, not as
+ * rows — and the "مكتملة (N)" tab count stays exactly the number it was
+ * before. Nothing visible changes; only the number of rows on the wire does.
+ */
+export async function listMyDriverOrders(
+  driverId: string,
+  completedLimit = 30,
+): Promise<DriverOrders> {
   const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("orders")
-    .select("*")
-    .eq("assigned_driver_id", driverId)
-    .order("created_at", { ascending: false });
-  if (error) throw error;
-  return (data as Order[]) ?? [];
+
+  const [activeRes, completedRes] = await Promise.all([
+    supabase
+      .from("orders")
+      .select(DRIVER_LIST_COLUMNS)
+      .eq("assigned_driver_id", driverId)
+      .not("status", "in", `(${TERMINAL_STATUSES.join(",")})`)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("orders")
+      .select(DRIVER_LIST_COLUMNS, { count: "exact" })
+      .eq("assigned_driver_id", driverId)
+      .in("status", TERMINAL_STATUSES)
+      .order("created_at", { ascending: false })
+      .limit(completedLimit),
+  ]);
+
+  if (activeRes.error) throw activeRes.error;
+  if (completedRes.error) throw completedRes.error;
+
+  return {
+    active: (activeRes.data as unknown as DriverListOrder[]) ?? [],
+    completed: (completedRes.data as unknown as DriverListOrder[]) ?? [],
+    completedTotal: completedRes.count ?? 0,
+  };
 }
 
 export async function listRegions(): Promise<Region[]> {

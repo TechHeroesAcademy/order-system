@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { Loader2, MessageCircle, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -22,7 +22,21 @@ const CHANNEL_TITLES_AR: Record<OrderChatChannel, string> = {
   factory: "دردشة المصنع",
 };
 
-const POLL_INTERVAL_MS = 4000;
+/**
+ * Poll cadence, in ms. The chat has no realtime channel (deliberately — see
+ * the note below), so it asks the server on a timer. It starts fast and backs
+ * off while nothing is happening, then snaps back to fast the moment anything
+ * does: a message arrives, you send one, or the panel scrolls into view.
+ *
+ * This matters because it runs on a page a driver may leave open for a whole
+ * shift. At a flat 4s that was ~900 requests an hour per open order page —
+ * each one a server round-trip that re-verifies the session and re-reads the
+ * thread — whether or not anyone was looking at it. With backoff, an idle
+ * conversation costs about a fifteenth of that, while an active one is
+ * exactly as responsive as before.
+ */
+const POLL_LADDER_MS = [4000, 4000, 4000, 10000, 10000, 30000] as const;
+const POLL_IDLE_MS = 60000;
 
 /**
  * The per-order conversation between the assigned driver and a Manager
@@ -57,27 +71,88 @@ export function OrderChat({
   const [pending, startTransition] = useTransition();
   const listRef = useRef<HTMLDivElement>(null);
   const lastCountRef = useRef(0);
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  // Bumped to reset the backoff to its fastest step — see quickenPolling().
+  const [pollEpoch, setPollEpoch] = useState(0);
+  const quickenPolling = useCallback(() => setPollEpoch((n) => n + 1), []);
 
   useEffect(() => {
     let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let step = 0;
+    let lastSignature = "";
+    // The panel sits below the order's actions, so it is frequently mounted
+    // but off-screen. Assume visible until the observer says otherwise, so a
+    // browser without IntersectionObserver behaves exactly as before.
+    let onScreen = true;
 
     async function poll() {
-      if (document.hidden) return;
+      if (document.hidden || !onScreen) return;
       const res = await listOrderMessagesAction(orderId, channel);
       if (cancelled || !res.ok) return;
+
       setMessages(res.data);
       setLoaded(true);
+
+      // Anything new resets the cadence; an unchanged thread steps it down.
+      const signature = `${res.data.length}:${res.data[res.data.length - 1]?.id ?? ""}`;
+      if (signature !== lastSignature) {
+        lastSignature = signature;
+        step = 0;
+      } else if (step < POLL_LADDER_MS.length - 1) {
+        step += 1;
+      }
     }
 
-    poll();
-    const interval = setInterval(poll, POLL_INTERVAL_MS);
-    document.addEventListener("visibilitychange", poll);
+    function schedule() {
+      clearTimeout(timer);
+      const delay = document.hidden || !onScreen ? POLL_IDLE_MS : POLL_LADDER_MS[step];
+      timer = setTimeout(async () => {
+        await poll();
+        if (!cancelled) schedule();
+      }, delay);
+    }
+
+    function onVisibility() {
+      if (!document.hidden) {
+        step = 0;
+        void poll().then(() => !cancelled && schedule());
+      }
+    }
+
+    // First load is immediate, exactly as before.
+    void poll().then(() => !cancelled && schedule());
+    document.addEventListener("visibilitychange", onVisibility);
+
+    let observer: IntersectionObserver | undefined;
+    const node = panelRef.current;
+    if (node && typeof IntersectionObserver !== "undefined") {
+      onScreen = false;
+      observer = new IntersectionObserver(
+        (entries) => {
+          const nowOnScreen = entries.some((e) => e.isIntersecting);
+          if (nowOnScreen && !onScreen) {
+            // Scrolled into view — catch up right away.
+            onScreen = true;
+            step = 0;
+            void poll().then(() => !cancelled && schedule());
+          } else {
+            onScreen = nowOnScreen;
+          }
+        },
+        { rootMargin: "200px" },
+      );
+      observer.observe(node);
+    }
+
     return () => {
       cancelled = true;
-      clearInterval(interval);
-      document.removeEventListener("visibilitychange", poll);
+      clearTimeout(timer);
+      document.removeEventListener("visibilitychange", onVisibility);
+      observer?.disconnect();
     };
-  }, [orderId, channel]);
+  }, [orderId, channel, pollEpoch]);
 
   useEffect(() => {
     if (messages.length !== lastCountRef.current) {
@@ -98,6 +173,9 @@ export function OrderChat({
       setDraft("");
       // Optimistic append — the next poll will reconcile with the server copy.
       setMessages((prev) => [...prev, res.data]);
+      // A reply is most likely right after you send, so go back to checking
+      // frequently instead of staying on a backed-off interval.
+      quickenPolling();
     });
   }
 
@@ -109,7 +187,7 @@ export function OrderChat({
   }
 
   return (
-    <Card>
+    <Card ref={panelRef}>
       <CardHeader>
         <CardTitle className="flex items-center gap-1.5 text-base">
           <MessageCircle className="size-4" />

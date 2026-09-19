@@ -2,6 +2,9 @@
 
 import { useEffect, useMemo, useRef } from "react";
 import { MapContainer, TileLayer, Marker, Popup, useMapEvents, useMap } from "react-leaflet";
+// Imported here rather than in globals.css so it loads with this component's
+// dynamic chunk instead of on every page — see the note in globals.css.
+import "leaflet/dist/leaflet.css";
 import type { Marker as LeafletMarker } from "leaflet";
 import { createPinIcon } from "./pin-icon";
 

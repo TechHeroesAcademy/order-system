@@ -1,5 +1,9 @@
-"use client";
-
+// No "use client" here: nothing on this page is interactive. The one
+// interactive piece is <TrackOrderForm>, which is its own client component,
+// so marking the whole page client only shipped the card, the heading and
+// the back link to the browser as JavaScript for no reason. This page is
+// also the public-facing tracking entry point, so keeping it a server
+// component is what lets its markup be part of the initial HTML.
 import { Suspense } from "react";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";

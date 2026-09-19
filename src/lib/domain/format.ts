@@ -1,5 +1,7 @@
 import { format, formatDistanceToNow } from "date-fns";
-import { arEG } from "date-fns/locale";
+// Deep import, not `from "date-fns/locale"` — the barrel re-exports every
+// locale date-fns ships, and this app only ever formats in Arabic (Egypt).
+import { arEG } from "date-fns/locale/ar-EG";
 
 export function formatDateTime(value: string | null | undefined): string {
   if (!value) return "—";

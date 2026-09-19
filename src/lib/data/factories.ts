@@ -17,21 +17,8 @@ export async function listFactories(): Promise<Factory[]> {
   return (data as Factory[]) ?? [];
 }
 
-/** Active factories only — for pickers where choosing a retired workshop would be rejected anyway. */
-export async function listActiveFactories(): Promise<Factory[]> {
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("factories")
-    .select("*")
-    .eq("is_active", true)
-    .order("name");
-  if (error) throw error;
-  return (data as Factory[]) ?? [];
-}
-
-export async function getFactory(factoryId: string): Promise<Factory | null> {
-  const supabase = await createClient();
-  const { data, error } = await supabase.from("factories").select("*").eq("id", factoryId).maybeSingle();
-  if (error) throw error;
-  return (data as Factory | null) ?? null;
-}
+// listActiveFactories() and getFactory(factoryId) used to live here. Both
+// were written ahead of a caller that never arrived — nothing in the app
+// referenced either one. They are not kept "just in case": an unused query
+// helper is a maintenance cost with no upside, and either is two lines to
+// write again the day something actually needs it.

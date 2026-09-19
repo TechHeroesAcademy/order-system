@@ -11,21 +11,14 @@ export async function listStaff(role?: UserRole): Promise<Profile[]> {
   return (data as Profile[]) ?? [];
 }
 
-export async function listDriverRegionIds(driverId: string): Promise<string[]> {
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("driver_regions")
-    .select("region_id")
-    .eq("driver_id", driverId);
-  if (error) throw error;
-  return (data ?? []).map((r) => r.region_id as string);
-}
-
 /**
- * Region ids for every driver in one query, keyed by driver id. Prefer this
- * over calling listDriverRegionIds() in a loop — the Team page used to fire
- * one request per driver (N+1), which is the difference between one request
- * and a dozen+ as the team grows.
+ * Region ids for every driver in one query, keyed by driver id.
+ *
+ * There used to be a single-driver listDriverRegionIds() beside this, left
+ * over from before the Team page was fixed; it had no callers and its only
+ * plausible use was inside a loop, which is precisely the N+1 this function
+ * exists to avoid (one request per driver instead of one request, growing
+ * with the team). It has been removed so it can't be reached for again.
  */
 export async function listAllDriverRegionIds(): Promise<Record<string, string[]>> {
   const supabase = await createClient();
