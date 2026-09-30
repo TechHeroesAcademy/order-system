@@ -1,3 +1,4 @@
+import { orderSourceLabel } from "@/lib/domain/order-source";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { OrderStatusBadge } from "./order-status-badge";
 import { OrderTimeline } from "./order-timeline";
@@ -94,7 +95,8 @@ export function OrderDetailView({
             <div>
               <CardTitle className="text-xl">{order.order_number}</CardTitle>
               <p className="text-sm text-muted-foreground">
-                {order.source === "website" ? "أنشئ من الموقع" : "أنشئ عبر Messenger"} ·{" "}
+                {`أنشئ عبر ${orderSourceLabel(order.source)}`}
+                {order.created_by_name ? ` — ${order.created_by_name}` : ""} ·{" "}
                 {formatDateTime(order.created_at)}
               </p>
             </div>

@@ -1,3 +1,4 @@
+import { isFieldOrder } from "@/lib/domain/order-source";
 import Link from "next/link";
 import {
   Table,
@@ -57,6 +58,7 @@ export function OrdersTable({
           <TableHead>المصنع</TableHead>
           <TableHead>كود التسليم</TableHead>
           <TableHead>الحالة</TableHead>
+          <TableHead>أنشأه</TableHead>
           <TableHead>تاريخ الإنشاء</TableHead>
           <TableHead className="text-center">إجراءات</TableHead>
         </TableRow>
@@ -89,6 +91,19 @@ export function OrdersTable({
                   {delayed && <Badge variant="warning">متأخر</Badge>}
                   <OrderStatusBadge status={order.status} />
                 </div>
+              </TableCell>
+              {/* Who opened this order. Matters most for field orders, which
+                  reached a driver without anyone approving them — the badge
+                  is what makes those findable at a glance in a long list. */}
+              <TableCell className="text-muted-foreground">
+                <span className="flex items-center gap-1.5 whitespace-nowrap">
+                  {order.created_by_name ?? "—"}
+                  {isFieldOrder(order.source) && (
+                    <Badge variant="warning" title="أوردر ميداني — أنشأه المندوب وأُسند له بدون اعتماد">
+                      ميداني
+                    </Badge>
+                  )}
+                </span>
               </TableCell>
               <TableCell className="text-muted-foreground">{formatDateTime(order.created_at)}</TableCell>
               <TableCell>

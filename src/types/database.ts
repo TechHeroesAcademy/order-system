@@ -27,7 +27,13 @@ export type OrderStatus =
   | "refused"
   | "cancelled";
 
-export type OrderSource = "website" | "messenger";
+/**
+ * "driver_field" (migration 0045) is an order a driver opened themselves on
+ * the doorstep, having negotiated it while out delivering. It is the only
+ * source that bypasses manager approval, which is why it is countable as
+ * its own channel rather than folded into "messenger".
+ */
+export type OrderSource = "website" | "messenger" | "driver_field";
 
 export interface Profile {
   id: string;
@@ -128,6 +134,9 @@ export interface Order {
   pickup_code_last_attempt_at: string | null;
 
   created_by: string | null;
+  /** Snapshot of the creator's name at creation (migration 0045) — survives their account being deleted, same rationale as assigned_driver_name. */
+  created_by_name: string | null;
+  created_by_role: UserRole | null;
   created_at: string;
   updated_at: string;
 }
@@ -285,4 +294,25 @@ export interface OrderMessage {
   driver_id: string | null;
   /** Joined from profiles — present on every read, absent only on the just-inserted row returned by send_order_message(). */
   sender?: { full_name: string } | null;
+}
+
+/** One channel's share of a month's orders — orders_by_source_report (migration 0046). */
+export interface OrderSourceRow {
+  source: OrderSource;
+  order_count: number;
+  delivered_count: number;
+  total_pieces: number;
+}
+
+/**
+ * Who opened orders in a month. Grouped on the snapshot name, so someone who
+ * has since left still appears with what they created rather than collapsing
+ * into a blank row.
+ */
+export interface OrderCreatorRow {
+  creator_name: string;
+  creator_role: string;
+  order_count: number;
+  delivered_count: number;
+  field_order_count: number;
 }

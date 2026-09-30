@@ -61,6 +61,52 @@ export async function createPublicOrderAction(
  * (create_order_internal), left pending until the Owner approves it from
  * <DistributionPanel> — even for an order the Owner themself created.
  */
+/**
+ * A driver creating an order on the doorstep — they negotiated a job while
+ * out delivering, so it is theirs immediately with no manager approval.
+ *
+ * The only path in the system that skips approval. It is bounded by the RPC
+ * rather than here: driver_create_field_order takes the driver from
+ * auth.uid() and refuses any caller who is not a driver, so no request from
+ * this action can assign work to someone else. requireRole is the usual
+ * defence in depth, not the boundary.
+ */
+export async function createFieldOrderAction(
+  input: OrderFormInput,
+): Promise<ActionResult<NewOrderResult>> {
+  await requireRole("driver");
+  const parsed = orderFormSchema.safeParse(input);
+  if (!parsed.success) {
+    return fail(parsed.error.issues[0]?.message ?? "بيانات غير صالحة");
+  }
+  if (!parsed.data.factory_id) {
+    return fail("يجب اختيار المصنع");
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("driver_create_field_order", {
+    p_customer_name: parsed.data.customer_name,
+    p_customer_phone: parsed.data.customer_phone,
+    p_customer_address: parsed.data.customer_address,
+    p_region_name: parsed.data.region_name,
+    p_pieces_count: parsed.data.pieces_count,
+    p_factory_id: parsed.data.factory_id,
+    p_piece_details: parsed.data.piece_details ?? null,
+    p_color: parsed.data.color ?? null,
+    p_work_required: parsed.data.work_required ?? null,
+    p_customer_notes: parsed.data.customer_notes ?? null,
+    p_customer_maps_url: parsed.data.customer_maps_url?.trim() || null,
+  });
+
+  if (error) return fail(toErrorMessage(error, "تعذر إنشاء الأوردر"));
+  // The driver's own list, and the manager screens that now have a new
+  // order on them that nobody approved.
+  revalidatePath("/driver");
+  revalidatePath("/owner");
+  revalidatePath("/moderator");
+  return ok(data as NewOrderResult);
+}
+
 export async function createModeratorOrderAction(
   input: OrderFormInput,
 ): Promise<ActionResult<NewOrderResult>> {

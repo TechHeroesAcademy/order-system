@@ -14,6 +14,8 @@ import type {
   OrderStatus,
   Region,
   TopRegionRow,
+  OrderSourceRow,
+  OrderCreatorRow,
 } from "@/types/database";
 
 export interface OrderFilters {
@@ -316,4 +318,20 @@ export async function getTopRegions(): Promise<TopRegionRow[]> {
   const { data, error } = await supabase.rpc("top_regions_report");
   if (error) throw error;
   return (data as TopRegionRow[]) ?? [];
+}
+
+/** Where a month's orders came from — website, Messenger, or a driver in the street. */
+export async function getOrdersBySource(month?: string): Promise<OrderSourceRow[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("orders_by_source_report", month ? { p_month: month } : {});
+  if (error) throw error;
+  return (data as OrderSourceRow[]) ?? [];
+}
+
+/** Who opened a month's orders, and how many of those were field orders. */
+export async function getOrdersByCreator(month?: string): Promise<OrderCreatorRow[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("orders_by_creator_report", month ? { p_month: month } : {});
+  if (error) throw error;
+  return (data as OrderCreatorRow[]) ?? [];
 }

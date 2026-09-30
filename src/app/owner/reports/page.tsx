@@ -4,6 +4,8 @@ import {
   getDriverPerformance,
   getTopRegions,
   getDelayedOrders,
+  getOrdersBySource,
+  getOrdersByCreator,
 } from "@/lib/data/orders";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,14 +24,17 @@ import { OrderStatusBadge } from "@/components/orders/order-status-badge";
 import { BarChart3, TrendingUp, TrendingDown, Minus, AlertTriangle } from "lucide-react";
 import { BarList } from "@/components/reports/bar-list";
 import { RadialStat } from "@/components/reports/radial-stat";
+import { SourcesReport } from "@/components/reports/sources-report";
 
 export default async function ReportsPage() {
-  const [daily, monthly, driverPerf, topRegions, delayedOrders] = await Promise.all([
+  const [daily, monthly, driverPerf, topRegions, delayedOrders, bySource, byCreator] = await Promise.all([
     getDailyReport(),
     getMonthlyReport(),
     getDriverPerformance(),
     getTopRegions(),
     getDelayedOrders(),
+    getOrdersBySource(),
+    getOrdersByCreator(),
   ]);
 
   return (
@@ -42,6 +47,7 @@ export default async function ReportsPage() {
           <TabsTrigger value="monthly">تقرير الشهر</TabsTrigger>
           <TabsTrigger value="drivers">أداء المندوبين</TabsTrigger>
           <TabsTrigger value="regions">المناطق الأكثر طلبًا</TabsTrigger>
+          <TabsTrigger value="sources">مصادر الأوردرات</TabsTrigger>
           <TabsTrigger value="delayed">الأوردرات المتأخرة</TabsTrigger>
         </TabsList>
 
@@ -217,6 +223,11 @@ export default async function ReportsPage() {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+
+        <TabsContent value="sources" className="space-y-3 pt-4">
+          <SourcesReport bySource={bySource} byCreator={byCreator} />
         </TabsContent>
 
         <TabsContent value="delayed" className="pt-4">
