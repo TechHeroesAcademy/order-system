@@ -24,6 +24,7 @@ export function OrderForm({
   showFactoryField = true,
   action,
   submitLabel = "إنشاء الأوردر",
+  showRegionHint = true,
 }: {
   regions: Region[];
   /** Active factories, for the "route to factory" field below. */
@@ -44,6 +45,13 @@ export function OrderForm({
    */
   showFactoryField?: boolean;
   action: (values: OrderFormValues) => Promise<ActionResult<NewOrderResult>>;
+  /**
+   * The "this decides which driver gets suggested" note under المنطقة.
+   * Useful to a moderator, who is typing the area so the system can pick
+   * someone. Pointless to a driver creating their own order — the order is
+   * already theirs, so nothing is being suggested.
+   */
+  showRegionHint?: boolean;
   submitLabel?: string;
 }) {
   const [result, setResult] = useState<NewOrderResult | null>(null);
@@ -169,7 +177,7 @@ export function OrderForm({
           name="customer_maps_url"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>رابط الموقع على خرائط جوجل (اختياري)</FormLabel>
+              <FormLabel>رابط موقع العميل على خرائط جوجل</FormLabel>
               <FormControl>
                 <Input
                   dir="ltr"
@@ -179,8 +187,8 @@ export function OrderForm({
                 />
               </FormControl>
               <p className="text-xs text-muted-foreground">
-                إن كان لدى العميل رابط موقعه من تطبيق خرائط جوجل (مشاركة ↦ نسخ الرابط)، الصقه هنا ليفتح المندوب
-                موقعه الدقيق مباشرة بدلًا من البحث عن العنوان النصي.
+                اطلب من العميل رابط موقعه من تطبيق خرائط جوجل (مشاركة ↦ نسخ الرابط) والصقه هنا. الرابط يفتح
+                موقعه بالضبط للمندوب، بينما البحث بالعنوان النصي قد يوصله لشارع آخر.
               </p>
               <FormMessage />
             </FormItem>
@@ -202,9 +210,11 @@ export function OrderForm({
                   />
                 </FormControl>
                 <RegionDatalist id={regionListId} regions={regions} />
-                <p className="text-xs text-muted-foreground">
-                  اكتب اسم المنطقة بنفسك — تُستخدم لترشيح مندوب تلقائيًا من نفس المنطقة.
-                </p>
+                {showRegionHint && (
+                  <p className="text-xs text-muted-foreground">
+                    اكتب اسم المنطقة بنفسك — تُستخدم لترشيح مندوب تلقائيًا من نفس المنطقة.
+                  </p>
+                )}
                 <FormMessage />
               </FormItem>
             )}

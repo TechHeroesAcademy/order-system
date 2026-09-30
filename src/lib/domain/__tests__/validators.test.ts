@@ -16,6 +16,9 @@ describe("orderFormSchema", () => {
     color: "بني",
     work_required: "تنجيد",
     customer_notes: null,
+    // Required since the Maps link became mandatory for new orders — a
+    // "valid order" is not valid without one any more.
+    customer_maps_url: "https://maps.app.goo.gl/PZ2h1nP7b8qLqKqW9",
   };
 
   it("accepts a valid order", () => {
@@ -57,9 +60,15 @@ describe("orderFormSchema", () => {
     expect(result.success).toBe(true);
   });
 
-  it("leaves customer_maps_url optional", () => {
-    expect(orderFormSchema.safeParse(base).success).toBe(true);
-    expect(orderFormSchema.safeParse({ ...base, customer_maps_url: "" }).success).toBe(true);
+  it("requires customer_maps_url on a new order", () => {
+    // It used to be optional. It is now the only exact location signal the
+    // driver gets — a typed address is guessed at by a map search — so an
+    // order cannot be created without one. Editing an existing order still
+    // allows it to be blank; see maps-url-required.test.ts.
+    const withoutLink = { ...base } as Partial<typeof base>;
+    delete withoutLink.customer_maps_url;
+    expect(orderFormSchema.safeParse(withoutLink).success).toBe(false);
+    expect(orderFormSchema.safeParse({ ...base, customer_maps_url: "" }).success).toBe(false);
   });
 
   it("rejects a customer_maps_url that isn't a link", () => {

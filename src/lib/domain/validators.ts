@@ -20,6 +20,24 @@ const mapsUrlField = z
   .nullable()
   .refine((v) => !v || /^https?:\/\/\S+$/i.test(v), "الصق رابط خرائط جوجل كامل (يبدأ بـ http:// أو https://)");
 
+/**
+ * The same link, required. Used only when an order is being created.
+ *
+ * A pasted Maps link is the one location signal that is exact — a typed
+ * address gets guessed at by a map search and a driver ends up on the wrong
+ * street. Requiring it at creation is cheap, because whoever takes the
+ * order has the customer on the phone and can ask for it.
+ *
+ * Deliberately NOT applied to editing (see editOrderSchema) or to a
+ * factory's own details.
+ */
+const requiredMapsUrlField = z
+  .string({ error: "الصق رابط موقع العميل على خرائط جوجل" })
+  .trim()
+  .min(1, "الصق رابط موقع العميل على خرائط جوجل")
+  .max(2000, "الرابط طويل جدًا")
+  .regex(/^https?:\/\/\S+$/i, "الصق رابط خرائط جوجل كامل (يبدأ بـ http:// أو https://)");
+
 export const orderFormSchema = z.object({
   customer_name: z
     .string()
@@ -40,7 +58,10 @@ export const orderFormSchema = z.object({
   // preferred over a text search of customer_address whenever present (see
   // mapsUrlFor). Independent of customer_address, which stays required as
   // the human-readable fallback and is always shown regardless.
-  customer_maps_url: mapsUrlField,
+  //
+  // Mandatory at creation: an exact pin beats a guessed address search, and
+  // the person taking the order has the customer available to ask.
+  customer_maps_url: requiredMapsUrlField,
   // Typed by keyboard, not picked from a list (see migration 0025) — and
   // mandatory: a blank/whitespace-only value fails here before it ever
   // reaches find_or_create_region()'s own (defense-in-depth) check.
@@ -80,7 +101,19 @@ export type OrderFormValues = z.infer<typeof orderFormSchema>;
  * distribution fields (factory_id/driver_id — reassigned through their own
  * dedicated flow, see ChangeDriverButton/ChangeFactoryButton) are excluded.
  */
-export const editOrderSchema = orderFormSchema.omit({ factory_id: true, driver_id: true });
+/**
+ * Editing an existing order.
+ *
+ * customer_maps_url is put back to optional on purpose. It became mandatory
+ * for *new* orders, but every order created before that has none — and
+ * inheriting the requirement here would mean someone correcting a phone
+ * typo on an old order is blocked until they produce a Maps link they may
+ * not have. A rule introduced today should not retroactively lock records
+ * created yesterday.
+ */
+export const editOrderSchema = orderFormSchema
+  .omit({ factory_id: true, driver_id: true })
+  .extend({ customer_maps_url: mapsUrlField });
 export type EditOrderValues = z.infer<typeof editOrderSchema>;
 
 export const trackOrderSchema = z.object({
