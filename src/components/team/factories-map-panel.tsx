@@ -78,7 +78,16 @@ export function FactoriesMapPanel({
     () =>
       factories
         .filter((f): f is Factory & { lat: number; lng: number } => f.lat != null && f.lng != null)
-        .map((f) => ({ id: f.id, name: f.name, address: f.address, lat: f.lat, lng: f.lng })),
+        .map((f) => ({
+          id: f.id,
+          name: f.name,
+          address: f.address,
+          lat: f.lat,
+          lng: f.lng,
+          phone: f.phone,
+          maps_url: f.maps_url,
+          is_active: f.is_active,
+        })),
     [factories],
   );
 

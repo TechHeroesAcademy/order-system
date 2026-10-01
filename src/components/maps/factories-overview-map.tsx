@@ -23,6 +23,12 @@ export interface FactoryPin {
   address: string | null;
   lat: number;
   lng: number;
+  /** Shown in the popup and dialable straight from a phone. */
+  phone?: string | null;
+  /** The pasted Google Maps link, if there is one — opens the real place rather than a coordinate search. */
+  maps_url?: string | null;
+  /** A retired workshop still has orders in its history, so it stays on the map, marked. */
+  is_active?: boolean;
 }
 
 function ClickToPlace({ onPick }: { onPick?: (lat: number, lng: number) => void }) {
@@ -123,9 +129,38 @@ export function FactoriesMap({
             icon={defaultIcon}
             eventHandlers={{ click: () => onSelectPin?.(f.id) }}
           >
+            {/* The popup is the "press the pin to see details" view. It
+                carries everything someone standing in front of the map
+                actually wants: who it is, where, a number they can dial,
+                and a way to get there. The directions link prefers the
+                pasted maps_url, which resolves to the real place, over a
+                coordinate lookup that only lands nearby. */}
             <Popup>
-              <p className="font-medium">{f.name}</p>
-              {f.address && <p className="text-xs text-muted-foreground">{f.address}</p>}
+              <div className="min-w-44 space-y-1" dir="rtl">
+                <p className="font-medium">{f.name}</p>
+                {f.is_active === false && (
+                  <p className="text-xs font-medium text-destructive">مصنع موقوف</p>
+                )}
+                {f.address && <p className="text-xs text-muted-foreground">{f.address}</p>}
+                {f.phone && (
+                  <p className="text-xs">
+                    <a href={`tel:${f.phone}`} className="text-primary underline" dir="ltr">
+                      {f.phone}
+                    </a>
+                  </p>
+                )}
+                <p className="text-[11px] text-muted-foreground" dir="ltr">
+                  {f.lat.toFixed(6)}, {f.lng.toFixed(6)}
+                </p>
+                <a
+                  href={f.maps_url || `https://www.google.com/maps/search/?api=1&query=${f.lat},${f.lng}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-block pt-0.5 text-xs font-medium text-primary underline"
+                >
+                  الاتجاهات على خرائط جوجل ↗
+                </a>
+              </div>
             </Popup>
           </Marker>
         ))}
