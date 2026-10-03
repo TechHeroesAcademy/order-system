@@ -1,0 +1,179 @@
+import { describe, expect, it } from "vitest";
+import {
+  buildRepeatCustomerNotice,
+  isPhoneLookupReady,
+  phoneMatchKey,
+} from "@/lib/domain/customer-history";
+import type { CustomerOrderHistory } from "@/types/database";
+
+const empty: CustomerOrderHistory = {
+  previous_orders: 0,
+  open_orders: 0,
+  delivered_orders: 0,
+  cancelled_orders: 0,
+  refused_orders: 0,
+  last_order_number: null,
+  last_order_at: null,
+  last_order_status: null,
+  names_seen: null,
+};
+
+function history(over: Partial<CustomerOrderHistory>): CustomerOrderHistory {
+  return { ...empty, ...over };
+}
+
+describe("phoneMatchKey", () => {
+  /**
+   * This has to agree with the database, which matches on the last 8 digits
+   * (migration 0049, same rule track_order has used since 0009). If these
+   * ever disagree, the form would show "first order" for a customer the
+   * database counts as returning, or the reverse.
+   */
+  it("reduces every way one Egyptian number gets written to the same key", () => {
+    const keys = [
+      "01012345678",
+      "+201012345678",
+      "00201012345678",
+      "010-1234-5678",
+      "010 1234 5678",
+    ].map(phoneMatchKey);
+
+    expect(new Set(keys).size).toBe(1);
+    expect(keys[0]).toBe("12345678");
+  });
+
+  it("treats a half-typed number as not ready to look up", () => {
+    expect(isPhoneLookupReady("0101")).toBe(false);
+    expect(isPhoneLookupReady("")).toBe(false);
+    expect(isPhoneLookupReady("01012345678")).toBe(true);
+  });
+});
+
+describe("buildRepeatCustomerNotice", () => {
+  it("says nothing at all for a customer with no history", () => {
+    const notice = buildRepeatCustomerNotice(empty, "سمير");
+    expect(notice.isRepeat).toBe(false);
+    expect(notice.openWarning).toBeNull();
+    expect(notice.nameMismatch).toBeNull();
+  });
+
+  it("numbers this order as one past the count of previous ones", () => {
+    const notice = buildRepeatCustomerNotice(
+      history({ previous_orders: 4, delivered_orders: 4 }),
+      "سمير علي",
+    );
+    expect(notice.isRepeat).toBe(true);
+    expect(notice.orderIndex).toBe(5);
+    expect(notice.title).toContain("رقم 5");
+  });
+
+  it("uses singular wording for a customer with exactly one previous order", () => {
+    const notice = buildRepeatCustomerNotice(
+      history({ previous_orders: 1, delivered_orders: 1 }),
+      "سمير",
+    );
+    expect(notice.orderIndex).toBe(2);
+    expect(notice.title).toContain("أوردر واحد سابق");
+    expect(notice.title).not.toContain("1 أوردرات");
+  });
+
+  it("breaks the history down and omits the buckets that are empty", () => {
+    const notice = buildRepeatCustomerNotice(
+      history({ previous_orders: 4, delivered_orders: 2, open_orders: 1, cancelled_orders: 1 }),
+      "سمير",
+    );
+    expect(notice.breakdown).toContain("2 تم تسليمها");
+    expect(notice.breakdown).toContain("1 ما زالت جارية");
+    expect(notice.breakdown).toContain("1 ملغاة");
+    expect(notice.breakdown).not.toContain("رفض");
+  });
+
+  /**
+   * The case this feature is really for: the same job entered twice by two
+   * people who did not know about each other.
+   */
+  it("warns separately when the customer still has an order in flight", () => {
+    const notice = buildRepeatCustomerNotice(
+      history({ previous_orders: 2, delivered_orders: 1, open_orders: 1 }),
+      "سمير",
+    );
+    expect(notice.openWarning).toContain("لم يُسلَّم بعد");
+  });
+
+  it("stays quiet about open orders when everything is finished", () => {
+    const notice = buildRepeatCustomerNotice(
+      history({ previous_orders: 3, delivered_orders: 2, refused_orders: 1 }),
+      "سمير",
+    );
+    expect(notice.openWarning).toBeNull();
+  });
+
+  it("includes the last order's number, date and status", () => {
+    const notice = buildRepeatCustomerNotice(
+      history({
+        previous_orders: 1,
+        delivered_orders: 1,
+        last_order_number: "EL-0004",
+        last_order_at: "2026-09-20T10:00:00Z",
+        last_order_status: "delivered",
+      }),
+      "سمير",
+    );
+    expect(notice.lastOrderLine).toContain("EL-0004");
+    expect(notice.lastOrderLine).toContain("2026");
+    expect(notice.lastOrderLine).toContain("تم التسليم");
+  });
+
+  it("drops the date rather than rendering an unparseable one", () => {
+    const notice = buildRepeatCustomerNotice(
+      history({ previous_orders: 1, last_order_number: "EL-0004", last_order_at: "not a date" }),
+      "سمير",
+    );
+    expect(notice.lastOrderLine).toContain("EL-0004");
+    expect(notice.lastOrderLine).not.toContain("Invalid");
+  });
+
+  describe("name check", () => {
+    it("flags a number saved under a different name — a likely wrong number", () => {
+      const notice = buildRepeatCustomerNotice(
+        history({ previous_orders: 2, names_seen: ["منى حسن"] }),
+        "سمير علي",
+      );
+      expect(notice.nameMismatch).toContain("منى حسن");
+    });
+
+    it("says nothing when the typed name is one of the names on file", () => {
+      const notice = buildRepeatCustomerNotice(
+        history({ previous_orders: 2, names_seen: ["سمير علي", "سمير ع."] }),
+        "سمير علي",
+      );
+      expect(notice.nameMismatch).toBeNull();
+    });
+
+    /** Extra spaces are a typing artifact, not a different customer. */
+    it("ignores differences in whitespace", () => {
+      const notice = buildRepeatCustomerNotice(
+        history({ previous_orders: 1, names_seen: ["سمير علي"] }),
+        "  سمير   علي  ",
+      );
+      expect(notice.nameMismatch).toBeNull();
+    });
+
+    it("says nothing before a name has been typed", () => {
+      const notice = buildRepeatCustomerNotice(
+        history({ previous_orders: 1, names_seen: ["سمير علي"] }),
+        "",
+      );
+      expect(notice.nameMismatch).toBeNull();
+    });
+
+    it("lists every name on file when more than one differs", () => {
+      const notice = buildRepeatCustomerNotice(
+        history({ previous_orders: 3, names_seen: ["منى حسن", "حسن منى"] }),
+        "سمير",
+      );
+      expect(notice.nameMismatch).toContain("منى حسن");
+      expect(notice.nameMismatch).toContain("حسن منى");
+    });
+  });
+});

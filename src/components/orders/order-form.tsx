@@ -1,10 +1,10 @@
 "use client";
 
 import { useId, useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
-import { Loader2, PackageCheck } from "lucide-react";
+import { History, Loader2, PackageCheck } from "lucide-react";
 import { orderFormSchema, type OrderFormValues } from "@/lib/domain/validators";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,7 +14,15 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card, CardContent } from "@/components/ui/card";
-import type { Region, Factory, NewOrderResult } from "@/types/database";
+import { RepeatCustomerDialog } from "@/components/orders/repeat-customer-dialog";
+import { lookupCustomerHistoryAction } from "@/lib/actions/orders";
+import {
+  buildRepeatCustomerNotice,
+  isPhoneLookupReady,
+  phoneMatchKey,
+  type RepeatCustomerNotice,
+} from "@/lib/domain/customer-history";
+import type { CustomerOrderHistory, Region, Factory, NewOrderResult } from "@/types/database";
 import type { ActionResult } from "@/lib/actions/types";
 
 export function OrderForm({
@@ -58,6 +66,62 @@ export function OrderForm({
   const [submitting, setSubmitting] = useState(false);
   const regionListId = useId();
 
+  /**
+   * The customer's previous orders, paired with the phone key they were
+   * looked up for. The key is stored alongside, not derived later: holding
+   * the history alone would leave a count on screen after the number is
+   * edited, and a stale count is worse than none — it would be confirming
+   * the wrong customer.
+   *
+   * Plain state rather than a ref, because the inline line below is rendered
+   * from it. (A ref read during render is exactly what React Compiler
+   * refuses to memoize, and this is the largest form in the app.)
+   */
+  const [cached, setCached] = useState<{ key: string; history: CustomerOrderHistory } | null>(null);
+  const [checking, setChecking] = useState(false);
+  const [notice, setNotice] = useState<RepeatCustomerNotice | null>(null);
+  const [pending, setPending] = useState<OrderFormValues | null>(null);
+
+  /**
+   * Looks the number up unless the answer for this exact number is already
+   * in hand. Returns null when the number is too short to identify anyone or
+   * the lookup fails — a convenience check that is unavailable must not stop
+   * an order being taken while the customer is on the line.
+   *
+   * Pressing submit before a blur-triggered lookup has come back repeats the
+   * query rather than waiting on it. One extra read of an indexed count, in
+   * exchange for not having to coordinate two callers around a shared
+   * in-flight promise.
+   */
+  async function historyFor(phone: string): Promise<CustomerOrderHistory | null> {
+    const key = phoneMatchKey(phone);
+    if (!isPhoneLookupReady(phone)) return null;
+    if (cached?.key === key) return cached.history;
+
+    setChecking(true);
+    const res = await lookupCustomerHistoryAction(phone);
+    setChecking(false);
+    if (!res.ok) return null;
+
+    setCached({ key, history: res.data });
+    return res.data;
+  }
+
+  /**
+   * Fired when the phone field loses focus, so a repeat customer is shown
+   * under the field while the rest of the form is still being filled in
+   * rather than only at the end.
+   *
+   * The submit handler looks the number up again if it has to, so this is
+   * genuinely only an early hint — a number pasted into the field and
+   * submitted without it ever blurring (which is how the mandatory Maps link
+   * ended up with no coordinates) still gets checked before the order is
+   * created.
+   */
+  function onPhoneBlur(phone: string) {
+    void historyFor(phone);
+  }
+
   const form = useForm<OrderFormValues>({
     resolver: zodResolver(orderFormSchema),
     defaultValues: {
@@ -76,13 +140,27 @@ export function OrderForm({
     },
   });
 
-  async function onSubmit(values: OrderFormValues) {
-    if (showFactoryField && requireFactory && !values.factory_id) {
-      form.setError("factory_id", { message: "اختر المصنع" });
-      toast.error("يجب اختيار المصنع لهذا الأوردر");
-      return;
-    }
+  /**
+   * The repeat-customer line shown under the phone field, once the number
+   * has been looked up. Recomputed from the typed name too, so correcting
+   * the name clears a name-mismatch warning without another round trip.
+   */
+  // useWatch, not form.watch(): watch() hands back a function, which makes
+  // React Compiler skip memoizing this whole component — and this is the
+  // largest form in the app. useWatch subscribes to the two fields and
+  // returns values, so the rest of the form stays memoized.
+  const watchedPhone = useWatch({ control: form.control, name: "customer_phone" });
+  const watchedName = useWatch({ control: form.control, name: "customer_name" });
+  const inlineNotice = (() => {
+    // Only valid for the number it was fetched for. Editing the number drops
+    // the line rather than leaving a count that belongs to someone else.
+    if (!cached || cached.key !== phoneMatchKey(watchedPhone ?? "")) return null;
+    const built = buildRepeatCustomerNotice(cached.history, watchedName ?? "");
+    return built.isRepeat ? built : null;
+  })();
 
+  /** The actual create call, reached either directly or via the dialog. */
+  async function submitOrder(values: OrderFormValues) {
     setSubmitting(true);
     const res = await action(values);
     setSubmitting(false);
@@ -94,6 +172,44 @@ export function OrderForm({
 
     setResult(res.data);
     form.reset();
+    // A fresh form is a different customer; keeping the old history would
+    // make the next order's count wrong.
+    setCached(null);
+  }
+
+  async function onSubmit(values: OrderFormValues) {
+    if (showFactoryField && requireFactory && !values.factory_id) {
+      form.setError("factory_id", { message: "اختر المصنع" });
+      toast.error("يجب اختيار المصنع لهذا الأوردر");
+      return;
+    }
+
+    // Looked up here and not only on blur, so a number that was pasted and
+    // submitted in one go is still checked. Awaited rather than fired off:
+    // the whole point is to ask before the order exists.
+    const history = await historyFor(values.customer_phone);
+    if (history) {
+      const built = buildRepeatCustomerNotice(history, values.customer_name);
+      if (built.isRepeat) {
+        setNotice(built);
+        setPending(values);
+        return;
+      }
+    }
+
+    await submitOrder(values);
+  }
+
+  function onRepeatConfirm() {
+    const values = pending;
+    setNotice(null);
+    setPending(null);
+    if (values) void submitOrder(values);
+  }
+
+  function onRepeatCancel() {
+    setNotice(null);
+    setPending(null);
   }
 
   if (result) {
@@ -150,8 +266,28 @@ export function OrderForm({
               <FormItem>
                 <FormLabel>رقم الهاتف</FormLabel>
                 <FormControl>
-                  <Input dir="ltr" placeholder="01xxxxxxxxx" {...field} />
+                  <Input
+                    dir="ltr"
+                    placeholder="01xxxxxxxxx"
+                    {...field}
+                    onBlur={(e) => {
+                      field.onBlur();
+                      onPhoneBlur(e.target.value);
+                    }}
+                  />
                 </FormControl>
+                {checking && (
+                  <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <Loader2 className="size-3 animate-spin" />
+                    جارٍ التحقق من أوردرات العميل السابقة…
+                  </p>
+                )}
+                {!checking && inlineNotice && (
+                  <p className="flex items-center gap-1.5 text-xs font-medium text-warning-foreground">
+                    <History className="size-3 shrink-0" />
+                    عميل مكرر — هذا سيكون الأوردر رقم {inlineNotice.orderIndex} له
+                  </p>
+                )}
                 <FormMessage />
               </FormItem>
             )}
@@ -339,11 +475,18 @@ export function OrderForm({
           )}
         />
 
-        <Button type="submit" className="w-full" disabled={submitting}>
-          {submitting && <Loader2 className="animate-spin" />}
+        <Button type="submit" className="w-full" disabled={submitting || checking}>
+          {(submitting || checking) && <Loader2 className="animate-spin" />}
           {submitLabel}
         </Button>
       </form>
+
+      <RepeatCustomerDialog
+        notice={notice}
+        open={Boolean(notice)}
+        onCancel={onRepeatCancel}
+        onConfirm={onRepeatConfirm}
+      />
     </Form>
   );
 }

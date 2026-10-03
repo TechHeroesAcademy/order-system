@@ -9,6 +9,7 @@ import { buildCsv } from "@/lib/domain/csv";
 import { ORDER_STATUS_LABELS_AR } from "@/lib/domain/order-status";
 import { ok, fail, toErrorMessage, type ActionResult } from "./types";
 import type {
+  CustomerOrderHistory,
   NewOrderResult,
   OrderChatChannel,
   OrderMessage,
@@ -105,6 +106,39 @@ export async function createFieldOrderAction(
   revalidatePath("/owner");
   revalidatePath("/moderator");
   return ok(data as NewOrderResult);
+}
+
+/**
+ * How many orders this phone number has already, across every creator —
+ * asked by the order form before it submits, so whoever is creating the
+ * order confirms it is order number N for that customer.
+ *
+ * Staff and drivers only, enforced by customer_order_history() itself
+ * (migration 0049), which is where the real boundary is: the function is
+ * never granted to anon, because answering "does this number exist in your
+ * customer list" for an arbitrary number is a membership oracle. The public
+ * order form deliberately does not call this.
+ *
+ * requireRole here is the usual defence in depth. A failure is returned as
+ * fail() and the form treats it as "no history known" rather than blocking
+ * order creation — an unavailable convenience check must not stop a real
+ * order from being taken while the customer is on the line.
+ */
+export async function lookupCustomerHistoryAction(
+  phone: string,
+): Promise<ActionResult<CustomerOrderHistory>> {
+  await requireRole("owner", "moderator", "driver");
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("customer_order_history", { p_phone: phone });
+  if (error) return fail(toErrorMessage(error, "تعذر التحقق من أوردرات العميل السابقة"));
+
+  // `returns table`, so this always arrives as an array — one row for a
+  // known number, one all-zero row for an unknown one. See migration 0017
+  // for why the RPCs in this system return sets rather than composites.
+  const row = (data as CustomerOrderHistory[] | null)?.[0];
+  if (!row) return fail("تعذر التحقق من أوردرات العميل السابقة");
+  return ok(row);
 }
 
 export async function createModeratorOrderAction(

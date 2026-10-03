@@ -316,3 +316,24 @@ export interface OrderCreatorRow {
   delivered_count: number;
   field_order_count: number;
 }
+
+/**
+ * A customer's order history, keyed by phone number and counted across every
+ * creator — the website, a manager or moderator taking a Messenger order, and
+ * a driver opening one in the street. Shown as a confirmation before a new
+ * order is created (migration 0049).
+ *
+ * All-zero with nulls means a number that has never ordered, which is the
+ * normal case and not an error.
+ */
+export interface CustomerOrderHistory {
+  previous_orders: number;
+  open_orders: number;
+  delivered_orders: number;
+  cancelled_orders: number;
+  refused_orders: number;
+  last_order_number: string | null;
+  last_order_at: string | null;
+  last_order_status: OrderStatus | null;
+  names_seen: string[] | null;
+}
