@@ -16,6 +16,7 @@ import type {
   TopRegionRow,
   OrderSourceRow,
   OrderCreatorRow,
+  OrderCustomerContext,
 } from "@/types/database";
 
 export interface OrderFilters {
@@ -334,4 +335,20 @@ export async function getOrdersByCreator(month?: string): Promise<OrderCreatorRo
   const { data, error } = await supabase.rpc("orders_by_creator_report", month ? { p_month: month } : {});
   if (error) throw error;
   return (data as OrderCreatorRow[]) ?? [];
+}
+
+/**
+ * Where this order sits in its customer's history (migration 0050) — the
+ * position, the customer's total, and their other open orders.
+ *
+ * Returns null when there is nothing worth saying: an unknown order, a phone
+ * too short to identify anybody, or a caller the RPC refuses. The order page
+ * then renders without the line rather than failing, because this is context
+ * about an order, not the order itself.
+ */
+export async function getOrderCustomerContext(orderId: string): Promise<OrderCustomerContext | null> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("order_customer_context", { p_order_id: orderId });
+  if (error) return null;
+  return (data as OrderCustomerContext[] | null)?.[0] ?? null;
 }

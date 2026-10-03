@@ -337,3 +337,22 @@ export interface CustomerOrderHistory {
   last_order_status: OrderStatus | null;
   names_seen: string[] | null;
 }
+
+/**
+ * Where one order sits in its customer's history — this order's own position
+ * in the sequence, and whether that customer has other orders still open.
+ * Shown on the owner/moderator order pages (migration 0050).
+ *
+ * The position is fixed when the order is created and never moves, which is
+ * why this is a separate call from CustomerOrderHistory rather than that
+ * one's count plus one.
+ */
+export interface OrderCustomerContext {
+  customer_order_index: number;
+  total_orders: number;
+  other_open_orders: number;
+  previous_order_id: string | null;
+  previous_order_number: string | null;
+  previous_order_at: string | null;
+  previous_order_status: OrderStatus | null;
+}

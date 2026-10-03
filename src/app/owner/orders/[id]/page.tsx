@@ -1,5 +1,10 @@
 import { notFound } from "next/navigation";
-import { getOrderById, getOrderHistory, listRegions } from "@/lib/data/orders";
+import {
+  getOrderById,
+  getOrderCustomerContext,
+  getOrderHistory,
+  listRegions,
+} from "@/lib/data/orders";
 import { listStaff } from "@/lib/data/staff";
 import { listFactories } from "@/lib/data/factories";
 import { requireRole } from "@/lib/auth";
@@ -9,12 +14,16 @@ export default async function OwnerOrderDetailPage({ params }: { params: Promise
   const { id } = await params;
   const profile = await requireRole("owner");
 
-  const [order, history, regions, drivers, factories] = await Promise.all([
+  // customerContext is fetched alongside the rest, not after: it is one
+  // indexed count, and serialising it behind the others would add a round
+  // trip to every order page for a single line of text.
+  const [order, history, regions, drivers, factories, customerContext] = await Promise.all([
     getOrderById(id),
     getOrderHistory(id),
     listRegions(),
     listStaff("driver"),
     listFactories(),
+    getOrderCustomerContext(id),
   ]);
 
   if (!order) notFound();
@@ -41,6 +50,8 @@ export default async function OwnerOrderDetailPage({ params }: { params: Promise
       drivers={drivers}
       factories={factories}
       regions={regions}
+      customerContext={customerContext}
+      orderBasePath="/owner/orders"
     />
   );
 }

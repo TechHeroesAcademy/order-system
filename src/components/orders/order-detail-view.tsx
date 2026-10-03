@@ -16,8 +16,16 @@ import { Badge } from "@/components/ui/badge";
 import { formatDateTime } from "@/lib/domain/format";
 import { isOrderDelayed } from "@/lib/domain/order-status";
 import { mapsUrlFor } from "@/lib/domain/maps";
+import { CustomerHistoryNote } from "./customer-history-note";
 import { PackageCheck, CheckCircle2, MapPin } from "lucide-react";
-import type { Order, OrderHistoryEntry, Region, Profile, Factory } from "@/types/database";
+import type {
+  Order,
+  OrderHistoryEntry,
+  Region,
+  Profile,
+  Factory,
+  OrderCustomerContext,
+} from "@/types/database";
 
 // customer_address is rendered separately below (with a Maps link), not
 // through this generic loop.
@@ -46,6 +54,8 @@ export function OrderDetailView({
   drivers = [],
   factories = [],
   regions = [],
+  customerContext = null,
+  orderBasePath,
 }: {
   order: Order;
   history: OrderHistoryEntry[];
@@ -64,6 +74,14 @@ export function OrderDetailView({
   factories?: Factory[];
   /** All regions, for the edit-order dialog's region picker — only needed when canManageDistribution. */
   regions?: Region[];
+  /**
+   * Where this order sits in its customer's history (migration 0050). Null
+   * when the customer has no history worth showing, or when the lookup was
+   * unavailable — the page renders the same either way.
+   */
+  customerContext?: OrderCustomerContext | null;
+  /** Where order pages live for this viewer, for the link to the previous order. */
+  orderBasePath: string;
 }) {
   const delayed = isOrderDelayed(order.status, order.created_at);
   const isTerminal = ["delivered", "refused", "cancelled"].includes(order.status);
@@ -107,6 +125,7 @@ export function OrderDetailView({
             </div>
           </CardHeader>
           <CardContent>
+            <CustomerHistoryNote context={customerContext} orderBasePath={orderBasePath} />
             <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
               <div>
                 <dt className="text-xs text-muted-foreground">اسم العميل</dt>

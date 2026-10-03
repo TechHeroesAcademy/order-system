@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildCustomerSequenceNote,
   buildRepeatCustomerNotice,
   isPhoneLookupReady,
   phoneMatchKey,
 } from "@/lib/domain/customer-history";
-import type { CustomerOrderHistory } from "@/types/database";
+import type { CustomerOrderHistory, OrderCustomerContext } from "@/types/database";
 
 const empty: CustomerOrderHistory = {
   previous_orders: 0,
@@ -175,5 +176,91 @@ describe("buildRepeatCustomerNotice", () => {
       expect(notice.nameMismatch).toContain("منى حسن");
       expect(notice.nameMismatch).toContain("حسن منى");
     });
+  });
+});
+
+describe("buildCustomerSequenceNote", () => {
+  function context(over: Partial<OrderCustomerContext> = {}): OrderCustomerContext {
+    return {
+      customer_order_index: 1,
+      total_orders: 1,
+      other_open_orders: 0,
+      previous_order_id: null,
+      previous_order_number: null,
+      previous_order_at: null,
+      previous_order_status: null,
+      ...over,
+    };
+  }
+
+  /**
+   * Most customers have one order. A "1 من 1" line on every order page would
+   * be noise, and noise is what stops the repeat case being noticed.
+   */
+  it("shows nothing for a customer with a single order", () => {
+    expect(buildCustomerSequenceNote(context())).toBeNull();
+  });
+
+  it("shows nothing when the lookup was unavailable", () => {
+    expect(buildCustomerSequenceNote(null)).toBeNull();
+  });
+
+  it("states this order's own position, not the customer's total plus one", () => {
+    const note = buildCustomerSequenceNote(context({ customer_order_index: 3, total_orders: 4 }));
+    expect(note?.headline).toContain("رقم 3 من 4");
+  });
+
+  /** The oldest order in a history must read as 1, not as the newest number. */
+  it("numbers the first order in a long history as 1", () => {
+    const note = buildCustomerSequenceNote(context({ customer_order_index: 1, total_orders: 5 }));
+    expect(note?.headline).toContain("رقم 1 من 5");
+  });
+
+  it("warns when the customer has another order still open", () => {
+    const note = buildCustomerSequenceNote(
+      context({ customer_order_index: 2, total_orders: 2, other_open_orders: 1 }),
+    );
+    expect(note?.openWarning).toContain("أوردر آخر");
+    expect(note?.openWarning).toContain("لم يُسلَّم بعد");
+  });
+
+  it("pluralises more than one other open order", () => {
+    const note = buildCustomerSequenceNote(
+      context({ customer_order_index: 4, total_orders: 4, other_open_orders: 2 }),
+    );
+    expect(note?.openWarning).toContain("2 أوردرات أخرى");
+  });
+
+  /**
+   * The order being looked at is itself usually open; counting it would put
+   * a duplicate warning on every single order. The exclusion happens in the
+   * RPC, so what this pins down is that zero means no warning at all.
+   */
+  it("stays quiet when the customer has nothing else open", () => {
+    const note = buildCustomerSequenceNote(
+      context({ customer_order_index: 2, total_orders: 2, other_open_orders: 0 }),
+    );
+    expect(note?.openWarning).toBeNull();
+  });
+
+  it("links the order immediately before this one", () => {
+    const note = buildCustomerSequenceNote(
+      context({
+        customer_order_index: 2,
+        total_orders: 2,
+        previous_order_id: "11111111-1111-1111-1111-111111111111",
+        previous_order_number: "EL-0003",
+        previous_order_at: "2026-06-11T09:00:00Z",
+        previous_order_status: "delivered",
+      }),
+    );
+    expect(note?.previous?.id).toBe("11111111-1111-1111-1111-111111111111");
+    expect(note?.previous?.label).toContain("EL-0003");
+    expect(note?.previous?.label).toContain("تم التسليم");
+  });
+
+  it("offers no link when there is no earlier order", () => {
+    const note = buildCustomerSequenceNote(context({ customer_order_index: 1, total_orders: 3 }));
+    expect(note?.previous).toBeNull();
   });
 });

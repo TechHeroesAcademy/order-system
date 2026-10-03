@@ -1,4 +1,4 @@
-import type { CustomerOrderHistory } from "@/types/database";
+import type { CustomerOrderHistory, OrderCustomerContext } from "@/types/database";
 import { ORDER_STATUS_LABELS_AR } from "@/lib/domain/order-status";
 
 /**
@@ -140,4 +140,57 @@ function formatArabicDate(value: string | null): string | null {
     month: "long",
     day: "numeric",
   }).format(date);
+}
+
+export interface CustomerSequenceNote {
+  /** This order's fixed position in the customer's sequence. */
+  index: number;
+  /** How many that customer has in all, today. */
+  total: number;
+  /** "الأوردر رقم 3 من 4 لهذا العميل" */
+  headline: string;
+  /**
+   * Set when the customer has other orders still in flight. On a field order
+   * nobody approved, this is the duplicate the manager is looking for.
+   */
+  openWarning: string | null;
+  /** The order immediately before this one, when there is one. */
+  previous: { id: string; label: string } | null;
+}
+
+/**
+ * The repeat-customer line on an order's own page.
+ *
+ * Returns null for a customer with a single order — which is most of them.
+ * A "1 من 1" line on every order would be noise, and noise is what stops
+ * the 3-of-4 case from being noticed.
+ */
+export function buildCustomerSequenceNote(
+  context: OrderCustomerContext | null,
+): CustomerSequenceNote | null {
+  if (!context || context.total_orders <= 1) return null;
+
+  const previous =
+    context.previous_order_id && context.previous_order_number
+      ? {
+          id: context.previous_order_id,
+          label:
+            `الأوردر السابق: ${context.previous_order_number}` +
+            (formatArabicDate(context.previous_order_at) ? ` (${formatArabicDate(context.previous_order_at)})` : "") +
+            (context.previous_order_status
+              ? ` — ${ORDER_STATUS_LABELS_AR[context.previous_order_status]}`
+              : ""),
+        }
+      : null;
+
+  return {
+    index: context.customer_order_index,
+    total: context.total_orders,
+    headline: `عميل مكرر — هذا الأوردر رقم ${context.customer_order_index} من ${context.total_orders} لهذا العميل`,
+    openWarning:
+      context.other_open_orders > 0
+        ? `لهذا العميل ${context.other_open_orders === 1 ? "أوردر آخر" : `${context.other_open_orders} أوردرات أخرى`} لم يُسلَّم بعد — راجعه قبل إرسال مندوب مرة ثانية.`
+        : null,
+    previous,
+  };
 }
