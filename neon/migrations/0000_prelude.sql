@@ -89,6 +89,18 @@ begin
   );
 end $$;
 
+-- And for THIS session as well, which the line above does not cover: ALTER
+-- DATABASE sets a default that new connections pick up, so a run that
+-- applies the prelude and the rest of the chain in one session never sees
+-- it. Migration 0004 then fails on
+--
+--   operator class "gin_trgm_ops" does not exist for access method "gin"
+--
+-- because gin_trgm_ops lives in the extensions schema and nothing has put
+-- that schema on the path yet. That is exactly what happens when the whole
+-- chain is pasted into a SQL editor, which is the normal way to set this up.
+set search_path = public, extensions;
+
 -- ── 2. PostgREST's roles, as placeholders only ──────────────────────────
 --
 -- Created NOLOGIN, with no password, purely so the chain's grants resolve.
