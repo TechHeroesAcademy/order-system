@@ -2,14 +2,16 @@
 
 Production-ready order management system for a tailoring/garment business that
 replaces manual phone + WhatsApp/Messenger + paper tracking. Built with
-Next.js (App Router), Supabase (Postgres + Auth + RLS), and Tailwind CSS,
+Next.js (App Router), Neon Postgres (row-level security + SECURITY DEFINER
+RPCs), and Tailwind CSS,
 fully in Arabic with RTL layout and a mobile-first driver interface.
 
 ## Stack
 
 - **Next.js 16** (App Router, Turbopack, Server Actions) + TypeScript
 - **Tailwind CSS v4** + hand-built shadcn/ui-style components (Radix UI primitives)
-- **Supabase**: Postgres, Auth, Row Level Security, SECURITY DEFINER RPCs
+- **Neon Postgres**: row-level security, SECURITY DEFINER RPCs, bcrypt via pgcrypto
+- **Auth**: phone + password, hashed and verified inside Postgres; a signed session cookie
 - **Vercel** for hosting
 - **Zod** + **react-hook-form** for validation
 - **Vitest** + Testing Library for unit tests
@@ -29,10 +31,10 @@ Order created (website or Messenger via Moderator)
 ```
 
 Every transition is enforced **in the database**, not just in the UI: each
-step is a `SECURITY DEFINER` RPC in `supabase/migrations/0009_workflow_rpcs.sql`
+step is a `SECURITY DEFINER` RPC in `supabase/           # still named this: see the note belowmigrations/0009_workflow_rpcs.sql`
 that re-checks the caller's role and the order's current status before doing
 anything. Row Level Security blocks any other direct write. This means the
-workflow can't be bypassed even if someone calls the Supabase API directly.
+workflow can't be bypassed even by a direct database connection.
 
 ## Roles & interfaces
 
@@ -62,7 +64,8 @@ src/
     actions/           Server Actions ("use server") — the only way the client writes data
     data/              Server-only read helpers (Server Components use these)
     domain/            Zod schemas, order-status helpers, formatting — unit tested
-    supabase/          Supabase client factories (browser / server / admin / middleware)
+    db/                connection pool, the per-request identity transaction, query layer
+    auth/              session cookie, the per-request check, sign-in
     auth.ts            requireRole() guard used by every protected page/action
   types/database.ts    Hand-written types mirroring the Postgres schema
 supabase/
@@ -70,35 +73,48 @@ supabase/
   seed.sql             Demo users, regions, and sample orders for local/dev use
 ```
 
+> **Why is there still a `supabase/` folder?** It holds the migration chain,
+> which is plain Postgres SQL and is the single source of truth for the schema
+> — renaming it would rewrite the history of 51 files and break every
+> reference in the docs for no functional gain. Nothing in it depends on
+> Supabase. `neon/` holds only the few files specific to running on Neon.
+
 ## Environment variables
 
 Copy `.env.example` to `.env.local` and fill in the three values from your
-Supabase project (`Project Settings → API`):
+Neon project (`Connection Details`):
 
 ```
-NEXT_PUBLIC_SUPABASE_URL=https://YOUR-PROJECT-REF.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-public-key
-SUPABASE_SERVICE_ROLE_KEY=your-service-role-key   # server-only, never exposed to the browser
+DATABASE_URL=postgresql://app_user:...@ep-xxx-pooler.region.aws.neon.tech/neondb?sslmode=require
+DATABASE_URL_UNPOOLED=postgresql://app_user:...@ep-xxx.region.aws.neon.tech/neondb?sslmode=require
+SESSION_SECRET=at-least-32-random-characters
 ```
 
 The service-role key is used only inside Server Actions (`src/lib/actions/admin.ts`)
-to create staff accounts through the Supabase Admin API — it is never sent to
-the browser and `src/lib/supabase/admin.ts` is marked `server-only` to make
+`DATABASE_URL` is the POOLED connection string. The app sets each request's
+identity with `SET LOCAL` inside a transaction, which is safe through
+PgBouncer's transaction mode; a session-level `SET` would leak between
+requests. `DATABASE_URL_UNPOOLED` is only for migrations and backups.
+
+There is no service-role key and no credential that can read the whole
+database. The pre-login paths run with no identity at all and reach only
+narrow `SECURITY DEFINER` functions that return a status and a role, never a
+password hash. `src/lib/db/*` is marked `server-only` to make
 that a build-time guarantee, not just a convention.
 
 ## Running locally
 
-Requirements: Node.js 20+, a Supabase project (or the Supabase CLI for a local stack).
+Requirements: Node.js 20+ and a Postgres database (a Neon project, or a local Postgres).
 
 ```bash
 npm install
-cp .env.example .env.local     # fill in your Supabase values
+cp .env.example .env.local     # fill in your database URL and session secret
 npm run dev                    # http://localhost:3000
 ```
 
 Before the app is useful you need the database schema and seed data — see
-**DEPLOYMENT.md** for the exact Supabase setup steps (running the migrations
-in `supabase/migrations/`, then `supabase/seed.sql` for demo accounts).
+**DEPLOYMENT.md** for setup from nothing — the six files in `neon/bundled/`
+build the whole schema. **TRANSFER.md** for handing the system to a customer.
 
 ### Scripts
 
