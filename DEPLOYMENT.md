@@ -65,7 +65,14 @@ select (select count(*) from pg_class c join pg_namespace n on n.oid = c.relname
 ```
 
 Expect 15 tables, every one of them with row-level security on, 23 policies,
-and 71 `SECURITY DEFINER` functions.
+and 75 `SECURITY DEFINER` functions.
+
+Better still, run `supabase/maintenance/check_schema_parts.sql`, which names
+a marker object from each part and tells you which one did not finish rather
+than leaving you to compare counts. The counts above go stale every time a
+migration is added — the figure here said 71 until migration 0003 was
+written, and a real setup was checked against it and looked broken when it
+was merely out of date.
 
 ## 3. Set the application's database password
 
