@@ -95,11 +95,11 @@ registered, and nobody gets a notification again until each person re-enables
 it on their own device.
 
 ```bash
-node -e "const w=require('web-push'),c=require('crypto');const k=w.generateVAPIDKeys();
-console.log('NEXT_PUBLIC_VAPID_PUBLIC_KEY='+k.publicKey);
-console.log('VAPID_PRIVATE_KEY='+k.privateKey);
-console.log('PUSH_WEBHOOK_SECRET='+c.randomBytes(32).toString('base64url'));"
+node scripts/generate-push-keys.mjs
 ```
+
+No `npm install` needed — it uses plain Node crypto, so it runs in a bare
+clone. Run it yourself and do not paste the output anywhere.
 
 Keep the output in a password manager. The private key is not recoverable.
 
