@@ -1,5 +1,5 @@
 import type { NextRequest } from "next/server";
-import { updateSession } from "@/lib/supabase/middleware";
+import { updateSession } from "@/lib/auth/proxy-session";
 
 // Next.js 16 renamed `middleware.ts` to `proxy.ts` (same mechanism, new name).
 export function proxy(request: NextRequest) {

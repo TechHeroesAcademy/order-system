@@ -1,14 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@/lib/db/client";
 import { requireRole } from "@/lib/auth";
 import {
   createStaffAccountSchema,
   regionNameSchema,
 } from "@/lib/domain/validators";
-import { normalizePhone } from "@/lib/domain/phone";
 import { extractLatLngFromMapsUrl, isShortMapsUrl } from "@/lib/domain/maps";
 import { ok, fail, toErrorMessage, type ActionResult } from "./types";
 import type { z } from "zod";
@@ -30,67 +28,48 @@ export async function createStaffAccountAction(
     return fail(parsed.error.issues[0]?.message ?? "بيانات غير صالحة");
   }
 
-  const admin = createAdminClient();
-  const normalizedPhone = normalizePhone(parsed.data.phone);
+  const supabase = await createClient();
 
-  const { data: existingPhone } = await admin
-    .from("profiles")
-    .select("id")
-    .eq("phone", normalizedPhone)
-    .maybeSingle();
-  if (existingPhone) return fail("رقم الهاتف مستخدم بالفعل لحساب آخر");
-
-  // Staff sign in with their phone number and a password they set themselves
-  // on first login (see staff-auth.ts) — email is optional and, when left
-  // blank, this internal address is never shown to them or used for login.
-  const email = parsed.data.email?.trim() || `staff-${crypto.randomUUID()}@workers.internal`;
-  const temporaryPassword = crypto.randomUUID();
-
-  const { data, error } = await admin.auth.admin.createUser({
-    email,
-    password: temporaryPassword,
-    email_confirm: true,
-    user_metadata: {
-      full_name: parsed.data.full_name,
-      phone: normalizedPhone,
-      role: parsed.data.role,
+  // One call instead of the five this used to take (uniqueness check,
+  // createUser, a profiles update, a region lookup per area, a
+  // driver_regions insert). It is also atomic, which the old sequence was
+  // not: a failure partway through used to leave an account that existed but
+  // covered no areas, and the error message said as much — "تم إنشاء الحساب
+  // لكن فشل ربط المناطق". There is no such state now.
+  //
+  // No email and no temporary password are involved at all. The account is
+  // created with no password; the worker chooses one at first login, so
+  // there is never a credential for a manager to relay or forget to change.
+  const { data, error } = await supabase.rpc<{ status: string; profile_id: string | null }[]>(
+    "create_staff_account",
+    {
+      p_full_name: parsed.data.full_name,
+      p_phone: parsed.data.phone,
+      p_role: parsed.data.role,
+      p_region_names: parsed.data.role === "driver" ? parsed.data.region_names : [],
     },
-  });
+  );
+  if (error) return fail(toErrorMessage(error, "تعذر إنشاء الحساب"));
 
-  if (error || !data.user) {
-    return fail(toErrorMessage(error, "تعذر إنشاء الحساب"));
+  const row = data?.[0];
+  switch (row?.status) {
+    case "ok":
+      break;
+    case "phone_taken":
+      return fail("رقم الهاتف مستخدم بالفعل لحساب آخر");
+    case "invalid_role":
+      return fail("الدور غير صالح");
+    case "invalid_name":
+      return fail("الاسم قصير جدًا");
+    case "invalid_phone":
+      return fail("رقم الهاتف غير صالح");
+    default:
+      return fail("تعذر إنشاء الحساب");
   }
-
-  // handle_new_user() defaults password_set to true (it doesn't know this
-  // account's password is a random one nobody will ever use) — mark it
-  // false so the phone-login flow makes the new hire set their own.
-  await admin.from("profiles").update({ password_set: false }).eq("id", data.user.id);
-
-  if (parsed.data.role === "driver" && parsed.data.region_names.length > 0) {
-    // Typed area names (migration 0025), not pre-picked ids — resolved
-    // (and auto-created if new) through the same find_or_create_region()
-    // every other region entry point uses, so a name typed here and the
-    // same name typed on an order always resolve to one canonical row.
-    const regionIds: string[] = [];
-    for (const name of parsed.data.region_names) {
-      const { data: regionId, error: regionError } = await admin.rpc("find_or_create_region", {
-        p_name: name,
-      });
-      if (regionError || !regionId) {
-        return fail(toErrorMessage(regionError, "تم إنشاء الحساب لكن فشل ربط المناطق"));
-      }
-      if (!regionIds.includes(regionId as string)) regionIds.push(regionId as string);
-    }
-
-    const rows = regionIds.map((region_id) => ({ driver_id: data.user!.id, region_id }));
-    const { error: regionLinkError } = await admin.from("driver_regions").insert(rows);
-    if (regionLinkError) {
-      return fail(toErrorMessage(regionLinkError, "تم إنشاء الحساب لكن فشل ربط المناطق"));
-    }
-  }
+  if (!row.profile_id) return fail("تعذر إنشاء الحساب");
 
   revalidatePath("/owner/team");
-  return ok({ userId: data.user.id });
+  return ok({ userId: row.profile_id });
 }
 
 export async function setStaffActiveAction(userId: string, isActive: boolean): Promise<ActionResult> {
@@ -127,13 +106,13 @@ export async function resetStaffPasswordAction(userId: string): Promise<ActionRe
     }
   }
 
-  const admin = createAdminClient();
-  const { error } = await admin.auth.admin.updateUserById(userId, {
-    password: crypto.randomUUID(),
-  });
+  // Clears the hash rather than setting a random one, which is what the old
+  // code did with a UUID nobody could ever type. Same outcome for the
+  // worker — they choose a password at next login — but the account spends
+  // no time holding a credential that exists and is unusable. Also clears
+  // the lockout counter, so this doubles as "unlock this account".
+  const { error } = await supabase.rpc("auth_reset_password", { p_profile_id: userId });
   if (error) return fail(toErrorMessage(error));
-
-  await admin.from("profiles").update({ password_set: false }).eq("id", userId);
 
   revalidatePath("/owner/team");
   return ok(undefined);
@@ -227,8 +206,11 @@ export async function deleteStaffAccountAction(
     }
   }
 
-  const admin = createAdminClient();
-  const { error } = await admin.auth.admin.deleteUser(userId);
+  // Was GoTrue's deleteUser, which cascaded to profiles. Now the reverse:
+  // profiles is the account, and credentials cascade from it. The RPC also
+  // refuses to remove the last active owner or the caller's own account,
+  // which nothing enforced before.
+  const { error } = await supabase.rpc("delete_staff_profile", { p_profile_id: userId });
   if (error) {
     return fail(
       toErrorMessage(error, "تم نقل أوردرات المندوب لكن تعذر حذف الحساب — الحساب موقوف الآن، أعد المحاولة"),
@@ -356,10 +338,14 @@ export async function createRegionAction(
   if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? "اسم غير صالح");
 
   const supabase = await createClient();
-  const { data, error } = await supabase.from("regions").insert({ name: parsed.data.name }).select("id").single();
-  if (error) return fail(toErrorMessage(error, "تعذر إضافة المنطقة (ربما موجودة بالفعل)"));
+  const { data, error } = await supabase
+    .from("regions")
+    .insert({ name: parsed.data.name })
+    .select("id")
+    .single<{ id: string }>();
+  if (error || !data) return fail(toErrorMessage(error, "تعذر إضافة المنطقة (ربما موجودة بالفعل)"));
 
   revalidatePath("/owner/team");
   revalidatePath("/order/new");
-  return ok({ id: data.id as string });
+  return ok({ id: data.id });
 }

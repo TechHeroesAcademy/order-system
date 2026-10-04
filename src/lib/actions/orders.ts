@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/db/client";
 import { requireRole } from "@/lib/auth";
 import { orderFormSchema, editOrderSchema, trackOrderSchema } from "@/lib/domain/validators";
 import { listAllOrdersForExport } from "@/lib/data/orders";

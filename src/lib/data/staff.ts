@@ -1,5 +1,5 @@
 import "server-only";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/db/client";
 import type { Profile, UserRole } from "@/types/database";
 
 export async function listStaff(role?: UserRole): Promise<Profile[]> {

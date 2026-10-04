@@ -1,48 +1,53 @@
 import "server-only";
 import { redirect } from "next/navigation";
-import { headers } from "next/headers";
-import { createClient } from "@/lib/supabase/server";
-import { VERIFIED_PROFILE_HEADER } from "@/lib/supabase/middleware";
+import { cookies, headers } from "next/headers";
+import { createClient } from "@/lib/db/client";
+import { VERIFIED_PROFILE_HEADER } from "@/lib/auth/proxy-session";
+import { SESSION_COOKIE, verifySession } from "@/lib/auth/session";
+import { decodeIdentityHeader } from "@/lib/auth/header-codec";
 import type { Profile, UserRole } from "@/types/database";
 
 /**
- * Current authenticated user's profile, or null if not logged in.
+ * The signed-in person's profile, or null.
  *
- * Middleware (src/lib/supabase/middleware.ts) already runs on every request
- * that reaches here — it calls supabase.auth.getUser() (a verified round-trip
- * to the Auth API, not just a cookie read) and loads this exact profile row,
- * purely to decide whether the request is even allowed into the area it's
- * requesting. Re-doing both of those from scratch here, on every navigation,
- * used to double the auth cost of every single page load — a real
- * contributor to "moving between tabs feels slow", separate from the
- * notification-fetching fix in app-shell.tsx. So this reuses what
- * middleware already verified via a request header, and only falls back to
- * the real lookup when that header isn't present (middleware not having run
- * for this request, or a malformed value).
+ * src/lib/auth/proxy-session.ts has already verified the session for this
+ * request and forwarded the identity in a header, so the common path is a
+ * header read and nothing else — no network call, no database query. That
+ * header is trustworthy only because the proxy deletes any client-supplied
+ * copy before setting its own from a signature it just checked.
+ *
+ * It used to be worse than a header read: the proxy called GoTrue over the
+ * network and queried profiles, and then this function did both again on
+ * every navigation. Two round trips per page became zero.
+ *
+ * The fallback below covers a request the proxy did not run for — a Server
+ * Action invoked directly, or a path the matcher excludes.
  */
 export async function getCurrentProfile(): Promise<Profile | null> {
-  const forwarded = (await headers()).get(VERIFIED_PROFILE_HEADER);
-  if (forwarded) {
-    try {
-      return JSON.parse(forwarded) as Profile;
-    } catch {
-      // Fall through to the real lookup below.
-    }
-  }
+  const forwarded = decodeIdentityHeader<Profile>(
+    (await headers()).get(VERIFIED_PROFILE_HEADER),
+  );
+  if (forwarded?.id) return forwarded;
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return null;
+  // The proxy did not run for this request (a Server Action invoked
+  // directly, or a path the matcher excludes). Verify the cookie here
+  // instead — an HMAC check, no network — and then load the full row under
+  // RLS, because the cookie carries only identity and role.
+  const session = await verifySession((await cookies()).get(SESSION_COOKIE)?.value);
+  if (!session) return null;
 
-  const { data: profile } = await supabase
+  const db = await createClient();
+  const { data: profile } = await db
     .from("profiles")
     .select("*")
-    .eq("id", user.id)
-    .single();
+    .eq("id", session.sub)
+    .maybeSingle<Profile>();
 
-  return (profile as Profile) ?? null;
+  // profiles_select_self is `id = auth.uid()`, so this returns the row for a
+  // deactivated account too — requireRole() below is what turns them away.
+  // Deliberate: the account-inactive page needs to be able to say whose
+  // account it is.
+  return profile ?? null;
 }
 
 /**

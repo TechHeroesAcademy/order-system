@@ -1,5 +1,5 @@
 import "server-only";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/db/client";
 import { TERMINAL_STATUSES } from "@/lib/domain/order-status";
 import type {
   DashboardStats,
@@ -69,9 +69,11 @@ export async function listOrders(filters: OrderFilters = {}): Promise<OrderListR
   }
   if (filters.search?.trim()) {
     const term = filters.search.trim();
-    query = query.or(
-      `order_number.ilike.%${term}%,customer_name.ilike.%${term}%,customer_phone.ilike.%${term}%`,
-    );
+    // Explicit columns rather than PostgREST's filter string. The old form
+    // interpolated the search term into a comma-and-dot-delimited grammar,
+    // so a term containing a comma or a dot changed which columns were
+    // searched; this binds one parameter and names the columns in code.
+    query = query.orIlike(["order_number", "customer_name", "customer_phone"], term);
   }
   if (filters.dateFrom) {
     query = query.gte("created_at", filters.dateFrom);

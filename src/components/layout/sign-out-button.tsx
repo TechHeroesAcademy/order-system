@@ -3,7 +3,7 @@
 import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { LogOut } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
+import { signOutAction } from "@/lib/actions/staff-auth";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 
 export function SignOutButton() {
@@ -12,8 +12,10 @@ export function SignOutButton() {
 
   function handleSignOut() {
     startTransition(async () => {
-      const supabase = createClient();
-      await supabase.auth.signOut();
+      // A Server Action rather than a browser call. The session cookie is
+      // httpOnly, which is the point of it — no script can read it, and no
+      // script can clear it either. Only the server can.
+      await signOutAction();
       router.replace("/login");
       router.refresh();
     });

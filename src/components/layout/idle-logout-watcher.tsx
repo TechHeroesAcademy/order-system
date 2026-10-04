@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
+import { signOutAction } from "@/lib/actions/staff-auth";
 
 const IDLE_LIMIT_MS = 10 * 60 * 1000;
 const ACTIVITY_EVENTS = ["mousedown", "mousemove", "keydown", "touchstart", "scroll"] as const;
@@ -18,8 +18,11 @@ export function IdleLogoutWatcher() {
 
   useEffect(() => {
     function signOutForInactivity() {
-      const supabase = createClient();
-      supabase.auth.signOut().finally(() => {
+      // The cookie is httpOnly, so clearing it has to happen on the server.
+      // The redirect runs either way: if the call fails, the person must
+      // still end up off the page they walked away from, and the proxy will
+      // turn them back at the door.
+      signOutAction().finally(() => {
         router.replace("/login");
         router.refresh();
       });

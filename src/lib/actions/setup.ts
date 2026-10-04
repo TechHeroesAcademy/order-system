@@ -1,32 +1,52 @@
 "use server";
 
-import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
-import { normalizePhone } from "@/lib/domain/phone";
+import { createAdminClient } from "@/lib/db/client";
+import { issueSession } from "@/lib/auth/sign-in";
 import { bootstrapOwnerSchema } from "@/lib/domain/validators";
-import { ok, fail, toErrorMessage, type ActionResult } from "./types";
+import { ok, fail, type ActionResult } from "./types";
 import type { z } from "zod";
+import type { UserRole } from "@/types/database";
 
 /**
- * Whether the system already has an Owner account. Used both to decide what
- * /setup renders (UX) and, again, inside bootstrapOwnerAction right before
- * creating the account (enforcement) — the page-level check alone isn't
- * enough since it runs once at request time.
+ * Whether the system already has an owner. Decides what /setup renders.
+ *
+ * Runs with no identity, which is the only way it can: there is nobody
+ * signed in when this is asked. It reaches profiles through the same
+ * SECURITY DEFINER path everything else does — owner_exists() below is a
+ * plain count, and the only thing it reveals is a boolean that the /setup
+ * page displays anyway.
  */
 export async function ownerExists(): Promise<boolean> {
-  const admin = createAdminClient();
-  const { count } = await admin
+  const db = createAdminClient();
+  const { count, error } = await db
     .from("profiles")
     .select("id", { count: "exact", head: true })
     .eq("role", "owner");
+
+  // Fail closed: if the count cannot be read, assume an owner DOES exist, so
+  // a database hiccup cannot briefly re-open the one-time bootstrap to
+  // whoever happens to load /setup at that moment.
+  //
+  // Logged rather than silent, because this exact silence cost real time
+  // once: the pool was refusing to connect (it forced TLS at a database that
+  // does not speak it) and /setup calmly reported the system was already set
+  // up. "Already configured" and "the database is unreachable" must not look
+  // the same from the outside.
+  if (error) {
+    console.error("[setup] ownerExists() could not read profiles:", error.message);
+    return true;
+  }
   return (count ?? 0) > 0;
 }
 
 /**
- * One-time, self-service Owner bootstrap — replaces the old "create the
- * first account via the Supabase dashboard with an email" instructions.
- * No email is ever involved: the Owner picks their own phone number and
- * password right here, and signs themselves in immediately after.
+ * One-time owner bootstrap. The first account in a fresh system.
+ *
+ * The guard that makes this safe is in the database, not here:
+ * bootstrap_owner() takes a row lock on the owner check before inserting, so
+ * two people hitting /setup at the same moment cannot both become owner —
+ * the second waits, sees the first, and is refused. The check in this file
+ * is just a faster "no" for the common case.
  */
 export async function bootstrapOwnerAction(
   input: z.infer<typeof bootstrapOwnerSchema>,
@@ -34,49 +54,42 @@ export async function bootstrapOwnerAction(
   const parsed = bootstrapOwnerSchema.safeParse(input);
   if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? "بيانات غير صالحة");
 
-  if (await ownerExists()) {
-    return fail("تم إعداد حساب المدير بالفعل — سجّل الدخول من صفحة الدخول");
-  }
-
-  const admin = createAdminClient();
-  const normalizedPhone = normalizePhone(parsed.data.phone);
-
-  const { data: existingPhone } = await admin
-    .from("profiles")
-    .select("id")
-    .eq("phone", normalizedPhone)
-    .maybeSingle();
-  if (existingPhone) return fail("رقم الهاتف مستخدم بالفعل لحساب آخر");
-
-  // Synthetic internal address — never shown to the Owner or used for login.
-  // Unlike staff accounts, the Owner sets their own real password right now,
-  // so password_set stays at its default (true): no "create a password"
-  // step needed the first time they log in with their phone number.
-  const email = `owner-${crypto.randomUUID()}@workers.internal`;
-
-  const { data, error } = await admin.auth.admin.createUser({
-    email,
-    password: parsed.data.password,
-    email_confirm: true,
-    user_metadata: {
-      full_name: parsed.data.full_name,
-      phone: normalizedPhone,
-      role: "owner",
+  const db = createAdminClient();
+  const { data, error } = await db.rpc<{ status: string; profile_id: string | null }[]>(
+    "bootstrap_owner",
+    {
+      p_full_name: parsed.data.full_name,
+      p_phone: parsed.data.phone,
+      p_password: parsed.data.password,
     },
-  });
+  );
+  if (error) return fail("تعذر إنشاء الحساب");
 
-  if (error || !data.user) {
-    return fail(toErrorMessage(error, "تعذر إنشاء الحساب"));
+  const row = data?.[0];
+  switch (row?.status) {
+    case "ok":
+      break;
+    case "already_set_up":
+      return fail("تم إعداد حساب المدير بالفعل — سجّل الدخول من صفحة الدخول");
+    case "phone_taken":
+      return fail("رقم الهاتف مستخدم بالفعل لحساب آخر");
+    case "weak_password":
+      return fail("كلمة المرور 6 أحرف على الأقل");
+    case "invalid_name":
+      return fail("الاسم قصير جدًا");
+    case "invalid_phone":
+      return fail("رقم الهاتف غير صالح");
+    default:
+      return fail("تعذر إنشاء الحساب");
   }
 
-  const supabase = await createClient();
-  const { error: signInErr } = await supabase.auth.signInWithPassword({
-    email,
-    password: parsed.data.password,
+  if (!row.profile_id) return fail("تعذر إنشاء الحساب");
+
+  await issueSession({
+    id: row.profile_id,
+    role: "owner" satisfies UserRole,
+    full_name: parsed.data.full_name,
   });
-  if (signInErr) {
-    return fail("تم إنشاء الحساب، لكن فشل تسجيل الدخول التلقائي — سجّل الدخول من صفحة الدخول برقم هاتفك");
-  }
 
   return ok(undefined);
 }
