@@ -26,8 +26,12 @@
 -- decorative, and never remove it.
 --
 -- Apply this only to a Neon (or other non-Supabase) Postgres database that
--- already has migrations 0001-0032 from supabase/migrations/ replayed
--- against it. Never apply it to the live Supabase project.
+-- already has 0000_prelude.sql applied and then EVERY migration in
+-- supabase/migrations/ replayed against it (0001-0050 at the time of
+-- writing -- stated as "every" rather than a fixed range on purpose: a
+-- hardcoded number goes stale the next time a migration is added, and
+-- silently under-applies the schema). Never apply it to the live Supabase
+-- project.
 
 do $$
 begin
@@ -148,19 +152,111 @@ begin
   end if;
 end $$;
 
-revoke all on schema public from anon, authenticated;
+-- Strip every privilege the PostgREST roles were granted by the chain, and
+-- only if they exist at all: a bare `revoke ... from anon` against a
+-- database without them fails outright and takes the rest of this file
+-- with it.
+do $$
+declare r text;
+begin
+  foreach r in array array['anon', 'authenticated', 'service_role'] loop
+    if exists (select 1 from pg_roles where rolname = r) then
+      execute format('revoke all on schema public from %I', r);
+      execute format('revoke all on all tables in schema public from %I', r);
+      execute format('revoke all on all functions in schema public from %I', r);
+      execute format('revoke all on all sequences in schema public from %I', r);
+    end if;
+  end loop;
+end $$;
+
+-- ── why `authenticated` SURVIVES, stripped bare ─────────────────────────
+--
+-- 20 of the 23 policies in this schema are written `to public`, so they
+-- apply to whatever role connects. Four are not: factories_select,
+-- manager_factories_select, push_subscriptions_select_own and
+-- push_subscriptions_delete_own are scoped `to authenticated`, which was
+-- invisible until the whole chain was replayed and queried as app_user.
+--
+-- A policy scoped to a role the connecting role is not a member of simply
+-- does not apply, and with RLS on and no applicable policy the answer is
+-- zero rows — no error, nothing in a log. The failure that was heading for
+-- production: after cutover the team page lists no factories, order
+-- creation cannot pick one (and a factory is mandatory), and the push
+-- setup card shows no registered devices. It would have looked exactly
+-- like the data had not copied across.
+--
+-- So `authenticated` is kept as a NOLOGIN role holding no privileges of its
+-- own — everything it had was revoked above — and app_user is made a
+-- member purely so those four policies apply to it. Nothing can
+-- authenticate as it: no password is set for it here or anywhere.
+--
+-- The alternative was rewriting those four policies to `to public`. This is
+-- better: supabase/migrations/ stays the single source of truth for both
+-- databases, and a policy written `to authenticated` next month — the
+-- normal thing to write against Supabase — keeps working here without
+-- anyone remembering this.
+do $$
+begin
+  if not exists (select 1 from pg_roles where rolname = 'authenticated') then
+    create role authenticated nologin;
+  end if;
+end $$;
+
+-- `anon` and `service_role` get no such treatment. No policy is scoped to
+-- anon, and the only things ever granted to it were public_create_order and
+-- track_order; service_role was PostgREST's RLS bypass and is replaced by
+-- the SECURITY DEFINER lookups described below. Dropped rather than left
+-- lying around, so nothing can be granted back to them by accident.
+do $$
+begin
+  if exists (select 1 from pg_roles where rolname = 'anon') then
+    drop owned by anon;
+    drop role anon;
+  end if;
+  if exists (select 1 from pg_roles where rolname = 'service_role') then
+    drop owned by service_role;
+    drop role service_role;
+  end if;
+end $$;
+
 grant usage on schema public to app_user;
 
 grant select, update on public.profiles to app_user;
-grant select on public.regions to app_user;
-grant insert, update, delete on public.regions to app_user;
+grant select, insert, update, delete on public.regions to app_user;
 grant select, insert, update, delete on public.driver_regions to app_user;
 grant select, insert, update on public.orders to app_user;
 grant select on public.order_history to app_user;
 grant select, insert, update on public.order_messages to app_user;
 grant select, update on public.notifications to app_user;
-grant select on public.factory_orders_view to app_user;
+
+-- The tables migrations 0033-0050 added. Without these the app comes up
+-- after cutover and fails with "permission denied for table factories" on
+-- the first page that lists a factory — which is the team page, the order
+-- page and order creation. Measured against the live catalog rather than
+-- guessed: these are exactly the tables app code reads directly
+-- (src/lib/data/factories.ts, src/lib/data/staff.ts, and the push dispatch
+-- route) and that this file did not previously cover.
+grant select, insert, update, delete on public.factories to app_user;
+grant select on public.manager_factories to app_user;
+grant select, insert, update, delete on public.push_subscriptions to app_user;
+
+-- Deliberately NOT granted, and this is the security property rather than
+-- an omission: order_delivery_codes, order_pickup_codes, app_settings and
+-- push_outbox have row level security on with zero policies, so even a
+-- correct session reaches them only through a SECURITY DEFINER function
+-- that decides what to reveal. Verified as app_user with an authenticated
+-- identity set: a direct select on any of them raises 42501.
+--
+-- factory_orders_view, which an earlier version of this file granted, was
+-- dropped in migration 0038 when factories stopped being accounts. The
+-- grant aborted this entire file against any schema past 0038 — found by
+-- replaying the real chain rather than by reading it.
+
 grant execute on all functions in schema public to app_user;
+
+-- Membership, not privilege: see the note above. This is what makes the
+-- four `to authenticated` policies apply to the role the app connects as.
+grant authenticated to app_user;
 
 -- ── admin/service-role equivalent (pre-login phone lookup) ──────────────
 -- Supabase's createAdminClient() used the service_role key to bypass RLS
@@ -173,10 +269,33 @@ grant execute on all functions in schema public to app_user;
 -- NOTE: same as app_user above — NOLOGIN here, real password set
 -- out-of-band, never committed. Phase 2/3 wires the app to use this role
 -- only for the pre-login lookup, never anywhere authenticated.
+-- NOTE ON BYPASSRLS AND NEON: Neon's owner role is a member of
+-- neon_superuser, which holds BYPASSRLS, but Postgres role attributes are
+-- not inherited through membership, and from PG16 a CREATEROLE role may
+-- only grant BYPASSRLS if it holds that attribute itself. So this CREATE
+-- may be refused on Neon. Check before relying on it:
+--
+--   select rolcreaterole, rolbypassrls from pg_roles
+--    where rolname = current_user;
+--
+-- It does not matter much either way, because the design below does not
+-- need it: the pre-login lookups go through a SECURITY DEFINER function
+-- owned by the tables' owner, which already sees past RLS for the duration
+-- of the call and reveals only what it returns. That is strictly less
+-- privilege than a role that bypasses RLS on everything, so prefer it even
+-- where BYPASSRLS is available. app_admin is kept as a narrow fallback.
 do $$
 begin
   if not exists (select 1 from pg_roles where rolname = 'app_admin') then
-    create role app_admin nologin bypassrls;
+    begin
+      create role app_admin nologin bypassrls;
+    exception when insufficient_privilege or feature_not_supported then
+      create role app_admin nologin;
+      raise notice
+        'app_admin created WITHOUT bypassrls (this database would not grant '
+        'it). Use SECURITY DEFINER lookup functions for the pre-login path; '
+        'see the migration guide.';
+    end;
   end if;
 end $$;
 

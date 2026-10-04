@@ -13,15 +13,20 @@ The migration file itself has a guard at the top that aborts if it detects Supab
 ## Applying this today (Phase 0/1 only — no production impact)
 
 1. Create a Neon project (or a disposable Neon branch for testing).
-2. Apply every migration in `supabase/migrations/`, in numeric order, exactly as `DEPLOYMENT.md` describes for a fresh Supabase project — that whole chain is portable as-is. (Stated as "all of them" rather than a fixed range on purpose: a hardcoded number goes stale the next time a migration is added, and silently under-applies the schema.)
-3. Apply `neon/migrations/0001_auth_shim.sql`.
-4. Set real login passwords for the `app_user` and `app_admin` roles this migration creates — **never in a committed file**:
+2. Apply `neon/migrations/0000_prelude.sql` **first**. The chain is *not* portable as-is — measured, not assumed: it issues 90 `grant … to authenticated` and 10 `to anon` against roles only Supabase creates, it assumes an `extensions` schema and an `auth.users` table, and migration 0041 does `create extension pg_net`, which Neon does not have. The prelude supplies a stand-in for each of those so the chain itself needs no edits.
+3. Apply every migration in `supabase/migrations/`, in numeric order, unmodified — with one substitution: use `neon/migrations/0041_push_dispatch_trigger.neon.sql` in place of `0041`. It is the same file with the `create extension pg_net` line commented out, which is the one Supabase-ism that cannot be faked (Postgres wants a control file on the server's filesystem). `diff` the two and that is the only hunk. (Stated as "every migration" rather than a fixed range on purpose: a hardcoded number goes stale the next time a migration is added, and silently under-applies the schema.)
+4. Apply `neon/migrations/0001_auth_shim.sql`.
+5. Set real login passwords for the `app_user` and `app_admin` roles this migration creates — **never in a committed file**:
    ```sql
    alter role app_user with login password '<generate one, store it in your secrets manager>';
    alter role app_admin with login password '<a different one>';
    ```
 
 Verified locally (disposable Postgres database standing in for Neon, since Neon is itself just Postgres): the schema replays cleanly end to end, `auth.uid()` returns `NULL` until `set_current_profile_id()` is called and the right value after, and — checked against a real non-superuser connection with RLS actually enforced, not bypassed — a driver can see only their own `profiles` row, and an unauthenticated connection (no session set) sees zero rows.
+
+## The step-by-step commands
+
+`neon/RUNBOOK.md` has the full runbook — pre-flight checks, every command in order, the verification gate and the cutover. The reasoning and the phase plan are in the "neon-migration-guide" doc in this project's Claude project.
 
 ## What's still ahead
 
