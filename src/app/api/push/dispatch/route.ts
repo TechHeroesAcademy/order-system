@@ -19,6 +19,21 @@ import type { UserRole } from "@/types/database";
  */
 export const runtime = "nodejs";
 
+/** One row per registered device; the notification fields repeat across them. */
+interface PushTarget {
+  notification_id: string;
+  order_id: string | null;
+  notification_type: string;
+  title: string;
+  body: string | null;
+  recipient_role: UserRole | null;
+  recipient_active: boolean;
+  subscription_id: string | null;
+  endpoint: string | null;
+  p256dh: string | null;
+  auth_secret: string | null;
+}
+
 /** Where tapping the notification should land, matching the bell's own routing. */
 const ORDER_DETAIL_BASE: Record<UserRole, string> = {
   owner: "/owner/orders",
@@ -72,54 +87,59 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "bad request" }, { status: 400 });
   }
 
-  // Service role, because this reads another person's notification and their
-  // device endpoints — there is no session here to scope RLS by, and this is
-  // the one context in the system that legitimately needs a cross-user read.
-  // Everything it can do is bounded by the id it was handed.
+  // No identity at all, and one SECURITY DEFINER function instead of three
+  // cross-user reads.
+  //
+  // This route is called by the database, not a browser, so it has no
+  // session — and it has to read one person's notification, their profile
+  // and their registered devices, which is the only deliberate cross-user
+  // read in the system. Under Supabase a service-role key made that work by
+  // ignoring row-level security everywhere.
+  //
+  // With that key gone, the three queries this used to make would each
+  // return zero rows and NO error: notifications_select_own and
+  // push_subscriptions_select_own both compare user_id to auth.uid(), which
+  // is NULL here. The route would answer {"sent":0,"reason":"not found"}
+  // forever and nothing would reach a phone — invisible, because the in-app
+  // bell keeps working. push_dispatch_payload (migration 0003) returns
+  // exactly what is needed for one notification id, which is a far narrower
+  // grant than the key it replaces.
   const admin = createAdminClient();
 
-  const { data: notification, error: notificationError } = await admin
-    .from("notifications")
-    .select("id, user_id, order_id, type, title, body")
-    .eq("id", notificationId)
-    .maybeSingle();
+  const { data: rows, error: lookupError } = await admin.rpc<PushTarget[]>(
+    "push_dispatch_payload",
+    { p_notification_id: notificationId },
+  );
 
-  if (notificationError) {
+  if (lookupError) {
     return NextResponse.json({ error: "lookup failed" }, { status: 500 });
   }
-  if (!notification) {
-    // Already deleted, or an id that never existed. Nothing to do, and no
-    // reason for pg_net to retry.
+  if (!rows?.length) {
+    // An unknown id, an already-deleted notification, or a recipient who has
+    // been deactivated. Nothing to do and no reason to retry.
     return NextResponse.json({ ok: true, sent: 0, reason: "not found" });
   }
 
-  const { data: recipient } = await admin
-    .from("profiles")
-    .select("role, is_active")
-    .eq("id", notification.user_id)
-    .maybeSingle();
+  const notification = rows[0];
+  // A left join, so a recipient with no registered device produces one row
+  // with a null subscription. That is the ordinary case for anyone who has
+  // not turned notifications on, not a failure — the bell already has it.
+  const subscriptions = rows
+    .filter((r) => r.subscription_id && r.endpoint && r.p256dh && r.auth_secret)
+    .map((r) => ({
+      id: r.subscription_id as string,
+      endpoint: r.endpoint as string,
+      p256dh: r.p256dh as string,
+      auth: r.auth_secret as string,
+    }));
 
-  if (!recipient?.is_active) {
-    return NextResponse.json({ ok: true, sent: 0, reason: "inactive recipient" });
-  }
-
-  const { data: subscriptions, error: subscriptionError } = await admin
-    .from("push_subscriptions")
-    .select("id, endpoint, p256dh, auth")
-    .eq("user_id", notification.user_id);
-
-  if (subscriptionError) {
-    return NextResponse.json({ error: "lookup failed" }, { status: 500 });
-  }
-  if (!subscriptions?.length) {
-    // The normal case for anyone who hasn't turned notifications on. Not a
-    // failure — the in-app bell already has the notification.
+  if (!subscriptions.length) {
     return NextResponse.json({ ok: true, sent: 0, reason: "no devices" });
   }
 
   webpush.setVapidDetails(subject, publicKey, privateKey);
 
-  const role = (recipient.role ?? "driver") as UserRole;
+  const role = (notification.recipient_role ?? "driver") as UserRole;
   const url = notification.order_id
     ? `${ORDER_DETAIL_BASE[role]}/${notification.order_id}`
     : `/${role}`;
@@ -130,12 +150,12 @@ export async function POST(request: Request) {
     url,
     // One live notification per order per device: a second message on an
     // order replaces the first rather than stacking up a column of them.
-    tag: notification.order_id ? `order-${notification.order_id}` : notification.type,
+    tag: notification.order_id ? `order-${notification.order_id}` : notification.notification_type,
     // A new order is the one thing a driver must not scroll past, so it
     // stays on screen until they acknowledge it. Chat does not — messages
     // arrive often enough that a sticky notification each time would be an
     // irritation rather than a help.
-    requireInteraction: notification.type === "order_assigned",
+    requireInteraction: notification.notification_type === "order_assigned",
   });
 
   const results = await Promise.allSettled(
@@ -191,14 +211,14 @@ export async function POST(request: Request) {
     errors.push(`${host} → ${status ?? "no status"}: ${detail}`);
   });
 
+  // Through functions for the same reason as the read: with no identity,
+  // push_subscriptions_delete_own matches nothing, so a direct delete would
+  // silently remove zero dead endpoints and they would be retried forever.
   if (gone.length) {
-    await admin.from("push_subscriptions").delete().in("id", gone);
+    await admin.rpc("push_prune_subscriptions", { p_ids: gone });
   }
   if (delivered.length) {
-    await admin
-      .from("push_subscriptions")
-      .update({ last_success_at: new Date().toISOString(), failure_count: 0 })
-      .in("id", delivered);
+    await admin.rpc("push_mark_delivered", { p_ids: delivered });
   }
   if (failed.length) {
     // One round trip rather than one per row; the count is advisory, so a

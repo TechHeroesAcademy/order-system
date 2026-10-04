@@ -18,14 +18,21 @@ import type { UserRole } from "@/types/database";
  */
 export async function ownerExists(): Promise<boolean> {
   const db = createAdminClient();
-  const { count, error } = await db
-    .from("profiles")
-    .select("id", { count: "exact", head: true })
-    .eq("role", "owner");
 
-  // Fail closed: if the count cannot be read, assume an owner DOES exist, so
-  // a database hiccup cannot briefly re-open the one-time bootstrap to
-  // whoever happens to load /setup at that moment.
+  // owner_exists() rather than a count of profiles. This runs before anyone
+  // is signed in, so there is no identity — and profiles_select_staff needs
+  // a role, which means a count here always came back 0 and /setup offered
+  // the "create the first owner" form to every visitor forever, on a system
+  // that had been running for months. Not exploitable (bootstrap_owner takes
+  // a row lock on the same check and refuses), but not something to leave
+  // standing either.
+  //
+  // The function returns one bit and nothing else, because it is reachable
+  // without a session.
+  const { data, error } = await db.rpc<boolean>("owner_exists");
+
+  // Fail closed: if it cannot be read, assume an owner DOES exist, so a
+  // database hiccup cannot briefly re-open the one-time bootstrap.
   //
   // Logged rather than silent, because this exact silence cost real time
   // once: the pool was refusing to connect (it forced TLS at a database that
@@ -33,10 +40,10 @@ export async function ownerExists(): Promise<boolean> {
   // up. "Already configured" and "the database is unreachable" must not look
   // the same from the outside.
   if (error) {
-    console.error("[setup] ownerExists() could not read profiles:", error.message);
+    console.error("[setup] owner_exists() failed:", error.message);
     return true;
   }
-  return (count ?? 0) > 0;
+  return data === true;
 }
 
 /**

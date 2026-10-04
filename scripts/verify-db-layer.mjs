@@ -354,6 +354,93 @@ async function main() {
   });
   check("range(0, 0) yields exactly one row", paged === 1, `got ${paged}`);
 
+  // ── the two paths that have no session at all ─────────────────────────
+  //
+  // Both worked under Supabase only because the service-role key ignored
+  // row-level security, and both broke SILENTLY when it went away — which is
+  // why they are asserted here rather than trusted.
+  console.log("\n=== the service paths, with no session ===");
+
+  const ownerFlag = await asUser(null, async (c) =>
+    (await c.query("select public.owner_exists() as v")).rows[0].v,
+  );
+  check(
+    "owner_exists() is true once an owner exists (what /setup reads)",
+    ownerFlag === true,
+    String(ownerFlag),
+  );
+
+  // For contrast, and to show why the function is needed: the count this
+  // replaced still returns 0, because profiles_select_staff needs a role.
+  const naiveCount = await asUser(null, async (c) =>
+    Number((await c.query("select count(*)::text as n from public.profiles where role = 'owner'")).rows[0].n),
+  );
+  check(
+    "a direct count of owners still returns 0 — RLS, as expected",
+    naiveCount === 0,
+    `got ${naiveCount}`,
+  );
+
+  // Register a device as the driver, the way their phone would.
+  await asUser(driverId, (c) =>
+    c.query("select public.save_push_subscription($1, $2, $3, $4)", [
+      `https://push.example/${randomUUID()}`,
+      "test-p256dh",
+      "test-auth",
+      "verify-db-layer",
+    ]),
+  );
+  await asUser(ownerId, (c) =>
+    c.query(
+      "select public.notify_user($1, null, 'order_assigned', 'أوردر جديد', 'تم إسناد أوردر لك')",
+      [driverId],
+    ),
+  );
+
+  // The id reaches the real route in the request body, put there by the
+  // database trigger. Read it as the DRIVER here, because
+  // notifications_select_own means nobody else can see it — which is exactly
+  // why push_dispatch_payload has to exist.
+  const notifId = await asUser(driverId, async (c) =>
+    (await c.query("select id from public.notifications order by created_at desc limit 1")).rows[0]?.id,
+  );
+  check("a notification exists for the driver", Boolean(notifId));
+
+  const targets = await asUser(null, async (c) =>
+    (await c.query("select * from public.push_dispatch_payload($1)", [notifId])).rows,
+  );
+  check(
+    "push_dispatch_payload returns the notification and the device with NO session",
+    targets.length > 0 &&
+      Boolean(targets[0].endpoint) &&
+      Boolean(targets[0].p256dh) &&
+      Boolean(targets[0].auth_secret) &&
+      targets[0].recipient_role === "driver",
+    `rows=${targets.length}`,
+  );
+
+  for (const table of ["notifications", "push_subscriptions"]) {
+    const n = await asUser(null, async (c) =>
+      Number((await c.query(`select count(*)::text as n from public.${table}`)).rows[0].n),
+    );
+    check(
+      `a direct read of ${table} with no session returns nothing (why the route needs the function)`,
+      n === 0,
+      `got ${n}`,
+    );
+  }
+
+  const subIds = targets.map((t) => t.subscription_id).filter(Boolean);
+  const marked = await asUser(null, async (c) =>
+    (await c.query("select public.push_mark_delivered($1) as n", [subIds])).rows[0].n,
+  );
+  check("push_mark_delivered records a successful send", marked === subIds.length, String(marked));
+
+  const pruned = await asUser(null, async (c) =>
+    (await c.query("select public.push_prune_subscriptions($1) as n", [subIds])).rows[0].n,
+  );
+  check("push_prune_subscriptions removes a dead endpoint", pruned === subIds.length, String(pruned));
+
   console.log(`\n=== ${passed} passed, ${failures.length} failed ===\n`);
   if (failures.length) {
     for (const f of failures) console.log(`  - ${f}`);

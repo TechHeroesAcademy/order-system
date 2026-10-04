@@ -49,8 +49,23 @@ const chain = readdirSync("supabase/migrations")
   });
 
 const PRELUDE = "neon/migrations/0000_prelude.sql";
-const SHIM = "neon/migrations/0001_auth_shim.sql";
-const LOCAL_AUTH = "neon/migrations/0002_local_auth.sql";
+
+/**
+ * Every Neon-specific migration after the prelude, discovered rather than
+ * listed. This file used to name 0001 and 0002 explicitly, and when 0003 was
+ * added it was silently left out of the bundles — the same staleness that
+ * made neon/README.md claim the chain stopped at 0032. A hardcoded list of
+ * migrations is a list that goes out of date without telling anyone.
+ *
+ * The 0041 variant is excluded here because it is substituted INTO the
+ * Supabase chain above, not appended after it.
+ */
+const NEON_AFTER_PRELUDE = readdirSync("neon/migrations")
+  .filter((f) => f.endsWith(".sql"))
+  .filter((f) => f !== "0000_prelude.sql")
+  .filter((f) => !f.includes(".neon."))
+  .sort()
+  .map((f) => join("neon/migrations", f));
 
 /** The enum boundary. Everything from 0046 on must be a later transaction. */
 const beforeEnum = chain.filter((f) => num(f.split("/").pop()) <= 45);
@@ -83,9 +98,9 @@ const groups = [
       "Requires the previous part to have FINISHED. It uses the order_source\n-- enum value that part added, which Postgres will not allow in the same\n-- transaction.",
   },
   {
-    files: [SHIM, LOCAL_AUTH],
+    files: NEON_AFTER_PRELUDE,
     note:
-      "The Neon-specific part: replaces auth.uid(), removes the PostgREST roles,\n-- and adds the password and login machinery that replaces GoTrue.",
+      "The Neon-specific part: replaces auth.uid(), removes the PostgREST roles,\n-- adds the password and login machinery that replaces GoTrue, and the two\n-- service paths (push dispatch, the owner check) that used to rely on\n-- Supabase's service-role key bypassing row-level security.",
   },
 ];
 
