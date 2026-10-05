@@ -35,6 +35,42 @@ import { withUserContext, type Querier } from "./with-user-context";
  * belongs.
  */
 
+/**
+ * Whether a function in `public` is set-returning, cached for the life of
+ * the process.
+ *
+ * One small catalog query per distinct function name per warm instance —
+ * there are 49 of them in the whole app, and a serverless instance handles
+ * many requests, so this is paid approximately once and never again. The
+ * alternative was inferring it from the result shape, which cannot be done
+ * correctly: a TABLE function returning one row is indistinguishable from a
+ * composite-returning one.
+ *
+ * This codebase deliberately has no overloaded functions — the plan for the
+ * driver-removal work says so explicitly, after being bitten twice by
+ * CREATE OR REPLACE with a changed argument list silently creating a second
+ * overload. If one ever appears, `bool_or` means a disagreement resolves to
+ * "set-returning", which is the current, pre-fix behaviour: an array. That
+ * is the safe direction, because it is what every call site survived before.
+ */
+const setReturningCache = new Map<string, boolean>();
+
+async function isSetReturning(q: Querier, fn: string): Promise<boolean> {
+  const cached = setReturningCache.get(fn);
+  if (cached !== undefined) return cached;
+
+  const res = await q.query(
+    `select coalesce(bool_or(p.proretset), true) as retset
+       from pg_proc p
+       join pg_namespace n on n.oid = p.pronamespace
+      where n.nspname = 'public' and p.proname = $1`,
+    [fn],
+  );
+  const retset = res.rows[0]?.retset !== false;
+  setReturningCache.set(fn, retset);
+  return retset;
+}
+
 /** Identifiers are interpolated, so they are checked rather than trusted. */
 const IDENT = /^[a-z_][a-z0-9_]*$/i;
 
@@ -481,8 +517,8 @@ export class DbClient {
       return await withUserContext(this.profileId, async (q) => {
         const res = await q.query(`select * from public.${ident(fn)}(${argList})`, values);
 
-        // A function returning a single scalar or a single unnamed composite
-        // arrives as one row with one column named after the function.
+        // A function returning a single scalar arrives as one row with one
+        // column named after the function.
         const fields = res.fields.map((f) => f.name);
         if (fields.length === 1 && fields[0] === fn) {
           const rows = res.rows.map((r) => (r as Record<string, unknown>)[fn]);
@@ -492,6 +528,38 @@ export class DbClient {
             count: null,
           };
         }
+
+        // A function returning a COMPOSITE type is different, and the
+        // difference is not visible in the result: `select * from f()`
+        // EXPANDS a composite into its columns, so it looks exactly like a
+        // one-row set-returning function. PostgREST distinguished them —
+        // SETOF/TABLE became a JSON array, a plain composite became a
+        // single object — and the call sites were written against that.
+        //
+        // Getting this wrong is what blanked the order number and both the
+        // pickup and delivery codes on every newly created order. The four
+        // affected functions return a composite without SETOF:
+        // public_create_order, moderator_create_order and
+        // driver_create_field_order (new_order_result), and
+        // send_order_message (order_messages). Their callers read
+        // `data.order_number`, `data.delivery_code`, `data.pickup_code` —
+        // and `data` was a one-element ARRAY, so every one of those was
+        // undefined. No error, no empty page: just blank values where the
+        // numbers should be. The `as NewOrderResult` cast at each call site
+        // is why typecheck had nothing to say about it.
+        //
+        // So ask the catalog rather than guessing from the shape. Row count
+        // cannot answer it: dashboard_stats, customer_order_history and
+        // order_customer_context are set-returning functions that always
+        // yield exactly one row and whose callers correctly expect an array.
+        if (!(await isSetReturning(q, fn))) {
+          return {
+            data: (res.rows[0] ?? null) as unknown as T,
+            error: null,
+            count: null,
+          };
+        }
+
         return { data: res.rows as unknown as T, error: null, count: null };
       });
     } catch (e) {

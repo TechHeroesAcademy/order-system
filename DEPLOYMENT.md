@@ -249,3 +249,16 @@ delete before it does it.
 connection count is `DATABASE_POOL_MAX` times the number of warm instances.
 The default of 5 suits this workload; raise it only with that multiplication
 in mind.
+
+**Verifying the data layer.** Two scripts run against a database, as
+`app_user` rather than the owner (the owner bypasses row-level security and
+makes every check pass falsely):
+
+```bash
+DATABASE_URL=... node scripts/verify-db-layer.mjs          # 34 checks
+DATABASE_URL=... node scripts/verify-dashboard-values.mjs  # 23 checks
+```
+
+The second one asserts the three values a newly created order must show —
+its order number, its pickup code and its delivery code — plus the dashboard
+counts, because all four were once blank at the same time for one reason.

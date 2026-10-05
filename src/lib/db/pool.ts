@@ -1,5 +1,8 @@
 import "server-only";
 import { Pool } from "pg";
+// Registers the int8/numeric parsers as a side effect, before any pool
+// exists. See that file for why counts were arriving as strings.
+import "./number-types";
 
 /**
  * The one connection pool for the whole application.
