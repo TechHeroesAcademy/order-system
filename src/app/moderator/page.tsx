@@ -1,14 +1,22 @@
 import Link from "next/link";
+import { requireRole } from "@/lib/auth";
 import { getDashboardStats } from "@/lib/data/orders";
+import { PushSetupCard } from "@/components/notifications/push-setup-card";
 import { StatCard } from "@/components/shared/stat-card";
 import { Button } from "@/components/ui/button";
 import { PackagePlus, PackageCheck, Truck, Factory, Clock } from "lucide-react";
 
 export default async function ModeratorDashboardPage() {
+  const profile = await requireRole("owner", "moderator");
   const stats = await getDashboardStats();
 
   return (
     <div className="space-y-6">
+      <PushSetupCard
+        vapidPublicKey={process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? ""}
+        profileId={profile.id}
+      />
+
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold">نظرة عامة</h1>
         <Button asChild size="sm">

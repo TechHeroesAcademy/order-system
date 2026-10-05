@@ -294,9 +294,10 @@ ordinary tab cannot receive notifications at all.
 
 On **Android** it works in Chrome directly.
 
-Who gets what: drivers are told when an order is assigned to them; managers
-are told about chat on an order for a factory they manage; moderators are told
-only that an order was delivered.
+Who gets what: drivers are told when an order is assigned to them, and about
+chat on their orders. Owners and moderators are told about chat only on orders
+for a factory they manage — so a manager with no factory assigned gets
+nothing.
 
 ---
 

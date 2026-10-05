@@ -94,6 +94,23 @@ export async function subscribeToPush(vapidPublicKey: string): Promise<PushSubsc
   };
 }
 
+export async function getExistingSubscription(): Promise<PushSubscriptionPayload | null> {
+  if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) return null;
+  try {
+    const registration = await navigator.serviceWorker.getRegistration();
+    const subscription = await registration?.pushManager.getSubscription();
+    if (!subscription) return null;
+    return {
+      endpoint: subscription.endpoint,
+      p256dh: arrayBufferToBase64Url(subscription.getKey("p256dh")),
+      auth: arrayBufferToBase64Url(subscription.getKey("auth")),
+      userAgent: navigator.userAgent,
+    };
+  } catch {
+    return null;
+  }
+}
+
 export async function unsubscribeFromPush(): Promise<string | null> {
   const registration = await navigator.serviceWorker.getRegistration();
   const subscription = await registration?.pushManager.getSubscription();

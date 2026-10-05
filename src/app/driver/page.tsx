@@ -25,7 +25,10 @@ export default async function DriverOrdersPage() {
     <div className="space-y-4">
       <h1 className="text-xl font-bold">أوردراتي</h1>
 
-      <PushSetupCard vapidPublicKey={process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? ""} />
+      <PushSetupCard
+        vapidPublicKey={process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? ""}
+        profileId={profile.id}
+      />
 
       <Tabs defaultValue="active">
         <TabsList>

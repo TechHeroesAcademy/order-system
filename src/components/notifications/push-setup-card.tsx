@@ -8,12 +8,19 @@ import { Card, CardContent } from "@/components/ui/card";
 import { savePushSubscriptionAction, deletePushSubscriptionAction } from "@/lib/actions/push";
 import {
   getPushCapability,
+  getExistingSubscription,
   subscribeToPush,
   unsubscribeFromPush,
   type PushCapability,
 } from "@/lib/push/client";
 
-export function PushSetupCard({ vapidPublicKey }: { vapidPublicKey: string }) {
+export function PushSetupCard({
+  vapidPublicKey,
+  profileId,
+}: {
+  vapidPublicKey: string;
+  profileId: string;
+}) {
   const [capability, setCapability] = useState<PushCapability | null>(null);
   const [pending, startTransition] = useTransition();
   const [working, setWorking] = useState(false);
@@ -25,6 +32,32 @@ export function PushSetupCard({ vapidPublicKey }: { vapidPublicKey: string }) {
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const subscription = await getExistingSubscription();
+      if (cancelled || !subscription) return;
+
+      const key = `push-bound:${profileId}:${subscription.endpoint}`;
+      try {
+        if (sessionStorage.getItem(key) === "1") return;
+      } catch {
+      }
+
+      const result = await savePushSubscriptionAction(subscription);
+      if (cancelled) return;
+      if (result.ok) {
+        try {
+          sessionStorage.setItem(key, "1");
+        } catch {
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [profileId]);
 
   async function enable() {
     setWorking(true);

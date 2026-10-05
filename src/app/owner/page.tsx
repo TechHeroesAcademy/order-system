@@ -14,14 +14,19 @@ import {
   Clock,
   CheckCircle2,
 } from "lucide-react";
+import { requireRole } from "@/lib/auth";
 import { PushSetupCard } from "@/components/notifications/push-setup-card";
 
 export default async function OwnerDashboardPage() {
+  const profile = await requireRole("owner");
   const [stats, delayed] = await Promise.all([getDashboardStats(), getDelayedOrders()]);
 
   return (
     <div className="space-y-6">
-      <PushSetupCard vapidPublicKey={process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? ""} />
+      <PushSetupCard
+        vapidPublicKey={process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? ""}
+        profileId={profile.id}
+      />
 
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold">نظرة عامة</h1>
