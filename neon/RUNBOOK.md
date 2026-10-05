@@ -161,6 +161,29 @@ alter role app_user  with login password '<from your secrets manager>';
 alter role app_admin with login password '<a different one>';
 ```
 
+### 0.4b Test as the role that will actually run it
+
+Every local test of these files ran as the Postgres superuser, and that hid a
+failure that stopped a real setup dead: the shim's `DROP OWNED BY anon`
+needs superuser or membership in the target role, and Neon's owner role has
+neither. It aborted with `permission denied to drop objects`, which took the
+rest of the file with it — the whole auth layer — and left a database that
+looked fine by table count.
+
+So when testing this chain locally, apply it as a non-superuser role with
+CREATEROLE, not as `postgres`:
+
+```sql
+create role neon_superuser nologin createrole createdb;
+create role neondb_owner login createrole createdb password '...' in role neon_superuser;
+create database neondb owner neondb_owner;
+```
+
+This is the second time that blind spot has cost something here. The first
+was `ALTER DATABASE SET` on Supabase, which passed locally as superuser and
+failed in production with `42501`. A privileged test proves the SQL is valid,
+not that it is permitted.
+
 ### 0.5 Exit criteria
 
 ```sql

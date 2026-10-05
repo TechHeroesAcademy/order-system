@@ -238,16 +238,47 @@ end $$;
 -- track_order; service_role was PostgREST's RLS bypass and is replaced by
 -- the SECURITY DEFINER lookups described below. Dropped rather than left
 -- lying around, so nothing can be granted back to them by accident.
+-- NO `drop owned by` HERE, AND THAT IS THE POINT.
+--
+-- The obvious way to write this is `drop owned by anon; drop role anon;`,
+-- and it works perfectly as a superuser. On Neon it does not: the owner role
+-- is not a superuser, and DROP OWNED BY requires superuser or membership in
+-- the target role, so the statement fails with
+--
+--   ERROR: permission denied to drop objects
+--
+-- which aborts the rest of this file. That is what left a real setup with
+-- the shim half-applied and none of the auth machinery that follows — and it
+-- was invisible in testing because the tests ran as the superuser. Second
+-- time that exact blind spot has cost something here; the first was
+-- ALTER DATABASE SET on Supabase.
+--
+-- DROP OWNED BY is not needed anyway. These roles were created NOLOGIN by
+-- 0000_prelude.sql purely so the chain's grants would resolve; nothing ever
+-- connected as them, so they own no objects. Every privilege they were
+-- granted was revoked above, which is the part that matters for security —
+-- dropping the roles is tidiness.
+--
+-- So the drop is attempted and allowed to fail. A role left behind is
+-- harmless: NOLOGIN, no password, and no privileges on anything.
 do $$
+declare r text;
 begin
-  if exists (select 1 from pg_roles where rolname = 'anon') then
-    drop owned by anon;
-    drop role anon;
-  end if;
-  if exists (select 1 from pg_roles where rolname = 'service_role') then
-    drop owned by service_role;
-    drop role service_role;
-  end if;
+  foreach r in array array['anon', 'service_role'] loop
+    if exists (select 1 from pg_roles where rolname = r) then
+      begin
+        execute format('drop role %I', r);
+        raise notice 'dropped the % role', r;
+      exception when others then
+        -- insufficient_privilege, or the role still owning something
+        -- unexpected. Either way it has already been stripped of every
+        -- privilege above, so carrying on is correct.
+        raise notice
+          'could not drop the % role (%) — it has been stripped of all '
+          'privileges and is NOLOGIN, so this is cosmetic only', r, sqlerrm;
+      end;
+    end if;
+  end loop;
 end $$;
 
 grant usage on schema public to app_user;
