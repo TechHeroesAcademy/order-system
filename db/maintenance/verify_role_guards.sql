@@ -83,7 +83,7 @@ begin
   raise notice '--- summary: % passed, % failed ---', v_pass, v_fail;
   if v_fail > 0 then
     raise exception
-      '% check(s) failed. Apply supabase/migrations/0051_fail_closed_role_guards.sql.', v_fail;
+      '% check(s) failed. Apply db/migrations/0051_fail_closed_role_guards.sql.', v_fail;
   end if;
   raise notice '';
 end$$;

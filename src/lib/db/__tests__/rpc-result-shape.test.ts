@@ -7,7 +7,6 @@ const DB = process.env.DATABASE_URL;
 const suite = DB ? describe : describe.skip;
 
 const MUST_BE_SINGLE_OBJECT = [
-  "public_create_order",
   "moderator_create_order",
   "driver_create_field_order",
   "send_order_message",

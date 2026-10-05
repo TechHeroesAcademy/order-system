@@ -5,7 +5,7 @@ const ROLE_HOME: Record<string, string> = {
   owner: "/moderator/orders/new",
   moderator: "/moderator/orders/new",
   driver: "/driver",
-  factory: "/factory",
+  factory: "/login",
 };
 
 export default async function NewOrderPage() {

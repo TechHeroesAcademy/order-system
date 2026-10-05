@@ -9,9 +9,7 @@ import type {
   MonthlyReport,
   DailyReport,
   Order,
-  OrderChatChannel,
   OrderHistoryEntry,
-  OrderMessage,
   OrderStatus,
   Region,
   TopRegionRow,
@@ -120,19 +118,6 @@ export async function getOrderDeliveryCodesMap(orderIds: string[]): Promise<Reco
     map[row.order_id] = row.code;
   }
   return map;
-}
-
-export async function getOrderMessages(orderId: string, channel: OrderChatChannel): Promise<OrderMessage[]> {
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("order_messages")
-    .select("*, sender:profiles!order_messages_sender_id_fkey(full_name)")
-    .eq("order_id", orderId)
-    .eq("channel", channel)
-    .order("created_at", { ascending: false })
-    .limit(200);
-  if (error) throw error;
-  return ((data as unknown as OrderMessage[]) ?? []).reverse();
 }
 
 export async function getOrderHistory(orderId: string): Promise<OrderHistoryEntry[]> {

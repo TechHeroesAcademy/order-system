@@ -1,4 +1,4 @@
-import type { OrderStatus, UserRole } from "@/types/database";
+import type { OrderStatus } from "@/types/database";
 
 export const ORDER_STATUS_SEQUENCE: OrderStatus[] = [
   "new",
@@ -59,17 +59,6 @@ export function isOrderDelayed(status: OrderStatus, createdAt: string, now: Date
   return hoursOpen > ORDER_SLA_HOURS;
 }
 
-export const NEXT_ACTOR_BY_STATUS: Record<OrderStatus, UserRole | null> = {
-  new: "owner",
-  assigned: "driver",
-  collected: "driver",
-  at_factory: "factory",
-  ready: "driver",
-  with_driver: "driver",
-  delivered: null,
-  refused: "owner",
-  cancelled: null,
-};
 
 export const EVENT_TYPE_LABELS_AR: Record<string, string> = {
   created: "تم إنشاء الأوردر",

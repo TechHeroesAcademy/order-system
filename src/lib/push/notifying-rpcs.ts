@@ -16,7 +16,6 @@ export const NOTIFYING_RPCS: ReadonlySet<string> = new Set([
   "notify_staff",
   "notify_user",
   "owner_cancel_order",
-  "public_create_order",
   "reassign_order_driver",
   "reassign_order_factory",
   "reassign_orders_from_driver",

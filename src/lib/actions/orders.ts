@@ -20,34 +20,6 @@ import type { z } from "zod";
 
 type OrderFormInput = z.infer<typeof orderFormSchema>;
 
-export async function createPublicOrderAction(
-  input: OrderFormInput,
-): Promise<ActionResult<NewOrderResult>> {
-  const parsed = orderFormSchema.safeParse(input);
-  if (!parsed.success) {
-    return fail(parsed.error.issues[0]?.message ?? "بيانات غير صالحة");
-  }
-
-  const supabase = await createClient();
-  const { data, error } = await supabase.rpc("public_create_order", {
-    p_customer_name: parsed.data.customer_name,
-    p_customer_phone: parsed.data.customer_phone,
-    p_customer_address: parsed.data.customer_address,
-    p_region_name: parsed.data.region_name,
-    p_pieces_count: parsed.data.pieces_count,
-    p_piece_details: parsed.data.piece_details ?? null,
-    p_color: parsed.data.color ?? null,
-    p_work_required: parsed.data.work_required ?? null,
-    p_customer_notes: parsed.data.customer_notes ?? null,
-    p_factory_id: parsed.data.factory_id ?? null,
-    p_customer_maps_url: parsed.data.customer_maps_url?.trim() || null,
-  });
-
-  if (error) return fail(toErrorMessage(error, "تعذر إنشاء الأوردر"));
-  revalidatePath("/owner");
-  return ok(data as NewOrderResult);
-}
-
 export async function createFieldOrderAction(
   input: OrderFormInput,
 ): Promise<ActionResult<NewOrderResult>> {
@@ -416,14 +388,19 @@ export async function listOrderMessagesAction(
   channel: OrderChatChannel,
 ): Promise<ActionResult<OrderMessage[]>> {
   const supabase = await createClient();
+  // Newest 200, then reversed — NOT ascending with a limit, which would keep
+  // the OLDEST 200 and hide everything current. This panel is re-read on a
+  // timer for as long as the order page is open, so an unbounded select is
+  // paid again on every poll rather than once.
   const { data, error } = await supabase
     .from("order_messages")
     .select("*, sender:profiles!order_messages_sender_id_fkey(full_name)")
     .eq("order_id", orderId)
     .eq("channel", channel)
-    .order("created_at", { ascending: true });
+    .order("created_at", { ascending: false })
+    .limit(200);
   if (error) return fail(toErrorMessage(error, "تعذر تحميل الرسائل"));
-  return ok((data as unknown as OrderMessage[]) ?? []);
+  return ok(((data as unknown as OrderMessage[]) ?? []).reverse());
 }
 
 export async function sendOrderMessageAction(

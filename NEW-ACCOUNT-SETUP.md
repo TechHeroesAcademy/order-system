@@ -7,9 +7,12 @@ the old one.
 Allow about 45 minutes. Nothing here needs programming. One step needs a
 terminal, and step 3 says exactly what to type.
 
-If instead you want to hand the existing system over to someone else rather
-than build a new one, use `TRANSFER.md` — that moves what you already have,
-including the live data.
+If instead you want to move the existing system — keeping its orders and
+accounts — the shape is the same, but you copy the database across with
+`pg_dump -Fc | pg_restore` (use the **unpooled** connection strings) after
+creating the `authenticated`, `app_user` and `app_admin` roles on the new
+project, and you reuse the existing notification keys rather than generating
+new ones, or every registered phone goes silent.
 
 ---
 

@@ -62,11 +62,9 @@ const nextConfig: NextConfig = {
       "@radix-ui/react-popover",
       "@radix-ui/react-scroll-area",
       "@radix-ui/react-select",
-      "@radix-ui/react-separator",
-      "@radix-ui/react-slot",
+        "@radix-ui/react-slot",
       "@radix-ui/react-tabs",
-      "@radix-ui/react-toast",
-    ],
+      ],
   },
 };
 

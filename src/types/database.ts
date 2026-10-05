@@ -1,6 +1,5 @@
 export type UserRole = "owner" | "moderator" | "driver" | "factory";
 
-export type CreatableUserRole = Exclude<UserRole, "factory">;
 
 export type OrderStatus =
   | "new"
@@ -50,10 +49,6 @@ export interface Region {
   created_at: string;
 }
 
-export interface DriverRegion {
-  driver_id: string;
-  region_id: string;
-}
 
 export interface Order {
   id: string;

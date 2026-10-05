@@ -2,7 +2,6 @@ import "server-only";
 import { after } from "next/server";
 import { createAdminClient } from "@/lib/db/client";
 import { sendPushForNotification, pushIsConfigured } from "./send";
-export { NOTIFYING_RPCS } from "./notifying-rpcs";
 
 export async function drainPushOutbox(limit = 20): Promise<{ sent: number; failed: number }> {
   if (!pushIsConfigured()) return { sent: 0, failed: 0 };

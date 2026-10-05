@@ -53,7 +53,13 @@ export function OrderChat({
 
     async function poll() {
       if (document.hidden || !onScreen) return;
-      const res = await listOrderMessagesAction(orderId, channel);
+      let res;
+      try {
+        res = await listOrderMessagesAction(orderId, channel);
+      } catch {
+        if (step < POLL_LADDER_MS.length - 1) step += 1;
+        return;
+      }
       if (cancelled || !res.ok) return;
 
       setMessages(res.data);
@@ -81,7 +87,7 @@ export function OrderChat({
     function onVisibility() {
       if (!document.hidden) {
         step = 0;
-        void poll().then(() => !cancelled && schedule());
+        void poll().finally(() => !cancelled && schedule());
       }
     }
 
@@ -89,10 +95,10 @@ export function OrderChat({
       if (document.hidden || !onScreen) return;
       step = 0;
       clearTimeout(timer);
-      void poll().then(() => !cancelled && schedule());
+      void poll().finally(() => !cancelled && schedule());
     }
 
-    void poll().then(() => !cancelled && schedule());
+    void poll().finally(() => !cancelled && schedule());
     document.addEventListener("visibilitychange", onVisibility);
 
     const node0 = panelRef.current;
@@ -110,7 +116,7 @@ export function OrderChat({
           if (nowOnScreen && !onScreen) {
             onScreen = true;
             step = 0;
-            void poll().then(() => !cancelled && schedule());
+            void poll().finally(() => !cancelled && schedule());
           } else {
             onScreen = nowOnScreen;
           }

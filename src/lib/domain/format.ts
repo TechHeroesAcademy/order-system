@@ -6,20 +6,9 @@ export function formatDateTime(value: string | null | undefined): string {
   return format(new Date(value), "d MMM yyyy، h:mm a", { locale: arEG });
 }
 
-export function formatDate(value: string | null | undefined): string {
-  if (!value) return "—";
-  return format(new Date(value), "d MMM yyyy", { locale: arEG });
-}
-
 export function formatRelative(value: string | null | undefined): string {
   if (!value) return "—";
   return formatDistanceToNow(new Date(value), { addSuffix: true, locale: arEG });
-}
-
-const arabicDigits = ["٠", "١", "٢", "٣", "٤", "٥", "٦", "٧", "٨", "٩"];
-
-export function toArabicDigits(input: string | number): string {
-  return String(input).replace(/[0-9]/g, (d) => arabicDigits[Number(d)]);
 }
 
 export function formatHours(hours: number | null | undefined): string {

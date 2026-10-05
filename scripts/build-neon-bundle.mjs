@@ -70,6 +70,50 @@ groups.forEach((group, i) => {
   written.push({ name, files: group.files.length, kb: Math.round(statSync(path).size / 1024) });
 });
 
+const CHECK_FILE = "db/maintenance/check_schema_parts.sql";
+
+const rows = [];
+const seen = new Set();
+
+groups.forEach((group, i) => {
+  const part = i + 1;
+  const body = group.files.map((f) => readFileSync(f, "utf8")).join("\n");
+
+  const names = (re) =>
+    [...new Set([...body.matchAll(re)].map((m) => m[1]))].filter((n) => {
+      if (seen.has(n)) return false;
+      seen.add(n);
+      return true;
+    });
+
+  const tables = names(/create table if not exists public\.([a-z_]+)/g);
+  const functions = names(/create or replace function public\.([a-z_]+)/g);
+
+  for (const t of tables.slice(-2)) rows.push({ part, kind: "table", name: t });
+  for (const f of functions.slice(-3)) rows.push({ part, kind: "function", name: f });
+});
+
+const values = rows
+  .map((r) => `  (${r.part}, 'part ${r.part} of ${total}', '${r.kind}', '${r.name}')`)
+  .join(",\n");
+
+writeFileSync(
+  CHECK_FILE,
+  `with marker(part, label, kind, name) as (values\n${values}\n)
+select m.part,
+       m.label,
+       m.kind || ' ' || m.name as object,
+       case when m.kind = 'table'
+                 then to_regclass('public.' || m.name) is not null
+            else exists (select 1 from pg_proc p
+                           join pg_namespace n on n.oid = p.pronamespace
+                          where n.nspname = 'public' and p.proname = m.name)
+       end as present
+  from marker m
+ order by m.part, m.name;
+`,
+);
+
 console.log(`\nwrote ${written.length} part(s) to ${OUT_DIR}/\n`);
 for (const w of written) {
   console.log(`  ${w.name.padEnd(20)} ${String(w.files).padStart(2)} migrations  ${String(w.kb).padStart(4)} KB`);

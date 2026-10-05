@@ -32,7 +32,9 @@ export async function requireRole(...roles: UserRole[]): Promise<Profile> {
     redirect("/login");
   }
   if (!roles.includes(profile.role)) {
-    redirect(`/${profile.role}`);
+    // profiles has check (role <> 'factory') and there is no /factory route,
+    // so a historical factory profile would be redirected into a 404.
+    redirect(profile.role === "factory" ? "/login" : `/${profile.role}`);
   }
   return profile;
 }

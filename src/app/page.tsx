@@ -11,7 +11,7 @@ const ROLE_HOME: Record<string, string> = {
   owner: "/owner",
   moderator: "/moderator",
   driver: "/driver",
-  factory: "/factory",
+  factory: "/login",
 };
 
 const ROLE_LABEL_AR: Record<string, string> = {
@@ -119,7 +119,7 @@ export default async function HomePage() {
               </div>
               <CardTitle className="text-primary-foreground">تسجيل دخول فريق العمل</CardTitle>
               <CardDescription className="text-primary-foreground/80">
-                للموديريتور والمدير والمندوبين والمصانع — من هنا يتم إنشاء ومتابعة الأوردرات
+                للمدير والموديريتور والمندوبين — من هنا يتم إنشاء ومتابعة الأوردرات
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-2">
@@ -131,7 +131,7 @@ export default async function HomePage() {
               </Button>
               <p className="flex items-center justify-center gap-1.5 text-center text-xs text-primary-foreground/70">
                 <Building2 className="size-3.5" />
-                مندوب أو مصنع؟ استخدم نفس الزر أعلاه بنفس رقم هاتفك
+                مندوب؟ استخدم نفس الزر أعلاه بنفس رقم هاتفك
               </p>
             </CardContent>
           </Card>

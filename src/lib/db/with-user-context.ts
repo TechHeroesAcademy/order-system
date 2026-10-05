@@ -47,7 +47,3 @@ export async function withUserContext<T>(
     client.release();
   }
 }
-
-export function withoutUserContext<T>(fn: (q: Querier) => Promise<T>): Promise<T> {
-  return withUserContext(null, fn);
-}

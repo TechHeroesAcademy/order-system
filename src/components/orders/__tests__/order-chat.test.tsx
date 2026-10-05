@@ -106,6 +106,23 @@ describe("OrderChat polling", () => {
     expect(listMessages.mock.calls.length).toBeGreaterThan(before);
   });
 
+  it("KEEPS POLLING after a request fails outright, instead of freezing", async () => {
+    // A rejected request — network blip, server restart — used to skip the
+    // .then() that re-arms the timer, so chat died silently for the rest of
+    // the page's life with no error shown.
+    await act(async () => {
+      render(<OrderChat orderId="o1" channel="driver" viewerId="u1" />);
+    });
+
+    listMessages.mockRejectedValueOnce(new Error("network"));
+    await advance(4000);
+    const afterFailure = listMessages.mock.calls.length;
+
+    listMessages.mockResolvedValue({ ok: true, data: [msg("m1")] });
+    for (let i = 0; i < 6; i++) await advance(10000);
+    expect(listMessages.mock.calls.length).toBeGreaterThan(afterFailure);
+  });
+
   it("stops polling once unmounted", async () => {
     let view: ReturnType<typeof render> | undefined;
     await act(async () => {
