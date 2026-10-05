@@ -1,9 +1,5 @@
-
 set search_path = public, extensions;
 
-
-
--- ========== db/neon/0001_auth_shim.sql ================================
 
 do $$
 begin
@@ -144,8 +140,6 @@ end$$;
 grant usage on schema public to app_admin;
 grant select on public.profiles to app_admin;
 
-
--- ========== db/neon/0002_local_auth.sql ===============================
 
 create extension if not exists pgcrypto with schema extensions;
 
@@ -551,8 +545,6 @@ update public.profiles p
    and p.password_set;
 
 
--- ========== db/neon/0003_service_paths.sql ============================
-
 create or replace function public.push_dispatch_payload(p_notification_id uuid)
 returns table (
   notification_id uuid,
@@ -658,8 +650,6 @@ grant execute on function public.owner_exists() to app_user;
 
 grant execute on function public.increment_push_failures(uuid[]) to app_user;
 
-
--- ========== db/neon/0004_push_outbox_drain.sql ========================
 
 begin;
 

@@ -1,9 +1,5 @@
-
 set search_path = public, extensions;
 
-
-
--- ========== db/neon/0000_prelude.sql ==================================
 
 do $$
 begin
@@ -138,8 +134,6 @@ create table if not exists net._http_response (
 revoke all on table net._http_response from public;
 
 
--- ========== db/migrations/0001_extensions_and_enums.sql ===============
-
 create extension if not exists pgcrypto;
 create extension if not exists "uuid-ossp";
 create extension if not exists pg_trgm;
@@ -175,8 +169,6 @@ begin
   end if;
 end$$;
 
-
--- ========== db/migrations/0002_profiles.sql ===========================
 
 create table if not exists public.profiles (
   id uuid primary key references auth.users (id) on delete cascade,
@@ -251,8 +243,6 @@ returns boolean language sql stable security definer set search_path = public as
 $$;
 
 
--- ========== db/migrations/0003_regions_and_driver_regions.sql =========
-
 create table if not exists public.regions (
   id uuid primary key default gen_random_uuid(),
   name text not null unique,
@@ -279,8 +269,6 @@ create table if not exists public.driver_regions (
 
 create index if not exists driver_regions_region_idx on public.driver_regions (region_id);
 
-
--- ========== db/migrations/0004_orders.sql =============================
 
 create sequence if not exists public.order_number_seq start 1;
 
@@ -367,8 +355,6 @@ as $$
 $$;
 
 
--- ========== db/migrations/0005_order_history.sql ======================
-
 create table if not exists public.order_history (
   id uuid primary key default gen_random_uuid(),
   order_id uuid not null references public.orders (id) on delete cascade,
@@ -406,8 +392,6 @@ begin
 end;
 $$;
 
-
--- ========== db/migrations/0006_notifications.sql ======================
 
 create table if not exists public.notifications (
   id uuid primary key default gen_random_uuid(),
@@ -465,8 +449,6 @@ begin
 end;
 $$;
 
-
--- ========== db/migrations/0007_order_creation.sql =====================
 
 create or replace function public.generate_delivery_code()
 returns text
@@ -603,8 +585,6 @@ $$;
 revoke all on function public.moderator_create_order from public;
 grant execute on function public.moderator_create_order to authenticated;
 
-
--- ========== db/migrations/0008_rls_policies.sql =======================
 
 alter table public.profiles enable row level security;
 
@@ -744,8 +724,6 @@ drop policy if exists notifications_update_own on public.notifications;
 create policy notifications_update_own on public.notifications
   for update using (user_id = auth.uid()) with check (user_id = auth.uid());
 
-
--- ========== db/migrations/0009_workflow_rpcs.sql ======================
 
 create or replace function public.suggest_drivers(p_order_id uuid)
 returns table (
@@ -1146,8 +1124,6 @@ grant execute on function public.factory_mark_ready(uuid) to authenticated;
 grant execute on function public.owner_cancel_order(uuid, text) to authenticated;
 
 
--- ========== db/migrations/0010_reporting_and_views.sql ================
-
 create or replace view public.factory_orders_view
 with (security_invoker = false) as
 select
@@ -1355,8 +1331,6 @@ grant execute on function public.delayed_orders_report() to authenticated;
 grant execute on function public.top_regions_report() to authenticated;
 
 
--- ========== db/migrations/0011_table_grants.sql =======================
-
 grant usage on schema public to anon, authenticated;
 
 grant select, update on public.profiles to authenticated;
@@ -1374,8 +1348,6 @@ grant select, update on public.notifications to authenticated;
 
 grant select on public.factory_orders_view to authenticated;
 
-
--- ========== db/migrations/0012_seed_egypt_regions.sql =================
 
 insert into public.regions (name) values
   ('القاهرة'),
@@ -1407,8 +1379,6 @@ insert into public.regions (name) values
   ('سوهاج')
 on conflict (name) do nothing;
 
-
--- ========== db/migrations/0013_driver_reassignment_and_login.sql ======
 
 create or replace function public.reassign_order_driver(p_order_id uuid, p_new_driver_id uuid)
 returns void
@@ -1520,8 +1490,6 @@ $$;
 revoke all on function public.driver_performance_report() from public;
 grant execute on function public.driver_performance_report() to authenticated;
 
-
--- ========== db/migrations/0014_driver_approval_fix_and_factory_assignment.sql 
 
 create or replace function public.reassign_order_driver(p_order_id uuid, p_new_driver_id uuid)
 returns void
@@ -1777,8 +1745,6 @@ where o.status in ('collected', 'at_factory', 'ready')
 grant select on public.factory_orders_view to authenticated;
 
 
--- ========== db/migrations/0015_factory_location_and_handoff_tracking.sql 
-
 alter table public.profiles add column if not exists address text;
 
 comment on column public.profiles.address is
@@ -1878,8 +1844,6 @@ where o.status in ('collected', 'at_factory', 'ready')
 
 grant select on public.factory_orders_view to authenticated;
 
-
--- ========== db/migrations/0016_mandatory_assignment_delivery_code_and_geo.sql 
 
 drop function if exists public.create_order_internal(text, text, text, uuid, integer, text, text, text, text, order_source, uuid, uuid);
 drop function if exists public.moderator_create_order(text, text, text, uuid, integer, text, text, text, text, uuid);
@@ -2083,8 +2047,6 @@ end;
 $$;
 
 
--- ========== db/migrations/0017_track_order_setof_return.sql ===========
-
 drop function if exists public.track_order(text, text);
 
 create or replace function public.track_order(p_order_number text, p_phone text)
@@ -2126,8 +2088,6 @@ $$;
 revoke all on function public.track_order from public;
 grant execute on function public.track_order to anon, authenticated;
 
-
--- ========== db/migrations/0018_factory_reassignment_delivery_codes_and_chat.sql 
 
 create or replace function public.reassign_order_factory(p_order_id uuid, p_new_factory_id uuid)
 returns void
@@ -2285,8 +2245,6 @@ $$;
 revoke all on function public.send_order_message from public;
 grant execute on function public.send_order_message to authenticated;
 
-
--- ========== db/migrations/0019_dual_channel_chat_and_full_step_notifications.sql 
 
 create or replace function public.notify_staff(
   p_order_id uuid,
@@ -2785,8 +2743,6 @@ end;
 $$;
 
 
--- ========== db/migrations/0020_google_maps_links.sql ==================
-
 alter table public.orders add column if not exists customer_maps_url text;
 
 comment on column public.orders.customer_maps_url is
@@ -2990,8 +2946,6 @@ $$;
 revoke all on function public.moderator_create_order from public;
 grant execute on function public.moderator_create_order to authenticated;
 
-
--- ========== db/migrations/0021_editable_order_details.sql =============
 
 create or replace function public.update_order_details(
   p_order_id uuid,

@@ -1,9 +1,5 @@
-
 set search_path = public, extensions;
 
-
-
--- ========== db/migrations/0022_factory_permanent_order_history.sql ====
 
 drop policy if exists orders_select_factory on public.orders;
 create policy orders_select_factory on public.orders
@@ -69,8 +65,6 @@ where
 grant select on public.factory_orders_view to authenticated;
 
 
--- ========== db/migrations/0023_fix_factory_premature_visibility.sql ===
-
 drop policy if exists orders_select_factory on public.orders;
 create policy orders_select_factory on public.orders
   for select using (
@@ -132,8 +126,6 @@ where
 
 grant select on public.factory_orders_view to authenticated;
 
-
--- ========== db/migrations/0024_pickup_code_owner_only_assignment_and_fair_auto_distribution.sql 
 
 alter table public.orders add column if not exists pickup_code_hash text;
 alter table public.orders add column if not exists failed_pickup_code_attempts integer not null default 0;
@@ -588,8 +580,6 @@ revoke all on function public.moderator_create_order from public;
 grant execute on function public.moderator_create_order to authenticated;
 
 
--- ========== db/migrations/0025_region_free_text_matching.sql ==========
-
 create or replace function public.find_or_create_region(p_name text)
 returns uuid
 language plpgsql
@@ -968,8 +958,6 @@ revoke all on function public.update_order_details from public, anon, authentica
 grant execute on function public.update_order_details to authenticated;
 
 
--- ========== db/migrations/0026_pickup_points.sql ======================
-
 create table if not exists public.pickup_points (
   id uuid primary key default gen_random_uuid(),
   name text not null,
@@ -1151,8 +1139,6 @@ revoke all on function public.set_pickup_point_regions(uuid, text[]) from public
 grant execute on function public.set_pickup_point_regions(uuid, text[]) to authenticated;
 
 
--- ========== db/migrations/0027_factory_only_order_creation.sql ========
-
 create or replace function public.moderator_create_order(
   p_customer_name text,
   p_customer_phone text,
@@ -1193,8 +1179,6 @@ revoke all on function public.moderator_create_order(text, text, text, text, int
 grant execute on function public.moderator_create_order(text, text, text, text, integer, text, text, text, text, uuid, uuid, text) to authenticated;
 
 
--- ========== db/migrations/0028_remove_pickup_points.sql ===============
-
 drop function if exists public.set_pickup_point_regions(uuid, text[]);
 drop function if exists public.set_pickup_point_active(uuid, boolean);
 drop function if exists public.update_pickup_point(uuid, text, text, text);
@@ -1203,8 +1187,6 @@ drop function if exists public.create_pickup_point(text, text, text, text[]);
 drop table if exists public.pickup_point_regions cascade;
 drop table if exists public.pickup_points cascade;
 
-
--- ========== db/migrations/0029_driver_chat_hidden_after_reassignment.sql 
 
 alter table public.order_messages add column if not exists driver_id uuid references public.profiles(id);
 
@@ -1320,8 +1302,6 @@ revoke all on function public.send_order_message(uuid, text, text) from public;
 grant execute on function public.send_order_message(uuid, text, text) to authenticated;
 
 
--- ========== db/migrations/0030_owner_only_cancel_and_no_moderator_team.sql 
-
 create or replace function public.owner_cancel_order(p_order_id uuid, p_reason text)
 returns void
 language plpgsql
@@ -1351,8 +1331,6 @@ revoke all on function public.owner_cancel_order(uuid, text) from public;
 grant execute on function public.owner_cancel_order(uuid, text) to authenticated;
 
 
--- ========== db/migrations/0031_wider_order_numbers.sql ================
-
 create or replace function public.set_order_number()
 returns trigger
 language plpgsql
@@ -1365,8 +1343,6 @@ begin
 end;
 $$;
 
-
--- ========== db/migrations/0032_delete_worker.sql ======================
 
 alter table public.orders add column if not exists assigned_driver_name text;
 alter table public.orders add column if not exists assigned_factory_name text;
@@ -1474,8 +1450,6 @@ where
 
 grant select on public.factory_orders_view to authenticated;
 
-
--- ========== db/migrations/0033_factories_table.sql ====================
 
 create table if not exists public.factories (
   id uuid primary key default gen_random_uuid(),
@@ -1843,8 +1817,6 @@ grant execute on function public.set_factory_active(uuid, boolean) to authentica
 grant execute on function public.delete_factory(uuid) to authenticated;
 
 
--- ========== db/migrations/0034_driver_runs_factory_steps_and_chat_lockdown.sql 
-
 create or replace function public.factory_confirm_receipt(p_order_id uuid)
 returns void
 language plpgsql
@@ -2025,8 +1997,6 @@ create policy order_messages_select on public.order_messages
     or public.can_read_order_channel(order_messages.order_id, order_messages.channel, auth.uid(), order_messages.driver_id)
   );
 
-
--- ========== db/migrations/0035_bulk_distribution.sql ==================
 
 create or replace function public.approve_distribution_one(p_order_id uuid)
 returns void
@@ -2251,8 +2221,6 @@ end;
 $$;
 
 
--- ========== db/migrations/0036_driver_removal_reassignment.sql ========
-
 create or replace function public.pick_fair_driver_for_region_excluding(
   p_region_id uuid,
   p_exclude_driver_id uuid
@@ -2404,8 +2372,6 @@ revoke all on function public.reassign_orders_from_driver(uuid) from public, ano
 grant execute on function public.reassign_orders_from_driver(uuid) to authenticated;
 
 
--- ========== db/migrations/0037_edit_driver_details.sql ================
-
 create or replace function public.update_staff_profile(p_user_id uuid, p_full_name text)
 returns void
 language plpgsql
@@ -2479,8 +2445,6 @@ $$;
 revoke all on function public.update_staff_profile(uuid, text) from public, anon;
 grant execute on function public.update_staff_profile(uuid, text) to authenticated;
 
-
--- ========== db/migrations/0038_retire_factory_role.sql ================
 
 do $$
 declare
@@ -2613,8 +2577,6 @@ comment on type public.user_role is
   'profiles_role_not_factory constraint.';
 
 
--- ========== db/migrations/0039_report_performance.sql =================
-
 create index if not exists orders_open_created_at_idx
   on public.orders (created_at)
   where status not in ('delivered', 'cancelled', 'refused');
@@ -2697,8 +2659,6 @@ $$;
 revoke all on function public.monthly_report(date) from public;
 grant execute on function public.monthly_report(date) to authenticated;
 
-
--- ========== db/migrations/0040_push_subscriptions_and_manager_factories.sql 
 
 create table if not exists public.manager_factories (
   manager_id uuid not null references public.profiles (id) on delete cascade,
@@ -2864,8 +2824,6 @@ grant execute on function public.delete_push_subscription(text) to authenticated
 grant execute on function public.set_manager_factories(uuid, uuid[]) to authenticated;
 
 
--- ========== db/neon/0041_push_dispatch_trigger.neon.sql ===============
-
 create or replace function public.should_push_notification(n public.notifications)
 returns boolean
 language plpgsql
@@ -2954,8 +2912,6 @@ revoke all on function public.dispatch_push_notification() from public;
 
 
 
--- ========== db/migrations/0042_push_settings_table.sql ================
-
 create table if not exists public.app_settings (
   key text primary key,
   value text not null,
@@ -3011,8 +2967,6 @@ revoke all on function public.dispatch_push_notification() from public;
 
 
 
--- ========== db/migrations/0043_moderator_notifications_delivered_only.sql 
-
 create or replace function public.moderator_notification_types()
 returns text[]
 language sql
@@ -3054,8 +3008,6 @@ delete from public.notifications n
    and p.role = 'moderator'
    and not (n.type = any (public.moderator_notification_types()));
 
-
--- ========== db/migrations/0045_field_orders_enum_and_creator.sql ======
 
 alter type public.order_source add value if not exists 'driver_field';
 
