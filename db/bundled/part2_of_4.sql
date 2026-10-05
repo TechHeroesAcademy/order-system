@@ -1,45 +1,4 @@
--- ============================================================================
--- NEON SETUP — PART 2 OF 4
---
--- PASTE THIS WHOLE FILE INTO NEON'S SQL EDITOR AND RUN IT.
--- Run the parts in order. Wait for each to finish before starting the next.
--- Each part is safe to re-run: every statement is idempotent.
---
--- Requires the previous part to have finished.
---
--- GENERATED — do not edit. Edit the source files listed below and re-run
--- scripts/build-neon-bundle.mjs, so Supabase and Neon cannot drift apart.
---
--- Contains, in order:
---    1. db/migrations/0022_factory_permanent_order_history.sql
---    2. db/migrations/0023_fix_factory_premature_visibility.sql
---    3. db/migrations/0024_pickup_code_owner_only_assignment_and_fair_auto_distribution.sql
---    4. db/migrations/0025_region_free_text_matching.sql
---    5. db/migrations/0026_pickup_points.sql
---    6. db/migrations/0027_factory_only_order_creation.sql
---    7. db/migrations/0028_remove_pickup_points.sql
---    8. db/migrations/0029_driver_chat_hidden_after_reassignment.sql
---    9. db/migrations/0030_owner_only_cancel_and_no_moderator_team.sql
---   10. db/migrations/0031_wider_order_numbers.sql
---   11. db/migrations/0032_delete_worker.sql
---   12. db/migrations/0033_factories_table.sql
---   13. db/migrations/0034_driver_runs_factory_steps_and_chat_lockdown.sql
---   14. db/migrations/0035_bulk_distribution.sql
---   15. db/migrations/0036_driver_removal_reassignment.sql
---   16. db/migrations/0037_edit_driver_details.sql
---   17. db/migrations/0038_retire_factory_role.sql
---   18. db/migrations/0039_report_performance.sql
---   19. db/migrations/0040_push_subscriptions_and_manager_factories.sql
---   20. db/neon/0041_push_dispatch_trigger.neon.sql
---   21. db/migrations/0042_push_settings_table.sql
---   22. db/migrations/0043_moderator_notifications_delivered_only.sql
---   23. db/migrations/0045_field_orders_enum_and_creator.sql
--- ============================================================================
 
--- The chain installs pgcrypto/pg_trgm into the extensions schema (as Supabase
--- does) and several functions resolve against it. Declared per part rather
--- than relied on from the database default, so pasting a part into a fresh
--- editor session always works.
 set search_path = public, extensions;
 
 
