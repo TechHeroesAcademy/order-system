@@ -1,12 +1,4 @@
-import {
-  getDailyReport,
-  getMonthlyReport,
-  getDriverPerformance,
-  getTopRegions,
-  getDelayedOrders,
-  getOrdersBySource,
-  getOrdersByCreator,
-} from "@/lib/data/orders";
+import { getReportsPageData } from "@/lib/data/orders";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -27,15 +19,8 @@ import { RadialStat } from "@/components/reports/radial-stat";
 import { SourcesReport } from "@/components/reports/sources-report";
 
 export default async function ReportsPage() {
-  const [daily, monthly, driverPerf, topRegions, delayedOrders, bySource, byCreator] = await Promise.all([
-    getDailyReport(),
-    getMonthlyReport(),
-    getDriverPerformance(),
-    getTopRegions(),
-    getDelayedOrders(),
-    getOrdersBySource(),
-    getOrdersByCreator(),
-  ]);
+  const { daily, monthly, driverPerf, topRegions, delayedOrders, bySource, byCreator } =
+    await getReportsPageData();
 
   return (
     <div className="space-y-4">

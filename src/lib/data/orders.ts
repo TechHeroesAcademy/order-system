@@ -1,5 +1,6 @@
 import "server-only";
 import { createClient } from "@/lib/db/client";
+import { readBatch } from "@/lib/db/read-batch";
 import { TERMINAL_STATUSES } from "@/lib/domain/order-status";
 import type {
   DashboardStats,
@@ -264,6 +265,50 @@ export async function getOrdersByCreator(month?: string): Promise<OrderCreatorRo
   const { data, error } = await supabase.rpc("orders_by_creator_report", month ? { p_month: month } : {});
   if (error) throw error;
   return (data as OrderCreatorRow[]) ?? [];
+}
+
+/**
+ * Everything the reports page shows, in ONE round trip.
+ *
+ * The page awaits seven report functions together. As seven separate calls
+ * that was seven transactions and 24 statements; as one batch it is one.
+ * Possible only because none of these seven takes an argument — see
+ * readBatch, which refuses a statement carrying a bound value.
+ *
+ * The per-report functions above are kept: they take an optional day/month
+ * that this page does not use, and other callers do.
+ */
+export interface ReportsPageData {
+  daily: DailyReport;
+  monthly: MonthlyReport;
+  driverPerf: DriverPerformanceRow[];
+  topRegions: TopRegionRow[];
+  delayedOrders: DelayedOrderRow[];
+  bySource: OrderSourceRow[];
+  byCreator: OrderCreatorRow[];
+}
+
+export async function getReportsPageData(): Promise<ReportsPageData> {
+  const [daily, monthly, driverPerf, topRegions, delayedOrders, bySource, byCreator] =
+    await readBatch([
+      "select * from public.daily_report()",
+      "select * from public.monthly_report()",
+      "select * from public.driver_performance_report()",
+      "select * from public.top_regions_report()",
+      "select * from public.delayed_orders_report()",
+      "select * from public.orders_by_source_report()",
+      "select * from public.orders_by_creator_report()",
+    ]);
+
+  return {
+    daily: daily[0] as unknown as DailyReport,
+    monthly: monthly[0] as unknown as MonthlyReport,
+    driverPerf: driverPerf as unknown as DriverPerformanceRow[],
+    topRegions: topRegions as unknown as TopRegionRow[],
+    delayedOrders: delayedOrders as unknown as DelayedOrderRow[],
+    bySource: bySource as unknown as OrderSourceRow[],
+    byCreator: byCreator as unknown as OrderCreatorRow[],
+  };
 }
 
 export async function getOrderCustomerContext(orderId: string): Promise<OrderCustomerContext | null> {

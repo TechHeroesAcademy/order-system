@@ -1,14 +1,11 @@
 import { Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { NotificationBell } from "./notification-bell";
-import { listNotifications, getUnreadNotificationCount } from "@/lib/data/staff";
+import { getNotificationFeed } from "@/lib/data/staff";
 import type { UserRole } from "@/types/database";
 
 export async function NotificationBellSlot({ profileId, role }: { profileId: string; role: UserRole }) {
-  const [notifications, unreadCount] = await Promise.all([
-    listNotifications(profileId, 15),
-    getUnreadNotificationCount(profileId),
-  ]);
+  const { notifications, unreadCount } = await getNotificationFeed(profileId, 15);
 
   return <NotificationBell notifications={notifications as never} unreadCount={unreadCount} role={role} />;
 }

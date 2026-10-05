@@ -1,6 +1,7 @@
 import "server-only";
-import { createClient } from "@/lib/db/client";
-import type { Profile, UserRole } from "@/types/database";
+import { createClient, currentProfileId } from "@/lib/db/client";
+import { withUserContext } from "@/lib/db/with-user-context";
+import type { AppNotification, Profile, UserRole } from "@/types/database";
 
 export async function listStaff(role?: UserRole): Promise<Profile[]> {
   const supabase = await createClient();
@@ -23,27 +24,53 @@ export async function listAllDriverRegionIds(): Promise<Record<string, string[]>
   return map;
 }
 
-export async function getUnreadNotificationCount(userId: string): Promise<number> {
-  const supabase = await createClient();
-  const { count, error } = await supabase
-    .from("notifications")
-    .select("id", { count: "exact", head: true })
-    .eq("user_id", userId)
-    .eq("is_read", false);
-  if (error) throw error;
-  return count ?? 0;
+/**
+ * The notification bell's list and its unread badge, in ONE query and ONE
+ * transaction.
+ *
+ * The bell is in the app shell, so it renders on every authenticated page.
+ * As two calls it was two transactions, and with BEGIN/set_config/COMMIT
+ * around each that came to 8 statements before any page had fetched
+ * anything of its own — measured as half of all database traffic on
+ * /owner and /moderator.
+ *
+ * One row comes back whether or not the person has any notifications, so
+ * the badge is never missing: json_agg over a bounded subquery for the
+ * list, a scalar subquery for the count. Both still read `notifications`
+ * through the same RLS policy as before — this is one statement instead of
+ * two, not a different set of rows.
+ */
+export interface NotificationFeed {
+  notifications: AppNotification[];
+  unreadCount: number;
 }
 
-export async function listNotifications(userId: string, limit = 20) {
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("notifications")
-    .select("*")
-    .eq("user_id", userId)
-    .order("created_at", { ascending: false })
-    .limit(limit);
-  if (error) throw error;
-  return data ?? [];
+export async function getNotificationFeed(
+  userId: string,
+  limit = 20,
+): Promise<NotificationFeed> {
+  const profileId = await currentProfileId();
+  return withUserContext(profileId, async (q) => {
+    const res = await q.query<{ items: AppNotification[] | null; unread: number }>(
+      `select
+         (select coalesce(json_agg(n order by n.created_at desc), '[]'::json)
+            from (
+              select * from public.notifications
+               where user_id = $1
+               order by created_at desc
+               limit $2
+            ) n)                                             as items,
+         (select count(*)
+            from public.notifications
+           where user_id = $1 and is_read = false)           as unread`,
+      [userId, limit],
+    );
+    const row = res.rows[0];
+    return {
+      notifications: row?.items ?? [],
+      unreadCount: Number(row?.unread ?? 0),
+    };
+  });
 }
 
 export async function listManagerFactoryIds(): Promise<Record<string, string[]>> {
