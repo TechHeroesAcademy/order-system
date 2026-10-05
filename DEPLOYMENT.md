@@ -117,10 +117,12 @@ changes.
 
 ### Environment variables
 
+Six variables. One comes from the Neon dashboard, one from a SQL query, three
+from a script, one you write yourself.
+
 | Name | Value | Secret |
 |---|---|---|
 | `DATABASE_URL` | the **pooled** string from step 3 | yes |
-| `DATABASE_URL_UNPOOLED` | the **direct** string from step 3 | yes |
 | `SESSION_SECRET` | 32+ random characters | yes |
 | `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | from step 4 | no — it ships to the browser by design |
 | `VAPID_PRIVATE_KEY` | from step 4 | yes |
@@ -135,6 +137,15 @@ need to.
 
 Set all of them for Production, Preview and Development, or preview
 deployments will fail to boot.
+
+The **direct** (non-pooled) string is deliberately not in this list. Nothing in
+the application reads it — it is for schema changes and `pg_dump`, which you run
+yourself against Neon. Keep it in your password manager, not in Vercel.
+
+If this project previously ran on Supabase, delete `NEXT_PUBLIC_SUPABASE_URL`,
+`NEXT_PUBLIC_SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY`. No code reads
+them any more, and an anon key left in a live environment is a credential for a
+database you no longer control.
 
 ### Point the database at the app
 
