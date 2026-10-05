@@ -24,22 +24,6 @@ export async function listAllDriverRegionIds(): Promise<Record<string, string[]>
   return map;
 }
 
-/**
- * The notification bell's list and its unread badge, in ONE query and ONE
- * transaction.
- *
- * The bell is in the app shell, so it renders on every authenticated page.
- * As two calls it was two transactions, and with BEGIN/set_config/COMMIT
- * around each that came to 8 statements before any page had fetched
- * anything of its own — measured as half of all database traffic on
- * /owner and /moderator.
- *
- * One row comes back whether or not the person has any notifications, so
- * the badge is never missing: json_agg over a bounded subquery for the
- * list, a scalar subquery for the count. Both still read `notifications`
- * through the same RLS policy as before — this is one statement instead of
- * two, not a different set of rows.
- */
 export interface NotificationFeed {
   notifications: AppNotification[];
   unreadCount: number;

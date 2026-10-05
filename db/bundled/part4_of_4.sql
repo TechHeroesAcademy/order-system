@@ -14,10 +14,10 @@
 -- scripts/build-neon-bundle.mjs, so Supabase and Neon cannot drift apart.
 --
 -- Contains, in order:
---    1. neon/migrations/0001_auth_shim.sql
---    2. neon/migrations/0002_local_auth.sql
---    3. neon/migrations/0003_service_paths.sql
---    4. neon/migrations/0004_push_outbox_drain.sql
+--    1. db/neon/0001_auth_shim.sql
+--    2. db/neon/0002_local_auth.sql
+--    3. db/neon/0003_service_paths.sql
+--    4. db/neon/0004_push_outbox_drain.sql
 -- ============================================================================
 
 -- The chain installs pgcrypto/pg_trgm into the extensions schema (as Supabase
@@ -28,7 +28,7 @@ set search_path = public, extensions;
 
 
 
--- ========== neon/migrations/0001_auth_shim.sql ========================
+-- ========== db/neon/0001_auth_shim.sql ================================
 
 do $$
 begin
@@ -170,7 +170,7 @@ grant usage on schema public to app_admin;
 grant select on public.profiles to app_admin;
 
 
--- ========== neon/migrations/0002_local_auth.sql =======================
+-- ========== db/neon/0002_local_auth.sql ===============================
 
 create extension if not exists pgcrypto with schema extensions;
 
@@ -576,7 +576,7 @@ update public.profiles p
    and p.password_set;
 
 
--- ========== neon/migrations/0003_service_paths.sql ====================
+-- ========== db/neon/0003_service_paths.sql ============================
 
 create or replace function public.push_dispatch_payload(p_notification_id uuid)
 returns table (
@@ -684,7 +684,7 @@ grant execute on function public.owner_exists() to app_user;
 grant execute on function public.increment_push_failures(uuid[]) to app_user;
 
 
--- ========== neon/migrations/0004_push_outbox_drain.sql ================
+-- ========== db/neon/0004_push_outbox_drain.sql ========================
 
 begin;
 

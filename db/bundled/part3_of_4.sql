@@ -13,12 +13,12 @@
 -- scripts/build-neon-bundle.mjs, so Supabase and Neon cannot drift apart.
 --
 -- Contains, in order:
---    1. supabase/migrations/0046_driver_field_orders.sql
---    2. supabase/migrations/0047_clear_seeded_governorates.sql
---    3. supabase/migrations/0048_backfill_factory_coords_from_maps_url.sql
---    4. supabase/migrations/0049_repeat_customer_check.sql
---    5. supabase/migrations/0050_order_customer_context.sql
---    6. supabase/migrations/0051_fail_closed_role_guards.sql
+--    1. db/migrations/0046_driver_field_orders.sql
+--    2. db/migrations/0047_clear_seeded_governorates.sql
+--    3. db/migrations/0048_backfill_factory_coords_from_maps_url.sql
+--    4. db/migrations/0049_repeat_customer_check.sql
+--    5. db/migrations/0050_order_customer_context.sql
+--    6. db/migrations/0051_fail_closed_role_guards.sql
 -- ============================================================================
 
 -- The chain installs pgcrypto/pg_trgm into the extensions schema (as Supabase
@@ -29,7 +29,7 @@ set search_path = public, extensions;
 
 
 
--- ========== supabase/migrations/0046_driver_field_orders.sql ==========
+-- ========== db/migrations/0046_driver_field_orders.sql ================
 
 create or replace function public.driver_create_field_order(
   p_customer_name text,
@@ -209,7 +209,7 @@ revoke all on function public.order_source_label(public.order_source) from publi
 grant execute on function public.order_source_label(public.order_source) to authenticated;
 
 
--- ========== supabase/migrations/0047_clear_seeded_governorates.sql ====
+-- ========== db/migrations/0047_clear_seeded_governorates.sql ==========
 
 do $$
 declare
@@ -239,7 +239,7 @@ begin
 end$$;
 
 
--- ========== supabase/migrations/0048_backfill_factory_coords_from_maps_url.sql 
+-- ========== db/migrations/0048_backfill_factory_coords_from_maps_url.sql 
 
 do $$
 declare
@@ -294,7 +294,7 @@ begin
 end$$;
 
 
--- ========== supabase/migrations/0049_repeat_customer_check.sql ========
+-- ========== db/migrations/0049_repeat_customer_check.sql ==============
 
 create index if not exists orders_customer_phone_last8_idx
   on public.orders (right(regexp_replace(customer_phone, '\D', '', 'g'), 8));
@@ -376,7 +376,7 @@ comment on function public.customer_order_history(text) is
   'Aggregate order history for a customer phone number, across every creator. Staff/driver only; shown as a confirmation before a new order is created.';
 
 
--- ========== supabase/migrations/0050_order_customer_context.sql =======
+-- ========== db/migrations/0050_order_customer_context.sql =============
 
 create or replace function public.order_customer_context(p_order_id uuid)
 returns table (
@@ -444,7 +444,7 @@ comment on function public.order_customer_context(uuid) is
   'This order''s position in its customer''s sequence, plus that customer''s other open orders. Owner/moderator only; shown on the order page.';
 
 
--- ========== supabase/migrations/0051_fail_closed_role_guards.sql ======
+-- ========== db/migrations/0051_fail_closed_role_guards.sql ============
 
 create or replace function public.current_user_role()
 returns public.user_role

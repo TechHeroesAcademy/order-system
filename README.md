@@ -23,15 +23,14 @@ Order created (website or Messenger via Moderator)
   → unique order number (ORD-0001) + 4-digit delivery code generated
   → Owner/Moderator suggests a driver → Owner approves distribution
   → Driver collects from customer
-  → Driver hands off to factory → Factory confirms receipt
-  → Factory finishes work → marks ready
-  → Same driver picks up from factory
+  → Driver hands off at the factory and records receipt himself
+  → Same driver records the work is ready and picks it up
   → Driver delivers to customer, validates the 4-digit delivery code
   → Order closed (delivered), or refused/cancelled as terminal side-exits
 ```
 
 Every transition is enforced **in the database**, not just in the UI: each
-step is a `SECURITY DEFINER` RPC in `supabase/           # still named this: see the note belowmigrations/0009_workflow_rpcs.sql`
+step is a `SECURITY DEFINER` RPC in `db/migrations/0009_workflow_rpcs.sql`
 that re-checks the caller's role and the order's current status before doing
 anything. Row Level Security blocks any other direct write. This means the
 workflow can't be bypassed even by a direct database connection.
@@ -43,10 +42,9 @@ workflow can't be bypassed even by a direct database connection.
 | Owner | `/owner` | Full dashboard, all orders, approve driver distribution, reports/analytics, team & region management |
 | Moderator | `/moderator` | Create orders from Messenger/phone, suggest driver distribution, view all orders |
 | Driver | `/driver` | Mobile-first list of assigned orders, collect/hand-off/pickup/deliver actions, delivery code entry, refusal logging |
-| Factory | `/factory` | Search/list orders in production, confirm receipt, mark ready |
 | Customer (public) | `/order/new`, `/track` | Submit a new order from the website, track an existing order by order number + phone |
 
-Team accounts (Owner/Moderator/Driver/Factory) are created by the Owner from
+Team accounts (Owner/Moderator/Driver) are created by the Owner from
 `/owner/team` — no public sign-up.
 
 ## Project structure
@@ -58,7 +56,7 @@ src/
     ui/                Hand-built shadcn/ui-style primitives (button, dialog, table, ...)
     orders/            Order-specific UI (form, table, timeline, status badge, distribution panel)
     layout/             AppShell (header/nav/notifications), sign-out
-    driver/ factory/ team/   Role-specific components
+    driver/ team/        Role-specific components
     shared/            Generic building blocks (StatCard, EmptyState, ConfirmActionButton)
   lib/
     actions/           Server Actions ("use server") — the only way the client writes data
@@ -68,15 +66,16 @@ src/
     auth/              session cookie, the per-request check, sign-in
     auth.ts            requireRole() guard used by every protected page/action
   types/database.ts    Hand-written types mirroring the Postgres schema
-supabase/
-  migrations/          Numbered SQL migrations — run in order, this is the source of truth
+db/
+  migrations/          Numbered SQL migrations, in order — the source of truth for the schema
+  neon/                The few files specific to running on Neon (auth shim, local login, push queue)
+  bundled/             GENERATED — migrations + neon/ concatenated into four paste-able files
+  maintenance/         Security verification, schema check, data reset
+  RUNBOOK.md           Why each database decision is the way it is
 ```
 
-> **Why is there still a `supabase/` folder?** It holds the migration chain,
-> which is plain Postgres SQL and is the single source of truth for the schema
-> — renaming it would rewrite the history of 51 files and break every
-> reference in the docs for no functional gain. Nothing in it depends on
-> Supabase. `neon/` holds only the few files specific to running on Neon.
+`db/bundled/` is built by `node scripts/build-neon-bundle.mjs`. After adding a
+migration, re-run that rather than editing the bundles.
 
 ## Environment variables
 
@@ -115,7 +114,7 @@ Before the app is useful you need the database schema and seed data — see
 **NEW-ACCOUNT-SETUP.md** for standing the whole system up on a fresh GitHub,
 Vercel and Neon account, step by step in plain language.
 
-**DEPLOYMENT.md** for setup from nothing — the four files in `neon/bundled/`
+**DEPLOYMENT.md** for setup from nothing — the four files in `db/bundled/`
 build the whole schema. **TRANSFER.md** for handing the system to a customer.
 
 ### Scripts

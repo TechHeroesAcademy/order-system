@@ -102,11 +102,11 @@ drop extension if exists postgis;
 ```
 
 Then `npm run typecheck && npm run test` to confirm nothing referenced them.
-Keep this as `supabase/migrations/0051_drop_region_boundaries.sql` so both
+Keep this as `db/migrations/0051_drop_region_boundaries.sql` so both
 databases stay in step.
 
 If you would rather keep boundaries, skip this and uncomment the `create
-extension postgis` line in `neon/migrations/0000_prelude.sql` instead — PostGIS
+extension postgis` line in `db/neon/0000_prelude.sql` instead — PostGIS
 is supported on Neon (3.5.7 on PG17).
 
 ### 0.2 Create the Neon project
@@ -124,13 +124,13 @@ migrations need session-level features the pooler does not allow.
 export NEON_DIRECT='postgresql://...@...neon.tech/neondb?sslmode=require'
 
 # 1. the prelude: the Supabase-shaped pieces the chain assumes exist
-psql "$NEON_DIRECT" -v ON_ERROR_STOP=1 -f neon/migrations/0000_prelude.sql
+psql "$NEON_DIRECT" -v ON_ERROR_STOP=1 -f db/neon/0000_prelude.sql
 
-# 2. every migration in supabase/migrations/, in order, UNMODIFIED —
+# 2. every migration in db/migrations/, in order, UNMODIFIED —
 #    substituting the one pg_net-free variant for 0041
-for f in supabase/migrations/*.sql; do
+for f in db/migrations/*.sql; do
   case "$(basename "$f")" in
-    0041_*) f=neon/migrations/0041_push_dispatch_trigger.neon.sql ;;
+    0041_*) f=db/neon/0041_push_dispatch_trigger.neon.sql ;;
     0044_*) continue ;;   # dropped in 0.1; skip if you kept it
   esac
   echo "-- $f"
@@ -138,10 +138,10 @@ for f in supabase/migrations/*.sql; do
 done
 
 # 3. the shim: auth.uid(), grants, roles
-psql "$NEON_DIRECT" -v ON_ERROR_STOP=1 -f neon/migrations/0001_auth_shim.sql
+psql "$NEON_DIRECT" -v ON_ERROR_STOP=1 -f db/neon/0001_auth_shim.sql
 ```
 
-Why a prelude rather than editing the chain: `supabase/migrations/` stays the
+Why a prelude rather than editing the chain: `db/migrations/` stays the
 single source of truth for both databases, so a migration written next month
 does not have to be written twice and cannot drift. The prelude supplies the
 `auth` schema, the `extensions` schema, PostgREST's `anon`/`authenticated`/
@@ -214,7 +214,7 @@ must stay true.
 
 ## Phase 1 — the shim (already written; re-read what it now does)
 
-`neon/migrations/0001_auth_shim.sql` replaces `auth.uid()` with a function that
+`db/neon/0001_auth_shim.sql` replaces `auth.uid()` with a function that
 reads `app.current_profile_id` — a transaction-local setting the app sets — rather
 than a GoTrue JWT claim. That is the single biggest risk-reducer available here:
 `auth.uid()` is called **108 times across 28 migration files**, inside RLS

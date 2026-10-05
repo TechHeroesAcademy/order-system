@@ -2,28 +2,28 @@ import { readFileSync, writeFileSync, mkdirSync, readdirSync, statSync } from "n
 import { join } from "node:path";
 
 const MAX_BYTES = 110 * 1024;
-const OUT_DIR = "neon/bundled";
+const OUT_DIR = "db/bundled";
 
 const num = (name) => Number(name.slice(0, 4));
 
-const chain = readdirSync("supabase/migrations")
+const chain = readdirSync("db/migrations")
   .filter((f) => f.endsWith(".sql"))
   .sort()
   .flatMap((f) => {
     const n = num(f);
     if (n === 44) return [];
-    if (n === 41) return ["neon/migrations/0041_push_dispatch_trigger.neon.sql"];
-    return [join("supabase/migrations", f)];
+    if (n === 41) return ["db/neon/0041_push_dispatch_trigger.neon.sql"];
+    return [join("db/migrations", f)];
   });
 
-const PRELUDE = "neon/migrations/0000_prelude.sql";
+const PRELUDE = "db/neon/0000_prelude.sql";
 
-const NEON_AFTER_PRELUDE = readdirSync("neon/migrations")
+const NEON_AFTER_PRELUDE = readdirSync("db/neon")
   .filter((f) => f.endsWith(".sql"))
   .filter((f) => f !== "0000_prelude.sql")
   .filter((f) => !f.includes(".neon."))
   .sort()
-  .map((f) => join("neon/migrations", f));
+  .map((f) => join("db/neon", f));
 
 const beforeEnum = chain.filter((f) => num(f.split("/").pop()) <= 45);
 const afterEnum = chain.filter((f) => num(f.split("/").pop()) >= 46);

@@ -11,28 +11,28 @@
 -- scripts/build-neon-bundle.mjs, so Supabase and Neon cannot drift apart.
 --
 -- Contains, in order:
---    1. neon/migrations/0000_prelude.sql
---    2. supabase/migrations/0001_extensions_and_enums.sql
---    3. supabase/migrations/0002_profiles.sql
---    4. supabase/migrations/0003_regions_and_driver_regions.sql
---    5. supabase/migrations/0004_orders.sql
---    6. supabase/migrations/0005_order_history.sql
---    7. supabase/migrations/0006_notifications.sql
---    8. supabase/migrations/0007_order_creation.sql
---    9. supabase/migrations/0008_rls_policies.sql
---   10. supabase/migrations/0009_workflow_rpcs.sql
---   11. supabase/migrations/0010_reporting_and_views.sql
---   12. supabase/migrations/0011_table_grants.sql
---   13. supabase/migrations/0012_seed_egypt_regions.sql
---   14. supabase/migrations/0013_driver_reassignment_and_login.sql
---   15. supabase/migrations/0014_driver_approval_fix_and_factory_assignment.sql
---   16. supabase/migrations/0015_factory_location_and_handoff_tracking.sql
---   17. supabase/migrations/0016_mandatory_assignment_delivery_code_and_geo.sql
---   18. supabase/migrations/0017_track_order_setof_return.sql
---   19. supabase/migrations/0018_factory_reassignment_delivery_codes_and_chat.sql
---   20. supabase/migrations/0019_dual_channel_chat_and_full_step_notifications.sql
---   21. supabase/migrations/0020_google_maps_links.sql
---   22. supabase/migrations/0021_editable_order_details.sql
+--    1. db/neon/0000_prelude.sql
+--    2. db/migrations/0001_extensions_and_enums.sql
+--    3. db/migrations/0002_profiles.sql
+--    4. db/migrations/0003_regions_and_driver_regions.sql
+--    5. db/migrations/0004_orders.sql
+--    6. db/migrations/0005_order_history.sql
+--    7. db/migrations/0006_notifications.sql
+--    8. db/migrations/0007_order_creation.sql
+--    9. db/migrations/0008_rls_policies.sql
+--   10. db/migrations/0009_workflow_rpcs.sql
+--   11. db/migrations/0010_reporting_and_views.sql
+--   12. db/migrations/0011_table_grants.sql
+--   13. db/migrations/0012_seed_egypt_regions.sql
+--   14. db/migrations/0013_driver_reassignment_and_login.sql
+--   15. db/migrations/0014_driver_approval_fix_and_factory_assignment.sql
+--   16. db/migrations/0015_factory_location_and_handoff_tracking.sql
+--   17. db/migrations/0016_mandatory_assignment_delivery_code_and_geo.sql
+--   18. db/migrations/0017_track_order_setof_return.sql
+--   19. db/migrations/0018_factory_reassignment_delivery_codes_and_chat.sql
+--   20. db/migrations/0019_dual_channel_chat_and_full_step_notifications.sql
+--   21. db/migrations/0020_google_maps_links.sql
+--   22. db/migrations/0021_editable_order_details.sql
 -- ============================================================================
 
 -- The chain installs pgcrypto/pg_trgm into the extensions schema (as Supabase
@@ -43,7 +43,7 @@ set search_path = public, extensions;
 
 
 
--- ========== neon/migrations/0000_prelude.sql ==========================
+-- ========== db/neon/0000_prelude.sql ==================================
 
 do $$
 begin
@@ -178,7 +178,7 @@ create table if not exists net._http_response (
 revoke all on table net._http_response from public;
 
 
--- ========== supabase/migrations/0001_extensions_and_enums.sql =========
+-- ========== db/migrations/0001_extensions_and_enums.sql ===============
 
 create extension if not exists pgcrypto;
 create extension if not exists "uuid-ossp";
@@ -216,7 +216,7 @@ begin
 end$$;
 
 
--- ========== supabase/migrations/0002_profiles.sql =====================
+-- ========== db/migrations/0002_profiles.sql ===========================
 
 create table if not exists public.profiles (
   id uuid primary key references auth.users (id) on delete cascade,
@@ -291,7 +291,7 @@ returns boolean language sql stable security definer set search_path = public as
 $$;
 
 
--- ========== supabase/migrations/0003_regions_and_driver_regions.sql ===
+-- ========== db/migrations/0003_regions_and_driver_regions.sql =========
 
 create table if not exists public.regions (
   id uuid primary key default gen_random_uuid(),
@@ -320,7 +320,7 @@ create table if not exists public.driver_regions (
 create index if not exists driver_regions_region_idx on public.driver_regions (region_id);
 
 
--- ========== supabase/migrations/0004_orders.sql =======================
+-- ========== db/migrations/0004_orders.sql =============================
 
 create sequence if not exists public.order_number_seq start 1;
 
@@ -407,7 +407,7 @@ as $$
 $$;
 
 
--- ========== supabase/migrations/0005_order_history.sql ================
+-- ========== db/migrations/0005_order_history.sql ======================
 
 create table if not exists public.order_history (
   id uuid primary key default gen_random_uuid(),
@@ -447,7 +447,7 @@ end;
 $$;
 
 
--- ========== supabase/migrations/0006_notifications.sql ================
+-- ========== db/migrations/0006_notifications.sql ======================
 
 create table if not exists public.notifications (
   id uuid primary key default gen_random_uuid(),
@@ -506,7 +506,7 @@ end;
 $$;
 
 
--- ========== supabase/migrations/0007_order_creation.sql ===============
+-- ========== db/migrations/0007_order_creation.sql =====================
 
 create or replace function public.generate_delivery_code()
 returns text
@@ -644,7 +644,7 @@ revoke all on function public.moderator_create_order from public;
 grant execute on function public.moderator_create_order to authenticated;
 
 
--- ========== supabase/migrations/0008_rls_policies.sql =================
+-- ========== db/migrations/0008_rls_policies.sql =======================
 
 alter table public.profiles enable row level security;
 
@@ -785,7 +785,7 @@ create policy notifications_update_own on public.notifications
   for update using (user_id = auth.uid()) with check (user_id = auth.uid());
 
 
--- ========== supabase/migrations/0009_workflow_rpcs.sql ================
+-- ========== db/migrations/0009_workflow_rpcs.sql ======================
 
 create or replace function public.suggest_drivers(p_order_id uuid)
 returns table (
@@ -1186,7 +1186,7 @@ grant execute on function public.factory_mark_ready(uuid) to authenticated;
 grant execute on function public.owner_cancel_order(uuid, text) to authenticated;
 
 
--- ========== supabase/migrations/0010_reporting_and_views.sql ==========
+-- ========== db/migrations/0010_reporting_and_views.sql ================
 
 create or replace view public.factory_orders_view
 with (security_invoker = false) as
@@ -1395,7 +1395,7 @@ grant execute on function public.delayed_orders_report() to authenticated;
 grant execute on function public.top_regions_report() to authenticated;
 
 
--- ========== supabase/migrations/0011_table_grants.sql =================
+-- ========== db/migrations/0011_table_grants.sql =======================
 
 grant usage on schema public to anon, authenticated;
 
@@ -1415,7 +1415,7 @@ grant select, update on public.notifications to authenticated;
 grant select on public.factory_orders_view to authenticated;
 
 
--- ========== supabase/migrations/0012_seed_egypt_regions.sql ===========
+-- ========== db/migrations/0012_seed_egypt_regions.sql =================
 
 insert into public.regions (name) values
   ('القاهرة'),
@@ -1448,7 +1448,7 @@ insert into public.regions (name) values
 on conflict (name) do nothing;
 
 
--- ========== supabase/migrations/0013_driver_reassignment_and_login.sql 
+-- ========== db/migrations/0013_driver_reassignment_and_login.sql ======
 
 create or replace function public.reassign_order_driver(p_order_id uuid, p_new_driver_id uuid)
 returns void
@@ -1561,7 +1561,7 @@ revoke all on function public.driver_performance_report() from public;
 grant execute on function public.driver_performance_report() to authenticated;
 
 
--- ========== supabase/migrations/0014_driver_approval_fix_and_factory_assignment.sql 
+-- ========== db/migrations/0014_driver_approval_fix_and_factory_assignment.sql 
 
 create or replace function public.reassign_order_driver(p_order_id uuid, p_new_driver_id uuid)
 returns void
@@ -1817,7 +1817,7 @@ where o.status in ('collected', 'at_factory', 'ready')
 grant select on public.factory_orders_view to authenticated;
 
 
--- ========== supabase/migrations/0015_factory_location_and_handoff_tracking.sql 
+-- ========== db/migrations/0015_factory_location_and_handoff_tracking.sql 
 
 alter table public.profiles add column if not exists address text;
 
@@ -1919,7 +1919,7 @@ where o.status in ('collected', 'at_factory', 'ready')
 grant select on public.factory_orders_view to authenticated;
 
 
--- ========== supabase/migrations/0016_mandatory_assignment_delivery_code_and_geo.sql 
+-- ========== db/migrations/0016_mandatory_assignment_delivery_code_and_geo.sql 
 
 drop function if exists public.create_order_internal(text, text, text, uuid, integer, text, text, text, text, order_source, uuid, uuid);
 drop function if exists public.moderator_create_order(text, text, text, uuid, integer, text, text, text, text, uuid);
@@ -2123,7 +2123,7 @@ end;
 $$;
 
 
--- ========== supabase/migrations/0017_track_order_setof_return.sql =====
+-- ========== db/migrations/0017_track_order_setof_return.sql ===========
 
 drop function if exists public.track_order(text, text);
 
@@ -2167,7 +2167,7 @@ revoke all on function public.track_order from public;
 grant execute on function public.track_order to anon, authenticated;
 
 
--- ========== supabase/migrations/0018_factory_reassignment_delivery_codes_and_chat.sql 
+-- ========== db/migrations/0018_factory_reassignment_delivery_codes_and_chat.sql 
 
 create or replace function public.reassign_order_factory(p_order_id uuid, p_new_factory_id uuid)
 returns void
@@ -2326,7 +2326,7 @@ revoke all on function public.send_order_message from public;
 grant execute on function public.send_order_message to authenticated;
 
 
--- ========== supabase/migrations/0019_dual_channel_chat_and_full_step_notifications.sql 
+-- ========== db/migrations/0019_dual_channel_chat_and_full_step_notifications.sql 
 
 create or replace function public.notify_staff(
   p_order_id uuid,
@@ -2825,7 +2825,7 @@ end;
 $$;
 
 
--- ========== supabase/migrations/0020_google_maps_links.sql ============
+-- ========== db/migrations/0020_google_maps_links.sql ==================
 
 alter table public.orders add column if not exists customer_maps_url text;
 
@@ -3031,7 +3031,7 @@ revoke all on function public.moderator_create_order from public;
 grant execute on function public.moderator_create_order to authenticated;
 
 
--- ========== supabase/migrations/0021_editable_order_details.sql =======
+-- ========== db/migrations/0021_editable_order_details.sql =============
 
 create or replace function public.update_order_details(
   p_order_id uuid,

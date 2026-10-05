@@ -82,7 +82,7 @@ Check the new repository shows a `src` folder, a `neon` folder and a
 
 2. Open **SQL Editor** from the left sidebar. You are going to paste four
    files, one at a time, in order. They are in the project under
-   `neon/bundled/`:
+   `db/bundled/`:
 
    | | File | What it builds |
    |---|---|---|
@@ -108,7 +108,7 @@ Check the new repository shows a `src` folder, a `neon` folder and a
    ```
 
    You should get **15**. If you get fewer, a part did not finish — run
-   `supabase/maintenance/check_schema_parts.sql`, which tells you which one.
+   `db/maintenance/check_schema_parts.sql`, which tells you which one.
 
 4. Give the application its own database password. Make up a long random one
    and run:
@@ -332,7 +332,7 @@ Run this while connected as the application would be. You want
 `app_user`, `f`, `f`. Anything else means `DATABASE_URL` points at the wrong
 account and the security rules are switched off.
 
-Then paste the whole of `supabase/maintenance/verify_role_guards.sql` and run
+Then paste the whole of `db/maintenance/verify_role_guards.sql` and run
 it. Ten checks, all should say PASS. This is the one that catches a permission
 check falling open.
 
@@ -377,11 +377,11 @@ change to the database structure.
 and your Neon login, belong in a password manager. The notification private key
 cannot be recovered or regenerated without cutting every phone off.
 
-**Starting the data over.** `supabase/maintenance/reset_all_data.sql` empties
+**Starting the data over.** `db/maintenance/reset_all_data.sql` empties
 every account and order while keeping the structure and the notification
 settings. It refuses to run until you edit one line in it, on purpose.
 
-**Adding changes later.** New database changes go in `supabase/migrations/`,
+**Adding changes later.** New database changes go in `db/migrations/`,
 then re-run `node scripts/build-neon-bundle.mjs` to rebuild the four files in
-`neon/bundled/`. Apply those with Neon's **direct** connection string, not the
+`db/bundled/`. Apply those with Neon's **direct** connection string, not the
 pooled one.

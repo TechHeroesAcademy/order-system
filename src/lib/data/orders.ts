@@ -267,17 +267,6 @@ export async function getOrdersByCreator(month?: string): Promise<OrderCreatorRo
   return (data as OrderCreatorRow[]) ?? [];
 }
 
-/**
- * Everything the reports page shows, in ONE round trip.
- *
- * The page awaits seven report functions together. As seven separate calls
- * that was seven transactions and 24 statements; as one batch it is one.
- * Possible only because none of these seven takes an argument — see
- * readBatch, which refuses a statement carrying a bound value.
- *
- * The per-report functions above are kept: they take an optional day/month
- * that this page does not use, and other callers do.
- */
 export interface ReportsPageData {
   daily: DailyReport;
   monthly: MonthlyReport;

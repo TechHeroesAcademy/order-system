@@ -1,16 +1,3 @@
-/**
- * Every RPC in this schema that can create a notification.
- *
- * Derived from the database rather than guessed: the transitive closure of
- * functions whose body calls notify_user / notify_role / notify_staff. A
- * test re-derives it from pg_proc and fails if the schema grows a notifying
- * function this list does not name, because the failure mode otherwise is a
- * push that arrives late or not at all — silently, again.
- *
- * Read-only RPCs are deliberately absent. Scheduling a drain after
- * dashboard_stats would add a query to every page view, which is the cost
- * the rest of this work went to some trouble to remove.
- */
 export const NOTIFYING_RPCS: ReadonlySet<string> = new Set([
   "approve_distribution",
   "approve_distribution_bulk",

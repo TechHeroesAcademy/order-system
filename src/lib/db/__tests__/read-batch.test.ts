@@ -1,16 +1,4 @@
 // @vitest-environment node
-/**
- * readBatch runs several statements in one round trip and hands the results
- * back positionally. A wrong slice offset would not fail — it would return
- * the daily report where the monthly one belongs, and the page would render
- * plausible numbers in the wrong places.
- *
- * So this compares every value from the batched path against the same value
- * fetched one call at a time, and checks the guards that keep the batch from
- * becoming a way to put request data into SQL.
- *
- *   DATABASE_URL=postgres://app_user:...@127.0.0.1:5432/db npx vitest run read-batch
- */
 
 import { describe, it, expect, vi, beforeAll } from "vitest";
 
@@ -20,9 +8,6 @@ const suite = DB ? describe : describe.skip;
 
 let ownerId: string;
 
-// readBatch and the data layer resolve the viewer from the request. There is
-// no request here, so the identity is stubbed at the module that provides it
-// — the same seam createClient() uses.
 vi.mock("@/lib/db/client", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/db/client")>();
   return {
@@ -77,16 +62,12 @@ suite("readBatch", () => {
   it("the identity is set, so RLS-scoped reads return the owner's rows", async () => {
     const { readBatch } = await import("../read-batch");
     const [rows] = await readBatch(["select count(*)::int as n from public.orders"]);
-    // The owner can see orders; with no identity set this would be 0.
     expect(rows[0].n).toBeGreaterThan(0);
   });
 
   it("the identity does not survive the batch", async () => {
     const { readBatch } = await import("../read-batch");
     await readBatch(["select 1 as n"]);
-    // A fresh statement on a pooled connection must see no identity. Asked
-    // through the pool directly rather than through readBatch, which would
-    // set it again.
     const { getPool } = await import("../pool");
     const res = await getPool().query(
       "select current_setting('app.current_profile_id', true) as id",
@@ -119,8 +100,6 @@ suite("readBatch", () => {
   });
 
   it("the batched reports are not merely all equal to each other", async () => {
-    // The previous test would pass if every slice returned the same thing,
-    // so pin the shapes that distinguish them.
     const orders = await import("@/lib/data/orders");
     const b = await orders.getReportsPageData();
     expect(b.daily).toHaveProperty("new_orders");

@@ -1,19 +1,4 @@
 // @vitest-environment node
-/**
- * The queued-push drain, against a real database.
- *
- * This is the path that broke notifications on phones after the move off
- * Supabase: the trigger queued an HTTP request into public.push_outbox,
- * because Neon has no pg_net to send it, and nothing drained that table.
- * Nothing errored — queuing worked perfectly — so there was no symptom
- * except silence on every phone.
- *
- * Two things are checked here, and the second is the one that stops a
- * repeat: that the drain works, and that the list of RPCs which trigger a
- * drain still matches what the schema actually does.
- *
- *   DATABASE_URL=... ADMIN_DATABASE_URL=... npx vitest run push/__tests__/outbox
- */
 
 import { describe, it, expect, beforeAll, vi } from "vitest";
 import { NOTIFYING_RPCS } from "../notifying-rpcs";
@@ -22,9 +7,6 @@ const DB = process.env.DATABASE_URL;
 const ADMIN = process.env.ADMIN_DATABASE_URL;
 const suite = DB ? describe : describe.skip;
 
-// web-push would try to reach Google and Apple. The drain's job is to pick
-// the right rows and record the right outcome; whether a real push lands is
-// not something a test can assert.
 const sent: string[] = [];
 vi.mock("../send", () => ({
   pushIsConfigured: () => true,
@@ -80,8 +62,6 @@ suite("push outbox drain", () => {
   }
 
   it("the trigger really does queue a row rather than sending it", async () => {
-    // The original bug, stated as a fact about the database: a notification
-    // for someone with a registered device leaves a pending outbox row.
     const before = await admin.query(
       "select count(*)::int as n from public.push_outbox where delivered_at is null",
     );
@@ -167,10 +147,6 @@ suite("push outbox drain", () => {
   });
 
   it("NOTIFYING_RPCS still matches every notifying function in the schema", async () => {
-    // The guard that matters. If someone adds an RPC that notifies and does
-    // not add it here, its push is only sent whenever some OTHER notifying
-    // action happens to run — late, or never. Re-derive the answer from the
-    // database instead of trusting the list.
     const res = await admin.query(`
       with recursive notifiers as (
         select p.oid, p.proname

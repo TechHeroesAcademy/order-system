@@ -40,14 +40,6 @@ export function pushIsConfigured(): boolean {
   );
 }
 
-/**
- * Sends one notification to every device its recipient has registered.
- *
- * Shared by the /api/push/dispatch route and the outbox drain so there is
- * one implementation of what a push actually is — the payload shape, the
- * deep link, which failures mean "this device is gone" versus "try again".
- * Two copies of that would drift, and the drain is the path that matters now.
- */
 export async function sendPushForNotification(notificationId: string): Promise<SendOutcome> {
   const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
   const privateKey = process.env.VAPID_PRIVATE_KEY;

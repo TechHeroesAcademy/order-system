@@ -11,29 +11,29 @@
 -- scripts/build-neon-bundle.mjs, so Supabase and Neon cannot drift apart.
 --
 -- Contains, in order:
---    1. supabase/migrations/0022_factory_permanent_order_history.sql
---    2. supabase/migrations/0023_fix_factory_premature_visibility.sql
---    3. supabase/migrations/0024_pickup_code_owner_only_assignment_and_fair_auto_distribution.sql
---    4. supabase/migrations/0025_region_free_text_matching.sql
---    5. supabase/migrations/0026_pickup_points.sql
---    6. supabase/migrations/0027_factory_only_order_creation.sql
---    7. supabase/migrations/0028_remove_pickup_points.sql
---    8. supabase/migrations/0029_driver_chat_hidden_after_reassignment.sql
---    9. supabase/migrations/0030_owner_only_cancel_and_no_moderator_team.sql
---   10. supabase/migrations/0031_wider_order_numbers.sql
---   11. supabase/migrations/0032_delete_worker.sql
---   12. supabase/migrations/0033_factories_table.sql
---   13. supabase/migrations/0034_driver_runs_factory_steps_and_chat_lockdown.sql
---   14. supabase/migrations/0035_bulk_distribution.sql
---   15. supabase/migrations/0036_driver_removal_reassignment.sql
---   16. supabase/migrations/0037_edit_driver_details.sql
---   17. supabase/migrations/0038_retire_factory_role.sql
---   18. supabase/migrations/0039_report_performance.sql
---   19. supabase/migrations/0040_push_subscriptions_and_manager_factories.sql
---   20. neon/migrations/0041_push_dispatch_trigger.neon.sql
---   21. supabase/migrations/0042_push_settings_table.sql
---   22. supabase/migrations/0043_moderator_notifications_delivered_only.sql
---   23. supabase/migrations/0045_field_orders_enum_and_creator.sql
+--    1. db/migrations/0022_factory_permanent_order_history.sql
+--    2. db/migrations/0023_fix_factory_premature_visibility.sql
+--    3. db/migrations/0024_pickup_code_owner_only_assignment_and_fair_auto_distribution.sql
+--    4. db/migrations/0025_region_free_text_matching.sql
+--    5. db/migrations/0026_pickup_points.sql
+--    6. db/migrations/0027_factory_only_order_creation.sql
+--    7. db/migrations/0028_remove_pickup_points.sql
+--    8. db/migrations/0029_driver_chat_hidden_after_reassignment.sql
+--    9. db/migrations/0030_owner_only_cancel_and_no_moderator_team.sql
+--   10. db/migrations/0031_wider_order_numbers.sql
+--   11. db/migrations/0032_delete_worker.sql
+--   12. db/migrations/0033_factories_table.sql
+--   13. db/migrations/0034_driver_runs_factory_steps_and_chat_lockdown.sql
+--   14. db/migrations/0035_bulk_distribution.sql
+--   15. db/migrations/0036_driver_removal_reassignment.sql
+--   16. db/migrations/0037_edit_driver_details.sql
+--   17. db/migrations/0038_retire_factory_role.sql
+--   18. db/migrations/0039_report_performance.sql
+--   19. db/migrations/0040_push_subscriptions_and_manager_factories.sql
+--   20. db/neon/0041_push_dispatch_trigger.neon.sql
+--   21. db/migrations/0042_push_settings_table.sql
+--   22. db/migrations/0043_moderator_notifications_delivered_only.sql
+--   23. db/migrations/0045_field_orders_enum_and_creator.sql
 -- ============================================================================
 
 -- The chain installs pgcrypto/pg_trgm into the extensions schema (as Supabase
@@ -44,7 +44,7 @@ set search_path = public, extensions;
 
 
 
--- ========== supabase/migrations/0022_factory_permanent_order_history.sql 
+-- ========== db/migrations/0022_factory_permanent_order_history.sql ====
 
 drop policy if exists orders_select_factory on public.orders;
 create policy orders_select_factory on public.orders
@@ -110,7 +110,7 @@ where
 grant select on public.factory_orders_view to authenticated;
 
 
--- ========== supabase/migrations/0023_fix_factory_premature_visibility.sql 
+-- ========== db/migrations/0023_fix_factory_premature_visibility.sql ===
 
 drop policy if exists orders_select_factory on public.orders;
 create policy orders_select_factory on public.orders
@@ -174,7 +174,7 @@ where
 grant select on public.factory_orders_view to authenticated;
 
 
--- ========== supabase/migrations/0024_pickup_code_owner_only_assignment_and_fair_auto_distribution.sql 
+-- ========== db/migrations/0024_pickup_code_owner_only_assignment_and_fair_auto_distribution.sql 
 
 alter table public.orders add column if not exists pickup_code_hash text;
 alter table public.orders add column if not exists failed_pickup_code_attempts integer not null default 0;
@@ -629,7 +629,7 @@ revoke all on function public.moderator_create_order from public;
 grant execute on function public.moderator_create_order to authenticated;
 
 
--- ========== supabase/migrations/0025_region_free_text_matching.sql ====
+-- ========== db/migrations/0025_region_free_text_matching.sql ==========
 
 create or replace function public.find_or_create_region(p_name text)
 returns uuid
@@ -1009,7 +1009,7 @@ revoke all on function public.update_order_details from public, anon, authentica
 grant execute on function public.update_order_details to authenticated;
 
 
--- ========== supabase/migrations/0026_pickup_points.sql ================
+-- ========== db/migrations/0026_pickup_points.sql ======================
 
 create table if not exists public.pickup_points (
   id uuid primary key default gen_random_uuid(),
@@ -1192,7 +1192,7 @@ revoke all on function public.set_pickup_point_regions(uuid, text[]) from public
 grant execute on function public.set_pickup_point_regions(uuid, text[]) to authenticated;
 
 
--- ========== supabase/migrations/0027_factory_only_order_creation.sql ==
+-- ========== db/migrations/0027_factory_only_order_creation.sql ========
 
 create or replace function public.moderator_create_order(
   p_customer_name text,
@@ -1234,7 +1234,7 @@ revoke all on function public.moderator_create_order(text, text, text, text, int
 grant execute on function public.moderator_create_order(text, text, text, text, integer, text, text, text, text, uuid, uuid, text) to authenticated;
 
 
--- ========== supabase/migrations/0028_remove_pickup_points.sql =========
+-- ========== db/migrations/0028_remove_pickup_points.sql ===============
 
 drop function if exists public.set_pickup_point_regions(uuid, text[]);
 drop function if exists public.set_pickup_point_active(uuid, boolean);
@@ -1245,7 +1245,7 @@ drop table if exists public.pickup_point_regions cascade;
 drop table if exists public.pickup_points cascade;
 
 
--- ========== supabase/migrations/0029_driver_chat_hidden_after_reassignment.sql 
+-- ========== db/migrations/0029_driver_chat_hidden_after_reassignment.sql 
 
 alter table public.order_messages add column if not exists driver_id uuid references public.profiles(id);
 
@@ -1361,7 +1361,7 @@ revoke all on function public.send_order_message(uuid, text, text) from public;
 grant execute on function public.send_order_message(uuid, text, text) to authenticated;
 
 
--- ========== supabase/migrations/0030_owner_only_cancel_and_no_moderator_team.sql 
+-- ========== db/migrations/0030_owner_only_cancel_and_no_moderator_team.sql 
 
 create or replace function public.owner_cancel_order(p_order_id uuid, p_reason text)
 returns void
@@ -1392,7 +1392,7 @@ revoke all on function public.owner_cancel_order(uuid, text) from public;
 grant execute on function public.owner_cancel_order(uuid, text) to authenticated;
 
 
--- ========== supabase/migrations/0031_wider_order_numbers.sql ==========
+-- ========== db/migrations/0031_wider_order_numbers.sql ================
 
 create or replace function public.set_order_number()
 returns trigger
@@ -1407,7 +1407,7 @@ end;
 $$;
 
 
--- ========== supabase/migrations/0032_delete_worker.sql ================
+-- ========== db/migrations/0032_delete_worker.sql ======================
 
 alter table public.orders add column if not exists assigned_driver_name text;
 alter table public.orders add column if not exists assigned_factory_name text;
@@ -1516,7 +1516,7 @@ where
 grant select on public.factory_orders_view to authenticated;
 
 
--- ========== supabase/migrations/0033_factories_table.sql ==============
+-- ========== db/migrations/0033_factories_table.sql ====================
 
 create table if not exists public.factories (
   id uuid primary key default gen_random_uuid(),
@@ -1884,7 +1884,7 @@ grant execute on function public.set_factory_active(uuid, boolean) to authentica
 grant execute on function public.delete_factory(uuid) to authenticated;
 
 
--- ========== supabase/migrations/0034_driver_runs_factory_steps_and_chat_lockdown.sql 
+-- ========== db/migrations/0034_driver_runs_factory_steps_and_chat_lockdown.sql 
 
 create or replace function public.factory_confirm_receipt(p_order_id uuid)
 returns void
@@ -2067,7 +2067,7 @@ create policy order_messages_select on public.order_messages
   );
 
 
--- ========== supabase/migrations/0035_bulk_distribution.sql ============
+-- ========== db/migrations/0035_bulk_distribution.sql ==================
 
 create or replace function public.approve_distribution_one(p_order_id uuid)
 returns void
@@ -2292,7 +2292,7 @@ end;
 $$;
 
 
--- ========== supabase/migrations/0036_driver_removal_reassignment.sql ==
+-- ========== db/migrations/0036_driver_removal_reassignment.sql ========
 
 create or replace function public.pick_fair_driver_for_region_excluding(
   p_region_id uuid,
@@ -2445,7 +2445,7 @@ revoke all on function public.reassign_orders_from_driver(uuid) from public, ano
 grant execute on function public.reassign_orders_from_driver(uuid) to authenticated;
 
 
--- ========== supabase/migrations/0037_edit_driver_details.sql ==========
+-- ========== db/migrations/0037_edit_driver_details.sql ================
 
 create or replace function public.update_staff_profile(p_user_id uuid, p_full_name text)
 returns void
@@ -2521,7 +2521,7 @@ revoke all on function public.update_staff_profile(uuid, text) from public, anon
 grant execute on function public.update_staff_profile(uuid, text) to authenticated;
 
 
--- ========== supabase/migrations/0038_retire_factory_role.sql ==========
+-- ========== db/migrations/0038_retire_factory_role.sql ================
 
 do $$
 declare
@@ -2654,7 +2654,7 @@ comment on type public.user_role is
   'profiles_role_not_factory constraint.';
 
 
--- ========== supabase/migrations/0039_report_performance.sql ===========
+-- ========== db/migrations/0039_report_performance.sql =================
 
 create index if not exists orders_open_created_at_idx
   on public.orders (created_at)
@@ -2739,7 +2739,7 @@ revoke all on function public.monthly_report(date) from public;
 grant execute on function public.monthly_report(date) to authenticated;
 
 
--- ========== supabase/migrations/0040_push_subscriptions_and_manager_factories.sql 
+-- ========== db/migrations/0040_push_subscriptions_and_manager_factories.sql 
 
 create table if not exists public.manager_factories (
   manager_id uuid not null references public.profiles (id) on delete cascade,
@@ -2905,7 +2905,7 @@ grant execute on function public.delete_push_subscription(text) to authenticated
 grant execute on function public.set_manager_factories(uuid, uuid[]) to authenticated;
 
 
--- ========== neon/migrations/0041_push_dispatch_trigger.neon.sql =======
+-- ========== db/neon/0041_push_dispatch_trigger.neon.sql ===============
 
 create or replace function public.should_push_notification(n public.notifications)
 returns boolean
@@ -2995,7 +2995,7 @@ revoke all on function public.dispatch_push_notification() from public;
 
 
 
--- ========== supabase/migrations/0042_push_settings_table.sql ==========
+-- ========== db/migrations/0042_push_settings_table.sql ================
 
 create table if not exists public.app_settings (
   key text primary key,
@@ -3052,7 +3052,7 @@ revoke all on function public.dispatch_push_notification() from public;
 
 
 
--- ========== supabase/migrations/0043_moderator_notifications_delivered_only.sql 
+-- ========== db/migrations/0043_moderator_notifications_delivered_only.sql 
 
 create or replace function public.moderator_notification_types()
 returns text[]
@@ -3096,7 +3096,7 @@ delete from public.notifications n
    and not (n.type = any (public.moderator_notification_types()));
 
 
--- ========== supabase/migrations/0045_field_orders_enum_and_creator.sql 
+-- ========== db/migrations/0045_field_orders_enum_and_creator.sql ======
 
 alter type public.order_source add value if not exists 'driver_field';
 

@@ -166,7 +166,7 @@ Only if transfer is unavailable on the plan, or if they want a clean project.
 
 1. Customer creates the project, in the region nearest their Vercel
    deployment.
-2. They run the four files from `neon/bundled/` in order — `DEPLOYMENT.md`
+2. They run the four files from `db/bundled/` in order — `DEPLOYMENT.md`
    section 2. **Do not hand them a `pg_dump` of your schema instead:** the
    bundles are what was tested, and a dump taken with the wrong role carries
    ownership and grants that will not match.
@@ -182,7 +182,7 @@ Only if transfer is unavailable on the plan, or if they want a clean project.
    sides, and zero orphan foreign keys.
 
 **Or start empty**, which is often the right answer at a handover:
-`supabase/maintenance/reset_all_data.sql` empties every account and order
+`db/maintenance/reset_all_data.sql` empties every account and order
 while keeping the schema and the push configuration, then the customer creates
 their own first owner at `/setup`.
 
@@ -296,17 +296,17 @@ and are just as important.
 
 **In the repository.** `README.md` for the architecture, `DEPLOYMENT.md` for
 standing it up from nothing, `HANDOVER.md` for day-to-day use in Arabic,
-`neon/RUNBOOK.md` for why the
+`db/RUNBOOK.md` for why the
 database is arranged the way it is.
 
 **The operational files**, which the customer will need one day and will not
 find under pressure:
 
-- `supabase/maintenance/verify_role_guards.sql` — the security check. Tell
+- `db/maintenance/verify_role_guards.sql` — the security check. Tell
   them to run it after any database change. It is the one that catches an
   authorization guard falling open.
-- `supabase/maintenance/reset_all_data.sql` — empties the system.
-- `neon/bundled/` — the four files that build the schema from nothing.
+- `db/maintenance/reset_all_data.sql` — empties the system.
+- `db/bundled/` — the four files that build the schema from nothing.
 - `scripts/verify-db-layer.mjs` — 26 checks against a real database.
 
 **Written down somewhere that is not a chat window:** which Neon region, which

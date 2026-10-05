@@ -10,7 +10,7 @@ Vercel dashboard.
 > their Auth service plus their auto-generated REST API. It now runs on plain
 > Postgres: the app connects with a database driver, sessions are a signed
 > cookie, and passwords are hashed and verified inside Postgres. There is no
-> `SUPABASE_*` variable anywhere any more. `neon/RUNBOOK.md` records why each
+> `SUPABASE_*` variable anywhere any more. `db/RUNBOOK.md` records why each
 > piece is the way it is.
 
 ---
@@ -30,7 +30,7 @@ Scale-to-zero can stay on.
 
 ## 2. Create the tables
 
-Open **SQL Editor**. Run the four files in `neon/bundled/` in order — paste
+Open **SQL Editor**. Run the four files in `db/bundled/` in order — paste
 one, run it, wait for it to finish, then the next.
 
 | | File | What it adds |
@@ -47,7 +47,7 @@ starts by doing. A SQL editor runs your whole
 paste as one transaction, so combining them fails. Every part is idempotent,
 so re-running one after losing your place is safe.
 
-These files are generated from `supabase/migrations/` plus `neon/migrations/`
+These files are generated from `db/migrations/` plus `db/neon/`
 by `scripts/build-neon-bundle.mjs`. After adding a migration, re-run that
 script rather than editing them.
 
@@ -66,7 +66,7 @@ select (select count(*) from pg_class c join pg_namespace n on n.oid = c.relname
 Expect 15 tables, every one of them with row-level security on, 23 policies,
 and 75 `SECURITY DEFINER` functions.
 
-Better still, run `supabase/maintenance/check_schema_parts.sql`, which names
+Better still, run `db/maintenance/check_schema_parts.sql`, which names
 a marker object from each part and tells you which one did not finish rather
 than leaving you to compare counts. The counts above go stale every time a
 migration is added — the figure here said 71 until migration 0003 was
@@ -216,7 +216,7 @@ notification only — that an order was delivered.
 
 Security first, because it is the part nobody notices is wrong:
 
-- [ ] `supabase/maintenance/verify_role_guards.sql` in the SQL editor — 10
+- [ ] `db/maintenance/verify_role_guards.sql` in the SQL editor — 10
       checks, all PASS. This is the one that catches an authorization guard
       falling open.
 - [ ] `DATABASE_URL` points at `app_user`, not the Neon owner role:
@@ -248,10 +248,10 @@ the retention window matches what you would need, and take a manual export
 before any schema change.
 
 **Schema changes.** Apply new migrations with the **direct** connection
-string, never the pooled one. Add them to `supabase/migrations/` and re-run
+string, never the pooled one. Add them to `db/migrations/` and re-run
 `scripts/build-neon-bundle.mjs`.
 
-**Starting over.** `supabase/maintenance/reset_all_data.sql` empties every
+**Starting over.** `db/maintenance/reset_all_data.sql` empties every
 account and order while keeping the schema and the push configuration. It
 refuses to run until you edit one line, and it tells you what it is about to
 delete before it does it.
