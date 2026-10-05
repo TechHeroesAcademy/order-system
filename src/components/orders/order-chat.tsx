@@ -22,8 +22,7 @@ const CHANNEL_TITLES_AR: Record<OrderChatChannel, string> = {
   factory: "دردشة المصنع",
 };
 
-const POLL_LADDER_MS = [4000, 4000, 4000, 10000, 10000, 30000] as const;
-const POLL_IDLE_MS = 60000;
+const POLL_LADDER_MS = [4000, 4000, 4000, 10000, 10000, 30000, 60000, 120000, 420000] as const;
 
 export function OrderChat({
   orderId,
@@ -71,7 +70,8 @@ export function OrderChat({
 
     function schedule() {
       clearTimeout(timer);
-      const delay = document.hidden || !onScreen ? POLL_IDLE_MS : POLL_LADDER_MS[step];
+      if (document.hidden || !onScreen) return;
+      const delay = POLL_LADDER_MS[step];
       timer = setTimeout(async () => {
         await poll();
         if (!cancelled) schedule();
@@ -85,8 +85,20 @@ export function OrderChat({
       }
     }
 
+    function wakeUp() {
+      if (document.hidden || !onScreen) return;
+      step = 0;
+      clearTimeout(timer);
+      void poll().then(() => !cancelled && schedule());
+    }
+
     void poll().then(() => !cancelled && schedule());
     document.addEventListener("visibilitychange", onVisibility);
+
+    const node0 = panelRef.current;
+    node0?.addEventListener("pointerdown", wakeUp);
+    node0?.addEventListener("keydown", wakeUp);
+    node0?.addEventListener("focusin", wakeUp);
 
     let observer: IntersectionObserver | undefined;
     const node = panelRef.current;
@@ -112,6 +124,9 @@ export function OrderChat({
       cancelled = true;
       clearTimeout(timer);
       document.removeEventListener("visibilitychange", onVisibility);
+      node0?.removeEventListener("pointerdown", wakeUp);
+      node0?.removeEventListener("keydown", wakeUp);
+      node0?.removeEventListener("focusin", wakeUp);
       observer?.disconnect();
     };
   }, [orderId, channel, pollEpoch]);

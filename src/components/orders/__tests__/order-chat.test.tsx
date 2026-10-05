@@ -73,13 +73,36 @@ describe("OrderChat polling", () => {
     expect(calls).toBeGreaterThan(2);
   });
 
-  it("never stops polling, even after a long idle stretch", async () => {
+  it("still checks eventually after a long idle stretch, just rarely", async () => {
     await act(async () => {
       render(<OrderChat orderId="o1" channel="driver" viewerId="u1" />);
     });
     for (let i = 0; i < 10; i++) await advance(30000);
     const before = listMessages.mock.calls.length;
-    await advance(30000);
+    await advance(420000);
+    expect(listMessages.mock.calls.length).toBeGreaterThan(before);
+  });
+
+  it("STOPS ENTIRELY while the tab is hidden, so the database can sleep", async () => {
+    // Neon suspends its compute after five minutes with no query, and
+    // billing is by the hour the compute is awake. The old behaviour polled
+    // every 60s while hidden, which meant one order page left open on one
+    // phone kept the database awake 24 hours a day.
+    await act(async () => {
+      render(<OrderChat orderId="o1" channel="driver" viewerId="u1" />);
+    });
+
+    Object.defineProperty(document, "hidden", { value: true, configurable: true });
+    document.dispatchEvent(new Event("visibilitychange"));
+
+    const before = listMessages.mock.calls.length;
+    for (let i = 0; i < 20; i++) await advance(60000);
+    expect(listMessages.mock.calls.length).toBe(before);
+
+    Object.defineProperty(document, "hidden", { value: false, configurable: true });
+    await act(async () => {
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
     expect(listMessages.mock.calls.length).toBeGreaterThan(before);
   });
 
