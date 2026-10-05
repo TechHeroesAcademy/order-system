@@ -112,6 +112,9 @@ npm run dev                    # http://localhost:3000
 ```
 
 Before the app is useful you need the database schema and seed data — see
+**NEW-ACCOUNT-SETUP.md** for standing the whole system up on a fresh GitHub,
+Vercel and Neon account, step by step in plain language.
+
 **DEPLOYMENT.md** for setup from nothing — the four files in `neon/bundled/`
 build the whole schema. **TRANSFER.md** for handing the system to a customer.
 
