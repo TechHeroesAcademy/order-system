@@ -1,30 +1,4 @@
--- ============================================================================
--- NEON SETUP — PART 3 OF 4
---
--- PASTE THIS WHOLE FILE INTO NEON'S SQL EDITOR AND RUN IT.
--- Run the parts in order. Wait for each to finish before starting the next.
--- Each part is safe to re-run: every statement is idempotent.
---
--- Requires the previous part to have FINISHED. It uses the order_source
--- enum value that part added, which Postgres will not allow in the same
--- transaction.
---
--- GENERATED — do not edit. Edit the source files listed below and re-run
--- scripts/build-neon-bundle.mjs, so Supabase and Neon cannot drift apart.
---
--- Contains, in order:
---    1. db/migrations/0046_driver_field_orders.sql
---    2. db/migrations/0047_clear_seeded_governorates.sql
---    3. db/migrations/0048_backfill_factory_coords_from_maps_url.sql
---    4. db/migrations/0049_repeat_customer_check.sql
---    5. db/migrations/0050_order_customer_context.sql
---    6. db/migrations/0051_fail_closed_role_guards.sql
--- ============================================================================
 
--- The chain installs pgcrypto/pg_trgm into the extensions schema (as Supabase
--- does) and several functions resolve against it. Declared per part rather
--- than relied on from the database default, so pasting a part into a fresh
--- editor session always works.
 set search_path = public, extensions;
 
 
