@@ -165,6 +165,15 @@ begin
       execute format('revoke all on all tables in schema public from %I', r);
       execute format('revoke all on all functions in schema public from %I', r);
       execute format('revoke all on all sequences in schema public from %I', r);
+      -- extensions too, not just public. 0000_prelude.sql grants usage on
+      -- BOTH schemas to these roles so the chain's grants resolve, and
+      -- revoking only public left a live grant behind — enough for Postgres
+      -- to refuse the drop below with "some objects depend on it". Harmless
+      -- in itself (usage on a schema, held by a NOLOGIN role with no
+      -- password) but it meant the roles survived a run that was supposed
+      -- to remove them.
+      execute format('revoke all on schema extensions from %I', r);
+      execute format('revoke all on all functions in schema extensions from %I', r);
     end if;
   end loop;
 end $$;
