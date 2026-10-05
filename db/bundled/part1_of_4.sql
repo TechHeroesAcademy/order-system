@@ -1,44 +1,4 @@
--- ============================================================================
--- NEON SETUP — PART 1 OF 4
---
--- PASTE THIS WHOLE FILE INTO NEON'S SQL EDITOR AND RUN IT.
--- Run the parts in order. Wait for each to finish before starting the next.
--- Each part is safe to re-run: every statement is idempotent.
---
--- Start here. Creates the roles, schemas and tables the chain expects.
---
--- GENERATED — do not edit. Edit the source files listed below and re-run
--- scripts/build-neon-bundle.mjs, so Supabase and Neon cannot drift apart.
---
--- Contains, in order:
---    1. db/neon/0000_prelude.sql
---    2. db/migrations/0001_extensions_and_enums.sql
---    3. db/migrations/0002_profiles.sql
---    4. db/migrations/0003_regions_and_driver_regions.sql
---    5. db/migrations/0004_orders.sql
---    6. db/migrations/0005_order_history.sql
---    7. db/migrations/0006_notifications.sql
---    8. db/migrations/0007_order_creation.sql
---    9. db/migrations/0008_rls_policies.sql
---   10. db/migrations/0009_workflow_rpcs.sql
---   11. db/migrations/0010_reporting_and_views.sql
---   12. db/migrations/0011_table_grants.sql
---   13. db/migrations/0012_seed_egypt_regions.sql
---   14. db/migrations/0013_driver_reassignment_and_login.sql
---   15. db/migrations/0014_driver_approval_fix_and_factory_assignment.sql
---   16. db/migrations/0015_factory_location_and_handoff_tracking.sql
---   17. db/migrations/0016_mandatory_assignment_delivery_code_and_geo.sql
---   18. db/migrations/0017_track_order_setof_return.sql
---   19. db/migrations/0018_factory_reassignment_delivery_codes_and_chat.sql
---   20. db/migrations/0019_dual_channel_chat_and_full_step_notifications.sql
---   21. db/migrations/0020_google_maps_links.sql
---   22. db/migrations/0021_editable_order_details.sql
--- ============================================================================
 
--- The chain installs pgcrypto/pg_trgm into the extensions schema (as Supabase
--- does) and several functions resolve against it. Declared per part rather
--- than relied on from the database default, so pasting a part into a fresh
--- editor session always works.
 set search_path = public, extensions;
 
 
