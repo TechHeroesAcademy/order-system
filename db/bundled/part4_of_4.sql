@@ -1,29 +1,4 @@
--- ============================================================================
--- NEON SETUP — PART 4 OF 4
---
--- PASTE THIS WHOLE FILE INTO NEON'S SQL EDITOR AND RUN IT.
--- Run the parts in order. Wait for each to finish before starting the next.
--- Each part is safe to re-run: every statement is idempotent.
---
--- The Neon-specific part: replaces auth.uid(), removes the PostgREST roles,
--- adds the password and login machinery that replaces GoTrue, and the two
--- service paths (push dispatch, the owner check) that used to rely on
--- Supabase's service-role key bypassing row-level security.
---
--- GENERATED — do not edit. Edit the source files listed below and re-run
--- scripts/build-neon-bundle.mjs, so Supabase and Neon cannot drift apart.
---
--- Contains, in order:
---    1. db/neon/0001_auth_shim.sql
---    2. db/neon/0002_local_auth.sql
---    3. db/neon/0003_service_paths.sql
---    4. db/neon/0004_push_outbox_drain.sql
--- ============================================================================
 
--- The chain installs pgcrypto/pg_trgm into the extensions schema (as Supabase
--- does) and several functions resolve against it. Declared per part rather
--- than relied on from the database default, so pasting a part into a fresh
--- editor session always works.
 set search_path = public, extensions;
 
 
