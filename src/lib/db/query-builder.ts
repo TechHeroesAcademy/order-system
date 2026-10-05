@@ -1,6 +1,7 @@
 import "server-only";
 import type { QueryResultRow } from "pg";
 import { withUserContext, type Querier } from "./with-user-context";
+import { NOTIFYING_RPCS } from "@/lib/push/notifying-rpcs";
 
 const setReturningCache = new Map<string, boolean>();
 
@@ -385,7 +386,22 @@ export class DbClient {
   }
 
   rpc<T = unknown>(fn: string, args: Record<string, unknown> = {}): RpcCall<T> {
-    return new RpcCall<T>(() => this.runRpc<T>(fn, args));
+    return new RpcCall<T>(async () => {
+      const result = await this.runRpc<T>(fn, args);
+      // A notification created in SQL queues an HTTP request the database
+      // cannot make itself, so something has to drain that queue. Doing it
+      // here means every notifying RPC is covered by one line instead of a
+      // dozen call sites that each have to remember. It runs after the
+      // response, costs no extra Vercel invocation, and never affects this
+      // result — see src/lib/push/outbox.ts.
+      if (!result.error && NOTIFYING_RPCS.has(fn)) {
+        // Imported here, not at the top: the drain reaches the database
+        // through this same module, and a static import would be a cycle.
+        const { schedulePushDrain } = await import("@/lib/push/outbox");
+        schedulePushDrain();
+      }
+      return result;
+    });
   }
 
   private async runRpc<T>(

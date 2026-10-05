@@ -165,6 +165,18 @@ change the domain, update `push_endpoint_url` too.
 `app_settings` has row-level security on and no policies, so nobody can read
 these values back through the application — only a database session can.
 
+**How the push actually gets sent.** On Supabase the database made this HTTP
+call itself, through the `pg_net` extension. Neon has no `pg_net`, so the
+request is written to a queue table (`public.push_outbox`) and the application
+drains it right after the action that created the notification — inside the
+same request, after the response has been sent. No scheduled job, no extra
+Vercel invocation, and the notification goes out immediately.
+
+If a send fails the row stays queued and the next notifying action retries it,
+up to five attempts. To flush the queue by hand, POST to the dispatch endpoint
+with no body and the shared secret in an `X-Push-Secret` header; it answers
+with how many it sent.
+
 ## 6. Create the first account
 
 Open **`/setup`**. It works only while no owner exists, and stops the moment
