@@ -34,13 +34,9 @@ export function OrdersTable({
   orders: OrderListRow[];
   regions: Region[];
   basePath: string;
-  /** Active drivers, for the inline "change driver" action — Owner only, see canAssign. */
   drivers?: Profile[];
-  /** Active factories, for the inline "change factory" action — Owner only, see canAssign. */
   factories?: Factory[];
-  /** Delivery codes for this page's orders, keyed by order id — batch-fetched once by the page (see getOrderDeliveryCodesMap). */
   deliveryCodes?: Record<string, string>;
-  /** Owner only (migration 0024/0030) — shows the inline change-driver/change-factory buttons and the cancel button. A Moderator still sees everything else in this row (status, codes). */
   canAssign?: boolean;
 }) {
   if (orders.length === 0) {
@@ -92,9 +88,6 @@ export function OrdersTable({
                   <OrderStatusBadge status={order.status} />
                 </div>
               </TableCell>
-              {/* Who opened this order. Matters most for field orders, which
-                  reached a driver without anyone approving them — the badge
-                  is what makes those findable at a glance in a long list. */}
               <TableCell className="text-muted-foreground">
                 <span className="flex items-center gap-1.5 whitespace-nowrap">
                   {order.created_by_name ?? "—"}

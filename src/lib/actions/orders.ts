@@ -20,7 +20,6 @@ import type { z } from "zod";
 
 type OrderFormInput = z.infer<typeof orderFormSchema>;
 
-/** Customer-facing website order creation. No auth required. */
 export async function createPublicOrderAction(
   input: OrderFormInput,
 ): Promise<ActionResult<NewOrderResult>> {
@@ -49,29 +48,6 @@ export async function createPublicOrderAction(
   return ok(data as NewOrderResult);
 }
 
-/**
- * Moderator/Owner creating an order sourced from a Messenger conversation.
- *
- * As of migration 0027, both roles pick the factory here (previously
- * Owner-only, migration 0024), but neither picks a driver directly, Owner
- * included — OrderForm has no driver field at all anymore. This is the
- * server-side half of that rule (defense in depth — this action could
- * otherwise be called directly, bypassing the form), and the RPC itself
- * re-checks it a third time as the real authorization boundary. Every
- * order's driver is now always the fair, region-based auto-suggestion
- * (create_order_internal), left pending until the Owner approves it from
- * <DistributionPanel> — even for an order the Owner themself created.
- */
-/**
- * A driver creating an order on the doorstep — they negotiated a job while
- * out delivering, so it is theirs immediately with no manager approval.
- *
- * The only path in the system that skips approval. It is bounded by the RPC
- * rather than here: driver_create_field_order takes the driver from
- * auth.uid() and refuses any caller who is not a driver, so no request from
- * this action can assign work to someone else. requireRole is the usual
- * defence in depth, not the boundary.
- */
 export async function createFieldOrderAction(
   input: OrderFormInput,
 ): Promise<ActionResult<NewOrderResult>> {
@@ -100,30 +76,12 @@ export async function createFieldOrderAction(
   });
 
   if (error) return fail(toErrorMessage(error, "تعذر إنشاء الأوردر"));
-  // The driver's own list, and the manager screens that now have a new
-  // order on them that nobody approved.
   revalidatePath("/driver");
   revalidatePath("/owner");
   revalidatePath("/moderator");
   return ok(data as NewOrderResult);
 }
 
-/**
- * How many orders this phone number has already, across every creator —
- * asked by the order form before it submits, so whoever is creating the
- * order confirms it is order number N for that customer.
- *
- * Staff and drivers only, enforced by customer_order_history() itself
- * (migration 0049), which is where the real boundary is: the function is
- * never granted to anon, because answering "does this number exist in your
- * customer list" for an arbitrary number is a membership oracle. The public
- * order form deliberately does not call this.
- *
- * requireRole here is the usual defence in depth. A failure is returned as
- * fail() and the form treats it as "no history known" rather than blocking
- * order creation — an unavailable convenience check must not stop a real
- * order from being taken while the customer is on the line.
- */
 export async function lookupCustomerHistoryAction(
   phone: string,
 ): Promise<ActionResult<CustomerOrderHistory>> {
@@ -133,9 +91,6 @@ export async function lookupCustomerHistoryAction(
   const { data, error } = await supabase.rpc("customer_order_history", { p_phone: phone });
   if (error) return fail(toErrorMessage(error, "تعذر التحقق من أوردرات العميل السابقة"));
 
-  // `returns table`, so this always arrives as an array — one row for a
-  // known number, one all-zero row for an unknown one. See migration 0017
-  // for why the RPCs in this system return sets rather than composites.
   const row = (data as CustomerOrderHistory[] | null)?.[0];
   if (!row) return fail("تعذر التحقق من أوردرات العميل السابقة");
   return ok(row);
@@ -179,13 +134,6 @@ export async function createModeratorOrderAction(
   return ok(data as NewOrderResult);
 }
 
-/**
- * Owner/Moderator correcting/updating any customer/order-detail field on an
- * *existing* order (customer name/phone/address, Google Maps link, region,
- * pieces count, piece details, color, work required, notes). Distribution
- * fields (factory_id/driver_id) are excluded — those go through their own
- * dedicated reassignment flow. See update_order_details() in migration 0021.
- */
 export async function updateOrderDetailsAction(
   orderId: string,
   input: z.infer<typeof editOrderSchema>,
@@ -217,14 +165,6 @@ export async function updateOrderDetailsAction(
   return ok(undefined);
 }
 
-/**
- * Owner/Moderator looking up an order's plaintext delivery code after the
- * fact (e.g. the customer lost their paper receipt). The code is normally
- * only ever shown once, right at creation — see get_order_delivery_code()
- * in migration 0016 for why it's kept out of reach of everyone else
- * (drivers in particular, for whom seeing it in advance would defeat its
- * whole purpose as delivery proof).
- */
 export async function getOrderDeliveryCodeAction(orderId: string): Promise<ActionResult<{ code: string | null }>> {
   await requireRole("owner", "moderator");
   const supabase = await createClient();
@@ -233,12 +173,6 @@ export async function getOrderDeliveryCodeAction(orderId: string): Promise<Actio
   return ok({ code: (data as string | null) ?? null });
 }
 
-/**
- * Owner/Moderator looking up an order's plaintext pickup code (the one the
- * driver needs from the customer to confirm collection) — mirrors
- * getOrderDeliveryCodeAction exactly, see get_order_pickup_code() in
- * migration 0024.
- */
 export async function getOrderPickupCodeAction(orderId: string): Promise<ActionResult<{ code: string | null }>> {
   await requireRole("owner", "moderator");
   const supabase = await createClient();
@@ -256,9 +190,6 @@ export async function trackOrderAction(
   }
 
   const supabase = await createClient();
-  // track_order returns setof (see migration 0017) — always a plain array,
-  // empty for "no order matches both the number and the phone", one row
-  // for a match. Never a shape that could be mistaken for a found order.
   const { data, error } = await supabase.rpc("track_order", {
     p_order_number: parsed.data.order_number,
     p_phone: parsed.data.phone,
@@ -269,8 +200,6 @@ export async function trackOrderAction(
   return ok(rows[0] ?? null);
 }
 
-// ---------- Owner: distribution ----------
-
 export async function suggestDriversAction(orderId: string): Promise<ActionResult<SuggestedDriverRow[]>> {
   await requireRole("owner", "moderator");
   const supabase = await createClient();
@@ -279,7 +208,6 @@ export async function suggestDriversAction(orderId: string): Promise<ActionResul
   return ok((data as SuggestedDriverRow[]) ?? []);
 }
 
-/** Owner only — see migration 0024 ("moderator cannot assign or edit or change drivers or factories"). */
 export async function setOrderDistributionAction(
   orderId: string,
   driverId: string,
@@ -298,7 +226,6 @@ export async function setOrderDistributionAction(
   return ok(undefined);
 }
 
-/** Owner only — see migration 0024. */
 export async function clearOrderDistributionAction(orderId: string): Promise<ActionResult> {
   await requireRole("owner");
   const supabase = await createClient();
@@ -309,13 +236,6 @@ export async function clearOrderDistributionAction(orderId: string): Promise<Act
   return ok(undefined);
 }
 
-/**
- * Bulk versions for the distribution board. Partial success rides in the
- * data, not in `ok`: every existing caller in this codebase reads `ok:false`
- * as "the call didn't happen", so using it for "3 of 12 failed" would make
- * all of them report that nothing was approved. `ok:false` here still means
- * exactly that — not a manager, or the call itself failed.
- */
 export type BulkOutcome = {
   order_id: string;
   order_number: string | null;
@@ -379,7 +299,6 @@ export async function approveDistributionAction(orderId: string): Promise<Action
   return ok(undefined);
 }
 
-/** Change the responsible driver at any point before the order is closed. Owner only — see migration 0024. */
 export async function reassignOrderDriverAction(orderId: string, newDriverId: string): Promise<ActionResult> {
   await requireRole("owner");
   const supabase = await createClient();
@@ -394,10 +313,6 @@ export async function reassignOrderDriverAction(orderId: string, newDriverId: st
   return ok(undefined);
 }
 
-/**
- * Change the factory an order is routed to, at any point before it's closed —
- * mirrors reassignOrderDriverAction. Owner only — see migration 0024.
- */
 export async function reassignOrderFactoryAction(orderId: string, newFactoryId: string): Promise<ActionResult> {
   await requireRole("owner");
   const supabase = await createClient();
@@ -412,7 +327,6 @@ export async function reassignOrderFactoryAction(orderId: string, newFactoryId: 
   return ok(undefined);
 }
 
-/** Owner only (migration 0030) — a Moderator can no longer cancel an order. */
 export async function cancelOrderAction(orderId: string, reason: string): Promise<ActionResult> {
   await requireRole("owner");
   const supabase = await createClient();
@@ -423,14 +337,6 @@ export async function cancelOrderAction(orderId: string, reason: string): Promis
   return ok(undefined);
 }
 
-// ---------- Driver ----------
-
-/**
- * The driver confirming they physically collected the order from the
- * customer — as of migration 0024, gated by a pickup code exactly like
- * driverDeliverToCustomerAction is gated by the delivery code, so a driver
- * can't tap this without actually getting the code from the customer.
- */
 export async function driverMarkCollectedAction(
   orderId: string,
   code: string,
@@ -483,16 +389,6 @@ export async function driverLogRefusalAction(orderId: string, reason: string): P
   return ok(undefined);
 }
 
-// ---------- Factory ----------
-
-// The RPCs themselves already allow owner/moderator/factory (see
-// factory_confirm_receipt / factory_mark_ready in
-// supabase/migrations/0009_workflow_rpcs.sql) — an Owner or Moderator can
-// step in and manually confirm/ready an order at the factory. This
-// requireRole() used to only say "owner"/"factory", silently blocking
-// Moderator here even though the database allowed it and the order-detail
-// page has no other way to do it — see order-detail-view.tsx's "factory
-// actions" panel.
 export async function factoryConfirmReceiptAction(orderId: string): Promise<ActionResult> {
   await requireRole("owner", "moderator", "driver");
   const supabase = await createClient();
@@ -514,15 +410,6 @@ export async function factoryMarkReadyAction(orderId: string): Promise<ActionRes
   revalidatePath("/moderator");
   return ok(undefined);
 }
-
-// ---------- Per-order chat — two independent channels ----------
-// 'driver' (driver <-> Owner/Moderator) and 'factory' (factory <->
-// Owner/Moderator), migrations 0018/0019. No requireRole() gate here on
-// purpose — send_order_message() and the order_messages RLS policy are the
-// real authorization boundary (assigned driver on the driver channel,
-// assigned factory on the factory channel, or Owner/Moderator on either;
-// anyone else gets a clean "غير مصرح" from the RPC and an empty result from
-// a direct select), exactly like every other RPC-backed action in this file.
 
 export async function listOrderMessagesAction(
   orderId: string,
@@ -556,16 +443,6 @@ export async function sendOrderMessageAction(
   return ok(data as OrderMessage);
 }
 
-/**
- * Owner-only "تحميل كل البيانات" button — every order, unpaginated, as a
- * CSV. Built server-side (rather than shipping listAllOrdersForExport's
- * result to the client and building the file there) so the export can't be
- * trivially recreated for any other role, and so it's one round trip
- * regardless of row count. Returns the CSV text directly in the action
- * result; the button turns it into a Blob download client-side (a Server
- * Action can't set a Content-Disposition response header — this file never
- * touches the network as an actual download until the browser does).
- */
 export async function exportOrdersCsvAction(): Promise<ActionResult<{ csv: string; filename: string }>> {
   await requireRole("owner");
 

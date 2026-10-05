@@ -23,7 +23,6 @@ function msg(id: string, body = "مرحبا"): OrderMessage {
   } as OrderMessage;
 }
 
-/** Runs pending timers and lets the awaited action promises settle. */
 async function advance(ms: number) {
   await act(async () => {
     vi.advanceTimersByTime(ms);
@@ -48,9 +47,6 @@ describe("OrderChat polling", () => {
     });
     expect(listMessages).toHaveBeenCalledTimes(1);
     expect(listMessages).toHaveBeenCalledWith("o1", "driver");
-    // getByText, not findByText: findBy* polls on real timers, which never
-    // advance under vi.useFakeTimers() — it would hang until the test times
-    // out. The act() above already flushed the load, so the text is there now.
     expect(screen.getByText("مرحبا")).toBeInTheDocument();
   });
 
@@ -60,7 +56,6 @@ describe("OrderChat polling", () => {
     });
     const afterMount = listMessages.mock.calls.length;
 
-    // every new poll returns something different, so the cadence stays fast
     listMessages.mockResolvedValueOnce({ ok: true, data: [msg("m1"), msg("m2")] });
     await advance(4000);
     expect(listMessages.mock.calls.length).toBeGreaterThan(afterMount);
@@ -71,14 +66,10 @@ describe("OrderChat polling", () => {
       render(<OrderChat orderId="o1" channel="driver" viewerId="u1" />);
     });
 
-    // Same thread every time: the cadence should step down the ladder.
-    // Walk 60s of wall-clock in 4s slices — a flat 4s poll would fire ~15
-    // times; the ladder should fire meaningfully fewer.
     for (let i = 0; i < 15; i++) await advance(4000);
 
     const calls = listMessages.mock.calls.length;
     expect(calls).toBeLessThan(12);
-    // ...but it must NOT stop entirely — that would be a silent breakage.
     expect(calls).toBeGreaterThan(2);
   });
 

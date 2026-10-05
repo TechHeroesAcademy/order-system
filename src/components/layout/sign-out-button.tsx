@@ -12,9 +12,6 @@ export function SignOutButton() {
 
   function handleSignOut() {
     startTransition(async () => {
-      // A Server Action rather than a browser call. The session cookie is
-      // httpOnly, which is the point of it — no script can read it, and no
-      // script can clear it either. Only the server can.
       await signOutAction();
       router.replace("/login");
       router.refresh();

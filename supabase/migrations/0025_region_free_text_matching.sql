@@ -1,40 +1,3 @@
--- 0025_region_free_text_matching.sql
---
--- Reported as: "the منطقة should be different from the city and it should
--- be used for matching with the orders in the same منطقة and match 100%
--- and should written by keybord not list and mandatory."
---
--- Until now, المنطقة was picked from a fixed dropdown of regions an Owner
--- had to pre-create from Team management first — in practice that list
--- tended to fill up with broad, city-level entries, which is exactly what
--- was reported as "the منطقة should be different from the city": too
--- coarse to be useful for fair, same-area driver matching. This migration
--- doesn't add a separate "city" concept — it makes المنطقة itself granular
--- and frictionless to add, by switching the *input* from "pick off a list"
--- to "type it": both the order's own region and a driver's covered-areas
--- field now take free-typed text. To keep matching genuinely 100% exact
--- (a typo silently breaking a driver's auto-assignment would be worse than
--- the dropdown it replaces), a typed name is resolved through
--- find_or_create_region() below, which normalizes (trim + collapse
--- whitespace) and reuses the existing public.regions row for that exact
--- name if one exists, or creates it on the spot if not. Matching itself is
--- still the same exact region_id equality pick_fair_driver_for_region()
--- (0024) already used — only how a name becomes that id has changed, so
--- "match 100%" is actually easier to guarantee now, not looser: two people
--- who type the same area name (after normalizing) always resolve to the
--- same canonical region row.
---
--- region_id itself is deliberately left nullable at the column level (no
--- database-level NOT NULL added here) — this migration has no way to
--- backfill whatever null region_id rows may already exist on the live
--- database from here. "Mandatory" is instead enforced at the two layers
--- that actually gate new writes: the order form's Zod schema client-side,
--- and find_or_create_region() itself raising if the typed name is empty —
--- every one of the SQL entry points below (public_create_order,
--- moderator_create_order, update_order_details) now runs through it.
-
--- ========== find_or_create_region: the shared name -> id resolver ==========
-
 create or replace function public.find_or_create_region(p_name text)
 returns uuid
 language plpgsql
@@ -52,10 +15,6 @@ begin
     raise exception 'اسم المنطقة طويل جدًا' using errcode = '22023';
   end if;
 
-  -- regions.name already has a UNIQUE constraint (0003) — this upsert is
-  -- the atomic, race-safe "find it, or create it" this feature needs: two
-  -- staff typing the same new area name at the same moment both resolve to
-  -- the one row that wins, never two near-duplicate regions.
   insert into public.regions (name) values (v_name)
   on conflict (name) do update set name = excluded.name
   returning id into v_id;
@@ -66,8 +25,6 @@ $$;
 
 revoke all on function public.find_or_create_region from public;
 grant execute on function public.find_or_create_region to authenticated;
-
--- ========== driver coverage areas: typed, same resolver, one atomic replace ==========
 
 create or replace function public.set_driver_regions_by_name(p_driver_id uuid, p_region_names text[])
 returns void
@@ -80,9 +37,6 @@ declare
   v_id uuid;
   v_ids uuid[] := '{}';
 begin
-  -- Editing a driver's covered areas was deliberately left Owner+Moderator
-  -- (not narrowed to Owner-only like assignment/new-account-creation in
-  -- 0024) — same authorization this replaces (setDriverRegionsAction).
   if not coalesce(public.is_owner_or_moderator(), false) then
     raise exception 'غير مصرح' using errcode = '42501';
   end if;
@@ -112,8 +66,6 @@ $$;
 
 revoke all on function public.set_driver_regions_by_name from public;
 grant execute on function public.set_driver_regions_by_name to authenticated;
-
--- ========== order creation / edit: p_region_id uuid -> p_region_name text ==========
 
 drop function if exists public.create_order_internal(
   text, text, text, uuid, integer, text, text, text, text, order_source, uuid, uuid, uuid, text
@@ -163,9 +115,6 @@ begin
     raise exception 'عدد القطع يجب أن يكون 1 على الأقل' using errcode = '22023';
   end if;
 
-  -- Mandatory + resolved to a canonical region row here — after the basic
-  -- field checks above, so an invalid name never gets created as a
-  -- side effect of a request that was going to fail anyway.
   v_region_id := public.find_or_create_region(p_region_name);
 
   if p_factory_id is not null then
@@ -217,9 +166,6 @@ begin
     perform public.notify_user(p_driver_id, v_order.id, 'order_assigned',
       'تم إسناد أوردر إليك ' || v_order.order_number, 'العميل: ' || v_order.customer_name);
   else
-    -- Same fair, region-based suggestion as 0024 — only the input changed,
-    -- not the matching itself: v_region_id is the same canonical id
-    -- pick_fair_driver_for_region() always matched on before this.
     v_auto_driver_id := public.pick_fair_driver_for_region(v_region_id);
     if v_auto_driver_id is not null then
       update public.orders

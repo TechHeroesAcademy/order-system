@@ -1,17 +1,5 @@
 "use client";
 
-/**
- * Catches an error thrown by the root layout itself (src/app/layout.tsx) —
- * the one place `src/app/error.tsx` can't reach, since that boundary is
- * nested *inside* the layout it's rendered by. The root layout here does no
- * data fetching (just static chrome: Toaster, RefreshToHome, globals.css),
- * so this should be effectively unreachable in practice — it exists as a
- * safety net so a future change to that layout doesn't regress all the way
- * back to a bare unstyled crash. Per Next.js's own convention, this file
- * replaces the root layout when it fires, so it has to render its own
- * <html>/<body> rather than relying on layout.tsx (which is exactly why it
- * can't reuse src/app/error.tsx's markup/components directly).
- */
 export default function GlobalError({
   error,
 }: {

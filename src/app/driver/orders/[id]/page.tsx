@@ -30,9 +30,6 @@ export default async function DriverOrderDetailPage({ params }: { params: Promis
   const assignedFactory = factories.find((f) => f.id === order.assigned_factory_id) ?? null;
   const delayed = isOrderDelayed(order.status, order.created_at);
 
-  // "Open" shows both legs of the trip: where to pick up/drop off from the
-  // customer, and — while a factory is assigned — where the factory is, so
-  // the driver never has to leave this page to navigate either leg.
   const customerMapsUrl = mapsUrlFor({ maps_url: order.customer_maps_url, address: order.customer_address });
   const factoryMapsUrl = assignedFactory ? mapsUrlFor(assignedFactory) : null;
 

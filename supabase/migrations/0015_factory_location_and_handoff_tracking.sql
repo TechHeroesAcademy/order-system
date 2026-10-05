@@ -1,34 +1,3 @@
--- 0015_factory_location_and_handoff_tracking.sql
--- Three fixes from the same round of driver-workflow reports:
---
---   1) "the factory and its location should be added when create the order
---      and assigned and appear to the driver" — factory accounts had no
---      address at all. Adds profiles.address (free text; only meaningful,
---      and only shown in the UI, for role='factory' — it's where a driver
---      drops off a collected order and picks it back up). Read from signup
---      metadata by handle_new_user(), same as full_name/phone/role.
---
---   2) "cannot take back from the factory until the factory press ready" —
---      already correctly enforced: driver_confirm_factory_pickup (0009)
---      requires status = 'ready', which only factory_mark_ready sets, and
---      the driver has no other write path to orders (RLS's only UPDATE
---      policy is Owner-only). No change needed here; this migration doesn't
---      touch that gate. Left as a comment so the next person auditing this
---      doesn't have to re-derive it from scratch.
---
---   3) "I need the driver when do any step show on the timeline correctly"
---      — one concrete, fixable cause: driver_hand_to_factory() logs an
---      order_history event but never changes order.status (status only
---      advances once the factory itself confirms receipt) and nothing in
---      `orders` recorded that the click happened. So the driver's action
---      card kept showing the exact same "hand off to factory" button after
---      being pressed — indistinguishable from having done nothing. Adds
---      handed_to_factory_at, set once by that RPC (and guarded against a
---      second call), so the frontend can swap to a "waiting on the
---      factory" state the same way it already does for 'at_factory'.
-
--- ---------- 1) factory location ----------
-
 alter table public.profiles add column if not exists address text;
 
 comment on column public.profiles.address is
@@ -53,8 +22,6 @@ begin
   return new;
 end;
 $$;
-
--- ---------- 3) handoff tracking ----------
 
 alter table public.orders add column if not exists handed_to_factory_at timestamptz;
 
@@ -83,13 +50,6 @@ begin
 end;
 $$;
 
--- A driver's own order-detail page reads the assigned factory's profile
--- directly (name + address), through normal RLS rather than a
--- security-definer view — and profiles RLS (0008) previously gave a driver
--- no visibility into any other user's profile at all (only their own row).
--- Scoped narrowly: a driver can see a factory profile only while that
--- factory is assigned to one of their own orders, not the whole factory
--- roster.
 drop policy if exists profiles_select_factory_for_assigned_driver on public.profiles;
 create policy profiles_select_factory_for_assigned_driver on public.profiles
   for select using (
@@ -101,11 +61,6 @@ create policy profiles_select_factory_for_assigned_driver on public.profiles
     )
   );
 
--- ---------- factory address on every "who/where is the factory" read path ----------
-
--- factory_orders_view has security_invoker = false and does its own
--- authorization (see 0014's note on this) — dropped and recreated, same as
--- 0014, since the new column lands in the middle of the column list.
 drop view if exists public.factory_orders_view;
 
 create view public.factory_orders_view

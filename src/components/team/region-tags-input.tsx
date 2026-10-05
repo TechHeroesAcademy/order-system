@@ -7,15 +7,6 @@ import { Badge } from "@/components/ui/badge";
 import { RegionDatalist } from "@/components/shared/region-datalist";
 import type { Region } from "@/types/database";
 
-/**
- * A driver's covered areas — typed by keyboard, not ticked from a checkbox
- * list (migration 0025): type a name and press Enter (or ",") to add it as
- * a chip, remove one with its ×. Existing region names are suggested via a
- * <datalist> as you type, but a brand-new name isn't blocked — it's
- * resolved/auto-created server-side by find_or_create_region() on save, so
- * this stays "written by keyboard" end to end rather than secretly
- * requiring an Owner to add the area first.
- */
 export function RegionTagsInput({
   value,
   onChange,

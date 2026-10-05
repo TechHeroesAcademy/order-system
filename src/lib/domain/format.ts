@@ -1,6 +1,4 @@
 import { format, formatDistanceToNow } from "date-fns";
-// Deep import, not `from "date-fns/locale"` — the barrel re-exports every
-// locale date-fns ships, and this app only ever formats in Arabic (Egypt).
 import { arEG } from "date-fns/locale/ar-EG";
 
 export function formatDateTime(value: string | null | undefined): string {
@@ -20,8 +18,6 @@ export function formatRelative(value: string | null | undefined): string {
 
 const arabicDigits = ["٠", "١", "٢", "٣", "٤", "٥", "٦", "٧", "٨", "٩"];
 
-/** Kept for optional use — Arabic-Indic digits. Most Egyptian business UIs
- * actually prefer Western digits, so callers opt in explicitly. */
 export function toArabicDigits(input: string | number): string {
   return String(input).replace(/[0-9]/g, (d) => arabicDigits[Number(d)]);
 }

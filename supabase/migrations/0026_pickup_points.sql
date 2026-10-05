@@ -1,19 +1,3 @@
--- Pickup points — drop-off locations for collected cooking utensils.
---
--- EL REWAD only runs two factories (Cairo, Alexandria), but drivers cover
--- many more neighborhoods than that — so rather than every driver making a
--- long trip to one of the two factories after every single collection,
--- Owner/Moderator can set up local pickup points where drivers drop off
--- what they've collected. Getting a pickup point's accumulated utensils to
--- the actual factory is a separate, bulk logistics step this app doesn't
--- track order-by-order (per the round-16 decision) — pickup points are
--- purely a "where do I go" reference for drivers, modeled the same
--- region-scoped way driver coverage areas already are.
---
--- Not another `profiles` role: a pickup point has no login of its own, so a
--- plain table (mirroring the factory's own address/lat/lng/maps_url shape,
--- see mapsUrlFor()) is the right fit, not an auth user.
-
 create table if not exists public.pickup_points (
   id uuid primary key default gen_random_uuid(),
   name text not null,
@@ -46,10 +30,6 @@ comment on table public.pickup_point_regions is
 alter table public.pickup_points enable row level security;
 alter table public.pickup_point_regions enable row level security;
 
--- Read: any signed-in staff member. This is just reference data (a name,
--- an address, a map link) — nothing sensitive — and drivers specifically
--- need to read it to know where to go, same reasoning as why every role
--- can already read `regions`.
 drop policy if exists pickup_points_select_staff on public.pickup_points;
 create policy pickup_points_select_staff on public.pickup_points
   for select using (auth.role() = 'authenticated');
@@ -58,14 +38,8 @@ drop policy if exists pickup_point_regions_select_staff on public.pickup_point_r
 create policy pickup_point_regions_select_staff on public.pickup_point_regions
   for select using (auth.role() = 'authenticated');
 
--- Write access is Owner/Moderator-only, entirely through the
--- security-definer RPCs below (same pattern as regions/driver_regions) —
--- no direct INSERT/UPDATE/DELETE policy is needed on either table.
-
 grant select on public.pickup_points to authenticated;
 grant select on public.pickup_point_regions to authenticated;
-
--- ---------- create / update / activate ----------
 
 create or replace function public.create_pickup_point(
   p_name text,
@@ -98,8 +72,6 @@ begin
   )
   returning id into v_id;
 
-  -- Same find-or-create-by-name resolver the region feature already uses
-  -- (migration 0025) — typing a brand-new منطقة name here creates it too.
   foreach v_name in array coalesce(p_region_names, '{}'::text[])
   loop
     if length(trim(coalesce(v_name, ''))) > 0 then

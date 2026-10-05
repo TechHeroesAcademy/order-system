@@ -49,8 +49,6 @@ describe("groupOrdersByRegion", () => {
   });
 
   it("treats two orders naming the same area as one group", () => {
-    // Areas are canonical rows (find_or_create_region), so the same typed
-    // name always resolves to one id — grouping keys on the id, not the text.
     const groups = groupOrdersByRegion([
       order("1", "r-shubra", "شبرا"),
       order("2", "r-shubra", "شبرا"),

@@ -13,9 +13,6 @@ import { PushSetupCard } from "@/components/notifications/push-setup-card";
 
 export default async function DriverOrdersPage() {
   const profile = await requireRole("driver");
-  // The completed tab has always shown at most 30 cards, so only 30 are
-  // fetched. completedTotal is the exact database count, so the tab's
-  // number is the same one it displayed when the whole history was loaded.
   const COMPLETED_SHOWN = 30;
   const [{ active, completed, completedTotal }, regions] = await Promise.all([
     listMyDriverOrders(profile.id, COMPLETED_SHOWN),
@@ -28,9 +25,6 @@ export default async function DriverOrdersPage() {
     <div className="space-y-4">
       <h1 className="text-xl font-bold">أوردراتي</h1>
 
-      {/* The driver is the person this matters most for: an order landing
-          in their list is the signal to start work, and without a push it
-          is only visible if they happen to have the app open. */}
       <PushSetupCard vapidPublicKey={process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? ""} />
 
       <Tabs defaultValue="active">

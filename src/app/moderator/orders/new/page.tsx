@@ -7,14 +7,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Info } from "lucide-react";
 
-/**
- * Shared "أوردر جديد" page for both Owner and Moderator (this route's
- * layout allows both). As of migration 0027, both roles pick the factory
- * here — the one distribution decision still made at creation time — but
- * neither picks a driver directly, Owner included: the region alone is
- * enough for the system to fairly auto-suggest one, always left pending
- * the Owner's approval from <DistributionPanel> on the order's own page.
- */
 export default async function ModeratorNewOrderPage() {
   await requireRole("owner", "moderator");
 

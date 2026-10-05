@@ -1,18 +1,3 @@
-/**
- * Reproduces three reported symptoms against a real database, as a real
- * non-superuser with RLS enforced:
- *
- *   1. the pickup and delivery codes do not appear
- *   2. the order number does not appear
- *   3. the order counts on the dashboard do not appear
- *
- * Three missing values at once is usually one broken thing. This asks each
- * question separately, through the exact RPC the app calls, so the answer
- * says WHICH of the three is actually broken rather than "the dashboard".
- *
- *   DATABASE_URL=postgres://app_user:...@host/db node scripts/verify-dashboard-values.mjs
- */
-
 import pg from "pg";
 
 const URL_ = process.env.DATABASE_URL;
@@ -36,7 +21,6 @@ function check(label, ok, detail = "") {
   }
 }
 
-/** Same transaction discipline as withUserContext(). */
 async function asUser(profileId, fn) {
   const client = await pool.connect();
   try {
@@ -70,8 +54,6 @@ async function main() {
   }
   console.log(`\nconnected as ${me.u} (superuser: false, bypassrls: false)\n`);
 
-  // ---- fixtures: an owner, a factory, a driver, and one order ------------
-
   console.log("=== setting up one real order ===");
 
   let ownerId = (
@@ -80,9 +62,6 @@ async function main() {
     ? null
     : undefined;
 
-  // Bootstrap an owner if the database has none; otherwise reuse the existing
-  // one, which is what a real deployment looks like by the time anyone is
-  // looking at a dashboard.
   const boot = await asUser(null, (c) =>
     c.query("select * from public.bootstrap_owner($1, $2, $3)", [
       "مالك الاختبار",
@@ -93,12 +72,6 @@ async function main() {
   if (boot.rows[0]?.status === "ok") {
     ownerId = boot.rows[0].profile_id;
   } else {
-    // Already set up. Finding the existing owner needs a role that is not
-    // subject to RLS, because profiles_select_staff requires a role and we
-    // have no session yet — a plain select here returns zero rows and makes
-    // the whole run look broken. (It did, the first time.) So the lookup,
-    // and ONLY the lookup, uses the admin connection; every assertion below
-    // still runs as app_user.
     const adminUrl = process.env.ADMIN_DATABASE_URL;
     if (!adminUrl) {
       console.error(
@@ -175,8 +148,6 @@ async function main() {
     process.exit(1);
   }
 
-  // ---- SYMPTOM 2: the order number -------------------------------------
-
   console.log("\n=== symptom: the order number does not appear ===");
 
   check(
@@ -195,9 +166,6 @@ async function main() {
     `got ${JSON.stringify(storedNumber)}`,
   );
 
-  // The exact column list the driver's list page selects. A column missing
-  // from the builder's projection is invisible on the page even though the
-  // row is there.
   const driverCols =
     "id, order_number, status, customer_name, customer_address, region_id, created_at, delivered_at, refused_at";
   const projected = await asUser(ownerId, (c) =>
@@ -208,8 +176,6 @@ async function main() {
     Boolean(projected.rows[0]?.order_number),
     `got ${JSON.stringify(projected.rows[0]?.order_number)}`,
   );
-
-  // ---- SYMPTOM 1: the pickup and delivery codes ------------------------
 
   console.log("\n=== symptom: the pickup and delivery codes do not appear ===");
 
@@ -245,14 +211,6 @@ async function main() {
     `${dcMany.rows[0]?.code} vs ${dcOne.rows[0]?.code}`,
   );
 
-  // The plaintext tables must stay unreachable, which is why the functions
-  // above exist at all. If these ever start returning rows, the codes are
-  // readable by anyone with a session.
-  // Either outcome is correct, and they mean slightly different things: a
-  // 0-row answer is RLS filtering with a SELECT grant in place, while 42501
-  // is no grant at all. Both keep the plaintext codes unreachable; asserting
-  // only one of them made this check fail on a database that was MORE locked
-  // down than expected.
   const rawCodes = await asUser(ownerId, (c) =>
     c
       .query("select count(*)::int as n from public.order_delivery_codes")
@@ -277,8 +235,6 @@ async function main() {
     `got ${codeNoSession}`,
   );
 
-  // ---- SYMPTOM 3: the dashboard counts --------------------------------
-
   console.log("\n=== symptom: the order counts on the dashboard do not appear ===");
 
   const stats = await asUser(ownerId, (c) => c.query("select * from public.dashboard_stats()"));
@@ -299,10 +255,6 @@ async function main() {
     `all zero: ${JSON.stringify(s)}`,
   );
 
-  // The paginated list's exact-count path: the app issues a separate
-  // `count(*)` statement and reads it as `total`. A WHERE clause that lands
-  // on the rows but not on the count is how a list shows items above a
-  // "0 orders" label.
   const listRows = await asUser(ownerId, (c) =>
     c.query("select id from public.orders order by created_at desc limit 20 offset 0"),
   );
@@ -323,8 +275,6 @@ async function main() {
     srcReport.rows.length > 0,
     `${srcReport.rows.length} rows`,
   );
-
-  // ---- the three, as a moderator rather than the owner ------------------
 
   console.log("\n=== the same three, as a moderator ===");
 
@@ -360,8 +310,6 @@ async function main() {
     const modStats = await asUser(modId, (c) => c.query("select * from public.dashboard_stats()"));
     check("a moderator gets dashboard_stats()", modStats.rows.length === 1);
   }
-
-  // ---- and as the driver, who should NOT see the codes ------------------
 
   console.log("\n=== and the driver, who must not read the codes ===");
 

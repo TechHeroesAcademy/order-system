@@ -1,21 +1,3 @@
--- 0037_edit_driver_details.sql
---
--- A driver's name could not be corrected anywhere in the app — it was set
--- once at account creation and that was that, so a typo stayed on every order
--- they ever handled. This adds an edit path for it, and narrows who may edit
--- a driver's details to managers only.
---
--- Phone is deliberately NOT editable here. It is the login identity, so
--- changing it changes how someone signs in and needs the auth side kept in
--- step — out of scope for this change rather than half-done.
-
--- ── edit a worker's name ────────────────────────────────────────────────
--- The name is stamped onto orders at assignment time (migration 0032) so it
--- survives the account being deleted. That snapshot is what every order list
--- and report reads, so correcting the name without touching those rows would
--- fix it in one place and leave it wrong everywhere it's actually read.
--- Backfilling is therefore unconditional: a corrected name is corrected
--- everywhere, which is what "fix the name" means to the person asking.
 create or replace function public.update_staff_profile(p_user_id uuid, p_full_name text)
 returns void
 language plpgsql
@@ -41,9 +23,6 @@ begin
 
   update public.profiles set full_name = v_name where id = p_user_id;
 
-  -- Keep the order snapshots in step. Scoped to this person's own rows, and
-  -- only where the name actually differs, so it writes nothing when a manager
-  -- opens the dialog and saves without changing anything.
   update public.orders
      set assigned_driver_name = v_name
    where assigned_driver_id = p_user_id
@@ -51,13 +30,6 @@ begin
 end;
 $$;
 
--- ── coverage editing becomes manager-only ───────────────────────────────
--- 0025 deliberately left this at Manager-or-Moderator while assignment and
--- account creation were narrowed to Manager in 0024. That split is being
--- closed on purpose: coverage decides which driver gets auto-suggested for an
--- area, so it is an assignment decision in everything but name, and it now
--- sits with the same role that approves assignments. Body is otherwise
--- unchanged from 0025.
 create or replace function public.set_driver_regions_by_name(p_driver_id uuid, p_region_names text[])
 returns void
 language plpgsql

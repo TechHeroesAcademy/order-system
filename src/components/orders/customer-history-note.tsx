@@ -3,30 +3,11 @@ import { History, AlertTriangle, ArrowLeft } from "lucide-react";
 import { buildCustomerSequenceNote } from "@/lib/domain/customer-history";
 import type { OrderCustomerContext } from "@/types/database";
 
-/**
- * "This is order 3 of 4 for this customer", on the order's own page.
- *
- * The counterpart to the confirmation shown while an order is being created
- * (RepeatCustomerDialog): that one asks the person creating it, this one
- * tells whoever opens it afterwards. It matters most on a driver's field
- * order, which reaches a driver with nobody approving it — reading the order
- * later is the only check there is.
- *
- * Renders nothing for a customer with one order, which is most of them. A
- * line on every order would be noise, and noise is exactly what would stop
- * the repeat case being noticed.
- *
- * A plain strip above the customer details rather than an Alert: it is a
- * fact about the order in the ordinary case, and only becomes a warning
- * when the customer has something else still open — so it changes colour
- * for that case instead of shouting on every repeat customer.
- */
 export function CustomerHistoryNote({
   context,
   orderBasePath,
 }: {
   context: OrderCustomerContext | null;
-  /** Where an order's page lives for this viewer — "/owner/orders" or "/moderator/orders". */
   orderBasePath: string;
 }) {
   const note = buildCustomerSequenceNote(context);

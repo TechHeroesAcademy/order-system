@@ -1,13 +1,5 @@
 import type { OrderStatus, UserRole } from "@/types/database";
 
-/**
- * Single source of truth (client-side) for how order statuses are labeled,
- * colored, and sequenced. The *authoritative* state machine lives in the
- * database RPCs (supabase/migrations/0009_workflow_rpcs.sql) — this module
- * mirrors it for UI purposes (labels, badges, "what can happen next" hints)
- * and is unit tested to make sure it never drifts from that source of truth.
- */
-
 export const ORDER_STATUS_SEQUENCE: OrderStatus[] = [
   "new",
   "assigned",
@@ -58,7 +50,6 @@ export function statusProgressPercent(status: OrderStatus): number {
   return Math.round((idx / (ORDER_STATUS_SEQUENCE.length - 1)) * 100);
 }
 
-/** SLA threshold — kept in sync with `order_sla_hours()` in the database. */
 export const ORDER_SLA_HOURS = 48;
 
 export function isOrderDelayed(status: OrderStatus, createdAt: string, now: Date = new Date()): boolean {
@@ -68,11 +59,6 @@ export function isOrderDelayed(status: OrderStatus, createdAt: string, now: Date
   return hoursOpen > ORDER_SLA_HOURS;
 }
 
-/**
- * Which role is expected to act next while an order sits in a given status.
- * Used to route notifications/empty-states, not to authorize anything (the
- * database is the authority on that).
- */
 export const NEXT_ACTOR_BY_STATUS: Record<OrderStatus, UserRole | null> = {
   new: "owner",
   assigned: "driver",
@@ -85,7 +71,6 @@ export const NEXT_ACTOR_BY_STATUS: Record<OrderStatus, UserRole | null> = {
   cancelled: null,
 };
 
-/** Human label for a raw order_history.event_type value. */
 export const EVENT_TYPE_LABELS_AR: Record<string, string> = {
   created: "تم إنشاء الأوردر",
   distribution_set: "تم تحديد مندوب (بانتظار الاعتماد)",

@@ -1,19 +1,3 @@
--- 0021_editable_order_details.sql
---
--- "make every info about the order changeable" — until now, everything
--- captured on order creation (customer name/phone/address, the Google Maps
--- link, region, pieces count, piece details, color, work required, customer
--- notes) was write-once: set by create_order_internal and never touched by
--- any other RPC. A typo in the phone number or a corrected piece count had
--- no fix short of a fresh order. Adds one new Owner/Moderator-only RPC that
--- can update any of those fields on an existing order, at any status —
--- these are staff correcting/updating their own records, not a customer-
--- facing state change, so there's no lifecycle gate here (contrast with the
--- workflow RPCs in 0009, which do gate on status). Every edit is logged to
--- order_history with a summary of exactly which fields changed, so the
--- timeline still shows an honest record even though the row itself was
--- mutated in place.
-
 create or replace function public.update_order_details(
   p_order_id uuid,
   p_customer_name text,
@@ -37,10 +21,6 @@ declare
   v_new_maps_url text := nullif(trim(coalesce(p_customer_maps_url, '')), '');
   v_changes text := '';
 begin
-  -- coalesce(..., false): is_owner_or_moderator() can return sql NULL (no
-  -- profile row for auth.uid(), e.g. a race with handle_new_user() or a
-  -- deleted account) and plpgsql's `if not null` silently skips the branch
-  -- instead of raising — coalescing keeps that case correctly rejected.
   if not coalesce(public.is_owner_or_moderator(), false) then
     raise exception 'غير مصرح لك بتعديل بيانات الأوردر' using errcode = '42501';
   end if;
@@ -63,8 +43,6 @@ begin
     raise exception 'عدد القطع يجب أن يكون 1 على الأقل' using errcode = '22023';
   end if;
 
-  -- A human-readable diff for the history log, built before the update
-  -- overwrites the "before" values.
   if trim(v_order.customer_name) is distinct from trim(p_customer_name) then
     v_changes := v_changes || 'الاسم، ';
   end if;

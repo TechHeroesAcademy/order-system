@@ -8,20 +8,6 @@ import { orderSourceLabel } from "@/lib/domain/order-source";
 import { PackageSearch, Zap } from "lucide-react";
 import type { OrderSourceRow, OrderCreatorRow } from "@/types/database";
 
-/**
- * Where this month's orders came from, and who opened them.
- *
- * Exists because driver field orders reach a driver without anyone
- * approving them (migration 0046). The compensating control for skipping
- * approval is visibility after the fact, and this is that visibility: how
- * much business drivers are bringing in, and — the other side of the same
- * coin — whether anyone is opening orders that never get delivered.
- *
- * A bar list rather than a pie: this is magnitude by category with a
- * handful of entries, which a bar list reads accurately and a pie does not.
- * One hue throughout, because these are quantities of the same thing, not
- * separate identities that need telling apart by colour.
- */
 export function SourcesReport({
   bySource,
   byCreator,
@@ -33,11 +19,7 @@ export function SourcesReport({
   const field = bySource.find((r) => r.source === "driver_field");
   const fieldCount = field?.order_count ?? 0;
   const fieldDelivered = field?.delivered_count ?? 0;
-  // Guarded, because a month with no orders would otherwise print NaN%.
   const fieldShare = total > 0 ? Math.round((fieldCount / total) * 100) : 0;
-  // The number that actually matters about field orders: a driver opening
-  // orders they never deliver is the failure mode this whole view exists to
-  // make visible.
   const fieldCompletion = fieldCount > 0 ? Math.round((fieldDelivered / fieldCount) * 100) : 0;
 
   if (total === 0) {

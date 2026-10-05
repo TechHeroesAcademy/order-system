@@ -51,10 +51,6 @@ export function ConfirmActionButton({
       }
       toast.success(successMessage ?? "تم التنفيذ بنجاح");
       setOpen(false);
-      // The server action revalidates its own known paths, but the page
-      // that's actually open (e.g. a dynamic /owner/orders/[id]) isn't
-      // always one of them — refresh so the status/buttons here update
-      // immediately instead of silently going stale until the next nav.
       router.refresh();
     });
   }

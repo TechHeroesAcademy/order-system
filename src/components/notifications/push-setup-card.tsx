@@ -13,15 +13,6 @@ import {
   type PushCapability,
 } from "@/lib/push/client";
 
-/**
- * Turns phone notifications on, and explains honestly when it can't.
- *
- * Renders nothing at all until the capability check has run on the client.
- * That is deliberate: every branch below depends on browser APIs that don't
- * exist during server rendering, so a server-rendered guess would flash the
- * wrong message — most visibly telling an iPhone user to install the app
- * when they already have.
- */
 export function PushSetupCard({ vapidPublicKey }: { vapidPublicKey: string }) {
   const [capability, setCapability] = useState<PushCapability | null>(null);
   const [pending, startTransition] = useTransition();
@@ -42,9 +33,6 @@ export function PushSetupCard({ vapidPublicKey }: { vapidPublicKey: string }) {
       const result = await savePushSubscriptionAction(subscription);
       if (!result.ok) {
         toast.error(result.error);
-        // The browser subscription exists but the server doesn't know about
-        // it, which would look enabled and never deliver anything. Roll it
-        // back so the next attempt starts clean.
         await unsubscribeFromPush();
         return;
       }
@@ -78,8 +66,6 @@ export function PushSetupCard({ vapidPublicKey }: { vapidPublicKey: string }) {
 
   if (capability === null) return null;
 
-  // Nothing to offer and nothing useful to say — an old browser or a
-  // private window. Silence beats an error the person can do nothing about.
   if (capability === "unsupported") return null;
 
   const busy = working || pending;
@@ -109,9 +95,6 @@ export function PushSetupCard({ vapidPublicKey }: { vapidPublicKey: string }) {
             <BellOff className="size-4 shrink-0" />
             الإشعارات محظورة في هذا المتصفح
           </p>
-          {/* The permission can only be restored from browser settings — the
-              site is not allowed to ask again once refused, so offering a
-              button here would be a button that does nothing. */}
           <p className="text-muted-foreground">
             لإعادة تفعيلها، افتح إعدادات الموقع في المتصفح واسمح بالإشعارات، ثم أعد تحميل الصفحة.
           </p>
@@ -128,10 +111,6 @@ export function PushSetupCard({ vapidPublicKey }: { vapidPublicKey: string }) {
             <Bell className="size-4 shrink-0" />
             لتفعيل الإشعارات على الآيفون، أضف التطبيق للشاشة الرئيسية أولًا
           </p>
-          {/* This is an Apple platform rule, not something the app can work
-              around: iOS gives web apps notifications only after they are
-              installed. Saying so plainly is better than a button that
-              silently fails. */}
           <ol className="space-y-1 text-muted-foreground">
             <li className="flex items-center gap-2">
               <span className="font-medium text-foreground">١.</span>

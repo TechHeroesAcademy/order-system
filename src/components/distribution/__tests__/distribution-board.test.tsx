@@ -83,7 +83,6 @@ describe("DistributionBoard", () => {
     renderBoard();
 
     await user.click(screen.getByLabelText("تحديد كل أوردرات شبرا"));
-    // shown both on the area header and in the action bar
     expect(screen.getAllByText("محدد 2").length).toBeGreaterThan(0);
 
     await user.click(screen.getByRole("button", { name: /اعتماد التوزيع/ }));
@@ -106,8 +105,6 @@ describe("DistributionBoard", () => {
 
     await user.click(screen.getByLabelText("تحديد الأوردر ORD-00003"));
 
-    // Nothing is moved until a driver is actually chosen — the button stays
-    // disabled rather than firing a call with no destination.
     const moveButton = screen.getByRole("button", { name: /^نقل$/ });
     expect(moveButton).toBeDisabled();
     expect(setDistributionBulk).not.toHaveBeenCalled();

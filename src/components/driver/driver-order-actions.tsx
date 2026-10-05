@@ -38,7 +38,6 @@ type FactoryInfo = {
   maps_url?: string | null;
 } | null;
 
-/** Small "which factory / where" strip shown alongside every factory-related step below. */
 function FactoryLocationNote({ factory }: { factory: FactoryInfo }) {
   const mapsUrl = factory ? mapsUrlFor(factory) : null;
   return (
@@ -69,12 +68,6 @@ export function DriverOrderActions({ order, factory = null }: { order: Order; fa
     case "assigned":
       return <CollectFromCustomerCard orderId={order.id} />;
 
-    // The driver records every factory step themselves now — there is no
-    // factory account to wait on. The old two-step "توجهت للمصنع" press
-    // (driver_hand_to_factory) is gone from the UI: dropping the order off
-    // IS the hand-off, and factory_confirm_receipt stamps
-    // handed_to_factory_at itself so the timeline and the daily report stay
-    // exactly as they were.
     case "collected":
       return (
         <Card>
@@ -145,12 +138,6 @@ export function DriverOrderActions({ order, factory = null }: { order: Order; fa
   }
 }
 
-/**
- * The driver confirming pickup from the customer — as of migration 0024,
- * gated by a pickup code exactly like <DeliverToCustomerCard> below is
- * gated by the delivery code, so this can no longer be tapped without
- * actually getting the code from the customer first.
- */
 function CollectFromCustomerCard({ orderId }: { orderId: string }) {
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);

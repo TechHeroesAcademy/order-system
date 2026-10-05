@@ -1,27 +1,3 @@
--- 0019_dual_channel_chat_and_full_step_notifications.sql
---
--- Two independent additions, both requested together:
---
---   1) Two separate chat channels per order instead of one — a driver
---      channel (driver <-> Owner/Moderator, from 0018) and a new factory
---      channel (factory <-> Owner/Moderator). order_messages gains a
---      `channel` column; the RLS select policy and send_order_message() are
---      rewritten to branch on it. A factory account was never part of the
---      driver channel and still isn't — this is a genuinely separate
---      conversation, not a shared one.
---
---   2) Every physical step in the order lifecycle now notifies BOTH Owner
---      and Moderator (not just whichever one happened to trigger it, and
---      not skipped entirely as several steps were before), via a new
---      notify_staff() helper that loops both roles and can exclude the
---      actor so people aren't notified of their own action. The factory is
---      also now notified specifically when the assigned driver is heading
---      to them (driver_hand_to_factory) and when the driver has picked the
---      order back up and left (driver_confirm_factory_pickup) — "going to
---      or going out", as requested.
-
--- ---------- helper: notify both staff roles at once ----------
-
 create or replace function public.notify_staff(
   p_order_id uuid,
   p_type text,
@@ -49,28 +25,12 @@ $$;
 
 revoke all on function public.notify_staff from public;
 
--- ---------- 1) dual-channel chat ----------
-
 alter table public.order_messages add column if not exists channel text not null default 'driver';
 alter table public.order_messages drop constraint if exists order_messages_channel_check;
 alter table public.order_messages add constraint order_messages_channel_check check (channel in ('driver', 'factory'));
 
 create index if not exists order_messages_order_channel_idx on public.order_messages (order_id, channel, created_at);
 
--- Whether p_user_id may read p_channel's messages on p_order_id — SECURITY
--- DEFINER and deliberately bypasses orders' own RLS. orders_select_driver
--- has no status restriction (a driver keeps seeing their own past orders
--- forever), but orders_select_factory is scoped to the active statuses
--- ('collected'/'at_factory'/'ready') only — a plain `exists (select 1 from
--- orders o where ...)` inside the order_messages policy would run that
--- subquery under the factory's own RLS too, so once an order they were
--- assigned to moves on to 'ready' -> 'with_driver' -> 'delivered' the
--- factory would silently lose the ability to read messages it could still
--- send (send_order_message only checks assignment, not status) — its own
--- chat history vanishing out from under it mid-conversation. Routing the
--- check through this function instead means "was I assigned to this
--- order's channel" is answered directly against the raw row, so factory
--- chat access is exactly as permanent as driver chat access already is.
 create or replace function public.can_read_order_channel(p_order_id uuid, p_channel text, p_user_id uuid)
 returns boolean
 language sql
@@ -148,7 +108,7 @@ begin
       perform public.notify_user(v_order.assigned_driver_id, p_order_id, 'chat_message',
         'رسالة جديدة على الأوردر ' || v_order.order_number, v_body);
     end if;
-  else -- factory channel
+  else
     if v_role = 'factory' then
       perform public.notify_staff(p_order_id, 'chat_message',
         'رسالة جديدة (دردشة المصنع) على الأوردر ' || v_order.order_number, v_body);
@@ -164,8 +124,6 @@ $$;
 
 revoke all on function public.send_order_message from public;
 grant execute on function public.send_order_message to authenticated;
-
--- ---------- 2) notify Owner+Moderator (and the factory, for hand-off steps) on every step ----------
 
 create or replace function public.driver_mark_collected(p_order_id uuid)
 returns void
@@ -298,7 +256,6 @@ begin
     where id = p_order_id;
 
   perform public.log_order_event(p_order_id, 'refused', 'with_driver', 'refused', p_reason);
-  -- Was notify_role('owner', ...) only — Moderator gets it too now, via notify_staff.
   perform public.notify_staff(p_order_id, 'order_refused', 'رفض استلام أوردر ' || v_order.order_number, p_reason, auth.uid());
 end;
 $$;

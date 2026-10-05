@@ -1,31 +1,3 @@
--- 0029_driver_chat_hidden_after_reassignment.sql
---
--- "when the order moved to another driver the chat of this order should be
--- erased from the new driver but should appear to the manager" —
---
--- Today, the driver channel's read policy (can_read_order_channel, 0019)
--- only checks "is this user the order's *current* assigned_driver_id" —
--- it has no idea when each message was sent relative to who was assigned
--- at the time. So reassigning an order to a new driver silently hands them
--- the *entire* prior conversation (including anything the old driver said
--- to Owner/Moderator), which is exactly the leak being closed here.
---
--- Fix: stamp every driver-channel message with which driver's "stint" it
--- belongs to (order_messages.driver_id = the order's assigned_driver_id
--- at send time), and require a driver's read to match *both* "I'm the
--- order's current driver" *and* "this message was sent during my own
--- stint". Owner/Moderator are untouched — is_owner_or_moderator() already
--- short-circuits the policy before either check runs, so they keep seeing
--- every message regardless of reassignment, exactly as asked. The factory
--- channel is untouched too — this request was about driver reassignment
--- specifically.
---
--- Existing rows are backfilled to the order's *current* driver, which is
--- the best available answer (there's no reliable per-message historical
--- record of who was assigned when) — this closes the leak for every
--- reassignment from this point forward; it can't retroactively un-leak a
--- conversation a driver already had open before this migration ran.
-
 alter table public.order_messages add column if not exists driver_id uuid references public.profiles(id);
 
 update public.order_messages om
@@ -37,14 +9,6 @@ update public.order_messages om
 
 create index if not exists order_messages_driver_stint_idx on public.order_messages (order_id, driver_id) where channel = 'driver';
 
--- can_read_order_channel gains a 4th parameter here. CREATE OR REPLACE
--- does *not* actually replace a function when the parameter list changes
--- (even by only adding a defaulted trailing one) — it silently creates a
--- second overload instead, leaving the old 3-arg signature callable and
--- ambiguous alongside the new one. Drop the old signature explicitly
--- first, same lesson as the create_order_internal "not unique" bug from
--- an earlier round — and the policy using it has to go first, since it
--- depends on that exact signature.
 drop policy if exists order_messages_select on public.order_messages;
 drop function if exists public.can_read_order_channel(uuid, text, uuid);
 
@@ -115,9 +79,6 @@ begin
     raise exception 'غير مصرح' using errcode = '42501';
   end if;
 
-  -- driver_id stamps which driver's stint this message belongs to (null
-  -- for the factory channel, where it's irrelevant) — see
-  -- can_read_order_channel above for why this matters.
   insert into public.order_messages (order_id, channel, sender_id, sender_role, body, driver_id)
   values (
     p_order_id, v_channel, auth.uid(), v_role, v_body,
@@ -133,7 +94,7 @@ begin
       perform public.notify_user(v_order.assigned_driver_id, p_order_id, 'chat_message',
         'رسالة جديدة على الأوردر ' || v_order.order_number, v_body);
     end if;
-  else -- factory channel
+  else
     if v_role = 'factory' then
       perform public.notify_staff(p_order_id, 'chat_message',
         'رسالة جديدة (دردشة المصنع) على الأوردر ' || v_order.order_number, v_body);

@@ -29,21 +29,6 @@ import type { RegionGroup } from "@/lib/domain/distribution";
 import type { OrderListRow } from "@/lib/data/orders";
 import type { Profile, Factory } from "@/types/database";
 
-/**
- * Bulk distribution board. Approving used to be one order at a time from
- * inside each order's own page; this shows everything still waiting, grouped
- * by area, with the suggested driver already filled in — tick what looks
- * right, or tick the whole area, and approve in one press.
- *
- * This is the one client boundary: the page fetches on the server and hands
- * groups down, and all selection state lives here so the rows and the action
- * bar can't disagree about what's selected.
- *
- * A Moderator can read the board but not act on it — approving and
- * reassigning have been Manager-only since migration 0024, and the database
- * enforces that independently, so hiding the controls is a courtesy rather
- * than the security boundary.
- */
 export function DistributionBoard({
   groups,
   unallocated,
@@ -67,10 +52,6 @@ export function DistributionBoard({
   const [moveDriverId, setMoveDriverId] = useState<string>("");
   const [failures, setFailures] = useState<BulkOutcome[] | null>(null);
 
-  // Changing the factory filter re-renders the server component and hands
-  // down different groups — anything selected from the previous filter is no
-  // longer on screen, so keeping it selected would mean approving orders the
-  // manager can't see. Same render-time prop-change pattern TeamManager uses.
   const [prevGroups, setPrevGroups] = useState(groups);
   if (groups !== prevGroups) {
     setPrevGroups(groups);
@@ -311,9 +292,6 @@ export function DistributionBoard({
         </div>
       )}
 
-      {/* Partial failures get their own dialog rather than a toast: the whole
-          point of the bulk RPC is that the rest still went through, so the
-          manager needs to see exactly which ones didn't and why. */}
       <Dialog open={failures !== null} onOpenChange={(open) => !open && setFailures(null)}>
         <DialogContent>
           <DialogHeader>

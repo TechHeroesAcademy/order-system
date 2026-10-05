@@ -1,7 +1,3 @@
--- 0005_order_history.sql
--- Full movement/audit log per order ("سجل حركة الأوردر"). Every status change and
--- notable action (distribution set, code attempt, refusal, ...) is appended here.
-
 create table if not exists public.order_history (
   id uuid primary key default gen_random_uuid(),
   order_id uuid not null references public.orders (id) on delete cascade,

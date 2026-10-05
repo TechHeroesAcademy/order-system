@@ -1,19 +1,5 @@
-/**
- * Hand-written types mirroring the Supabase schema in `supabase/migrations`.
- * If the schema changes, update this file (or regenerate with
- * `supabase gen types typescript` once you have a live project — see README).
- */
-
-/**
- * "factory" is retained here for historical rows only — `order_history.actor_role`
- * and `order_messages.sender_role` still hold it for work done back when factories
- * were login accounts, and those records must keep rendering. No new account can
- * have this role; use `CreatableUserRole` anywhere an account is being created.
- * (Postgres has no way to drop an enum value either — see migration 0033.)
- */
 export type UserRole = "owner" | "moderator" | "driver" | "factory";
 
-/** The roles a new staff account may actually be given. */
 export type CreatableUserRole = Exclude<UserRole, "factory">;
 
 export type OrderStatus =
@@ -27,12 +13,6 @@ export type OrderStatus =
   | "refused"
   | "cancelled";
 
-/**
- * "driver_field" (migration 0045) is an order a driver opened themselves on
- * the doorstep, having negotiated it while out delivering. It is the only
- * source that bypasses manager approval, which is why it is countable as
- * its own channel rather than folded into "messenger".
- */
 export type OrderSource = "website" | "messenger" | "driver_field";
 
 export interface Profile {
@@ -41,12 +21,9 @@ export interface Profile {
   phone: string | null;
   role: UserRole;
   region_id: string | null;
-  /** Free-text location/address. Only meaningful (and only shown) for role="factory" today. */
   address: string | null;
-  /** Precise coordinates alongside `address` — only meaningful for role="factory". Null until set by clicking the factory's pin on the one general map (see FactoriesMapPanel / FactoriesMap). Powers the exact-location Maps link and the Leaflet map/pin, instead of a text-address search. */
   lat: number | null;
   lng: number | null;
-  /** Optional pasted Google Maps link (a Maps "share" link) — only meaningful for role="factory". Takes priority over lat/lng and address in mapsUrlFor() whenever present. */
   maps_url: string | null;
   is_active: boolean;
   password_set: boolean;
@@ -54,21 +31,13 @@ export interface Profile {
   updated_at: string;
 }
 
-/**
- * A workshop an order is routed to. Factories used to be `profiles` rows with
- * role="factory" — i.e. staff accounts with a login — which is why the address
- * and map fields still exist on Profile above. Since migration 0033 they are
- * their own table with no login at all.
- */
 export interface Factory {
   id: string;
   name: string;
   phone: string | null;
   address: string | null;
-  /** Precise coordinates, set by clicking the factory's pin on the factories map. Takes priority over `address` when building a Maps link. */
   lat: number | null;
   lng: number | null;
-  /** Optional pasted Google Maps "share" link. Wins over lat/lng and address in mapsUrlFor(). */
   maps_url: string | null;
   is_active: boolean;
   created_at: string;
@@ -95,7 +64,6 @@ export interface Order {
   customer_name: string;
   customer_phone: string;
   customer_address: string;
-  /** Optional pasted Google Maps link (a Maps "share" link, e.g. .../maps/place/...) — takes priority over customer_address in mapsUrlFor() whenever present. */
   customer_maps_url: string | null;
   region_id: string | null;
   pieces_count: number;
@@ -105,16 +73,13 @@ export interface Order {
   customer_notes: string | null;
 
   assigned_driver_id: string | null;
-  /** Snapshot of the driver's name at assignment time (migration 0032) — stays put even after the driver account is deleted, so a deleted worker's name never disappears from an order they were assigned to. Prefer this over looking the id up in a live staff list. */
   assigned_driver_name: string | null;
   suggested_driver_id: string | null;
   distribution_approved_at: string | null;
   distribution_approved_by: string | null;
   assigned_factory_id: string | null;
-  /** Snapshot of the factory's name at assignment time (migration 0032) — same rationale as assigned_driver_name. */
   assigned_factory_name: string | null;
   handed_to_factory_at: string | null;
-  /** Set when an order was left without a driver by something other than normal backlog (today: the assigned driver being removed with nobody covering the area). Cleared automatically the moment a driver is assigned — see migration 0035. */
   needs_allocation_at: string | null;
   needs_allocation_reason: string | null;
 
@@ -134,7 +99,6 @@ export interface Order {
   pickup_code_last_attempt_at: string | null;
 
   created_by: string | null;
-  /** Snapshot of the creator's name at creation (migration 0045) — survives their account being deleted, same rationale as assigned_driver_name. */
   created_by_name: string | null;
   created_by_role: UserRole | null;
   created_at: string;
@@ -262,20 +226,8 @@ export interface NewOrderResult {
   pickup_code: string;
 }
 
-/** Which per-order conversation a message belongs to — see migration 0019. */
-/**
- * "factory" remains only for messages sent before factories stopped being
- * accounts — send_order_message rejects it now (migration 0034). New
- * messages are always "driver".
- */
 export type OrderChatChannel = "driver" | "factory";
 
-/**
- * One message in a per-order chat thread. Two independent channels per
- * order: 'driver' (driver <-> Owner/Moderator, migration 0018) and
- * 'factory' (factory <-> Owner/Moderator, migration 0019) — genuinely
- * separate conversations, never shared.
- */
 export interface OrderMessage {
   id: string;
   order_id: string;
@@ -284,19 +236,10 @@ export interface OrderMessage {
   sender_role: UserRole;
   body: string;
   created_at: string;
-  /**
-   * Which driver's "stint" this message belongs to (migration 0029) — set
-   * to the order's assigned_driver_id at the moment it was sent, null for
-   * the factory channel. RLS uses this to keep a newly-assigned driver from
-   * reading a prior driver's conversation on the same order; Owner/Moderator
-   * always see everything regardless.
-   */
   driver_id: string | null;
-  /** Joined from profiles — present on every read, absent only on the just-inserted row returned by send_order_message(). */
   sender?: { full_name: string } | null;
 }
 
-/** One channel's share of a month's orders — orders_by_source_report (migration 0046). */
 export interface OrderSourceRow {
   source: OrderSource;
   order_count: number;
@@ -304,11 +247,6 @@ export interface OrderSourceRow {
   total_pieces: number;
 }
 
-/**
- * Who opened orders in a month. Grouped on the snapshot name, so someone who
- * has since left still appears with what they created rather than collapsing
- * into a blank row.
- */
 export interface OrderCreatorRow {
   creator_name: string;
   creator_role: string;
@@ -317,15 +255,6 @@ export interface OrderCreatorRow {
   field_order_count: number;
 }
 
-/**
- * A customer's order history, keyed by phone number and counted across every
- * creator — the website, a manager or moderator taking a Messenger order, and
- * a driver opening one in the street. Shown as a confirmation before a new
- * order is created (migration 0049).
- *
- * All-zero with nulls means a number that has never ordered, which is the
- * normal case and not an error.
- */
 export interface CustomerOrderHistory {
   previous_orders: number;
   open_orders: number;
@@ -338,15 +267,6 @@ export interface CustomerOrderHistory {
   names_seen: string[] | null;
 }
 
-/**
- * Where one order sits in its customer's history — this order's own position
- * in the sequence, and whether that customer has other orders still open.
- * Shown on the owner/moderator order pages (migration 0050).
- *
- * The position is fixed when the order is created and never moves, which is
- * why this is a separate call from CustomerOrderHistory rather than that
- * one's count plus one.
- */
 export interface OrderCustomerContext {
   customer_order_index: number;
   total_orders: number;

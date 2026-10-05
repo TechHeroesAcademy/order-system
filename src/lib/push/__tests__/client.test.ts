@@ -1,14 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { getPushCapability, isIOS, isStandalone } from "../client";
 
-/**
- * Device detection is the part of this feature most likely to mislead
- * someone: get it wrong and an iPhone user is told their browser doesn't
- * support notifications (a dead end) instead of being shown the one step
- * that fixes it, or an Android user is shown iPhone install instructions
- * they cannot follow.
- */
-
 const REAL_UA = navigator.userAgent;
 
 function setUserAgent(ua: string) {
@@ -21,7 +13,6 @@ function setStandalone(value: boolean) {
   window.matchMedia = vi.fn().mockReturnValue({ matches: value }) as unknown as typeof window.matchMedia;
 }
 
-/** jsdom has no Push API, which is exactly the shape of iOS Safari. */
 function removePushApi() {
   Reflect.deleteProperty(window, "PushManager");
   Reflect.deleteProperty(window, "Notification");
@@ -64,8 +55,6 @@ describe("isIOS", () => {
   });
 
   it("recognises an iPad, which reports itself as a Mac", () => {
-    // The trap: since iPadOS 13 the user agent is indistinguishable from a
-    // desktop Mac. Touch points are what tell them apart.
     setUserAgent(IPAD_AS_MAC);
     setTouchPoints(5);
     expect(isIOS()).toBe(true);
@@ -136,8 +125,6 @@ describe("getPushCapability", () => {
       value: { getRegistration: vi.fn().mockRejectedValue(new Error("nope")) },
       configurable: true,
     });
-    // A failed lookup is not proof of anything — offering the button lets
-    // the real subscribe attempt surface a real error.
     expect(await getPushCapability()).toBe("ready");
   });
 });

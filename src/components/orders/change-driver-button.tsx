@@ -18,14 +18,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { reassignOrderDriverAction } from "@/lib/actions/orders";
 import type { Profile } from "@/types/database";
 
-/**
- * Lets the Owner/Moderator add or change who's responsible for an order at
- * any point before it's closed — on a brand-new order with nobody assigned
- * yet just as much as one already in progress (that's on top of, not
- * instead of, the suggest-then-approve flow in <DistributionPanel> for new
- * orders). Useful for assigning quickly, or when a driver calls in sick,
- * quits mid-route, etc.
- */
 export function ChangeDriverButton({
   orderId,
   currentDriverId,
@@ -35,7 +27,6 @@ export function ChangeDriverButton({
   orderId: string;
   currentDriverId: string | null;
   drivers: Profile[];
-  /** Icon-only trigger for tight spaces (an orders-table row) instead of the full-width labeled button. */
   compact?: boolean;
 }) {
   const [open, setOpen] = useState(false);

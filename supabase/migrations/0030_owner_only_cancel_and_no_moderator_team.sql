@@ -1,16 +1,3 @@
--- 0030_owner_only_cancel_and_no_moderator_team.sql
---
--- "the moderator should not see the team tab and cannot cancel the order"
--- (the Team tab itself is a frontend-only concern — no schema change there,
--- see the app-side commit removing /moderator/team and its nav item) —
--- this migration is the other half: owner_cancel_order, despite its name,
--- has allowed Owner *or* Moderator since it was first written (0009/0019).
--- Lock it to the Owner alone, same is_owner() check every other
--- Owner-only RPC in this app already uses. Everything else a Moderator
--- could do on an order (create, edit its details, chat) is unchanged —
--- only cancelling and, already since migration 0024, picking/changing the
--- driver or factory are off-limits to them.
-
 create or replace function public.owner_cancel_order(p_order_id uuid, p_reason text)
 returns void
 language plpgsql

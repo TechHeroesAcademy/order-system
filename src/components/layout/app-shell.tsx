@@ -45,19 +45,8 @@ export function AppShell({
   return (
     <div className="flex min-h-screen flex-col">
       <IdleLogoutWatcher />
-      {/* Bold yellow top bar, DHL-style — the brand block lives here since
-          this is the one element present on every screen for every role.
-          pt-[env(safe-area-inset-top)] is defensive: the iOS status bar is
-          set to "default" (opaque, reserves its own space) in layout.tsx's
-          appleWebApp config, so this is normally 0px — but it means this
-          header stays correct even if that ever changes back to a
-          translucent/edge-to-edge status bar, instead of silently breaking
-          again the way it did with no safe-area handling at all. */}
       <header className="sticky top-0 z-40 bg-primary pt-[env(safe-area-inset-top)] text-primary-foreground shadow-sm">
         <div className="flex h-14 items-center gap-3 px-4">
-          {/* White mount behind the badge for contrast against the bar's own
-              (yellow) brand color — the badge's own red doesn't need to
-              match it, same idea as a logo sticker on a colored sign. */}
           <span className="sr-only">{title}</span>
           <div className="flex items-center rounded-md bg-white px-2 py-1 shadow-sm">
             <BrandBadge className="h-5 w-auto" />
@@ -91,17 +80,6 @@ export function AppShell({
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
-        {/* Wraps rather than scrolling sideways. It used to be overflow-x-auto,
-            which silently pushed later items off the edge of a phone screen
-            with nothing to indicate more existed — measured at 375px and
-            below, adding a fifth item hid exactly التقارير and الفريق, which
-            read as them having been deleted.
-
-            The icons are decorative (every item has a label) and cost ~22px
-            each, so they're dropped below sm — that's what keeps all five on
-            a single row at 375px+ instead of forcing a second row and eating
-            another 32px of a phone screen. Narrower than that it wraps, which
-            is fine: a taller menu beats a hidden one. */}
         <nav className="flex flex-wrap gap-1 border-t border-primary-foreground/15 px-2 py-1.5">
           {navItems.map((item) => (
             <Link
@@ -115,10 +93,6 @@ export function AppShell({
           ))}
         </nav>
       </header>
-      {/* Full-width instead of a boxed max-w-6xl column — on a wide monitor
-          the old cap left large empty margins on both sides; the generous
-          responsive gutters below keep long lines/tables from stretching
-          edge-to-edge while still using the whole screen. */}
       <main className="w-full flex-1 p-4 sm:px-6 lg:px-10 xl:px-16">{children}</main>
     </div>
   );

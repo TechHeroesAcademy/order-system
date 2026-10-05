@@ -334,10 +334,11 @@ anything a client sent. A lint rule banning `pool.query` outside `src/lib/db/`
 is worth the ten minutes.
 
 `pg` is currently a **devDependency** (`^8.23.0`, used by
-`scripts/stress-test.mjs`). Move it to `dependencies` or the production build
+a dev-only script). Move it to `dependencies` or the production build
 fails.
 
-`scripts/stress-test.mjs` is the best starting point for this file — it already
+A short Node script against the pooled connection string is the best starting
+point for this file — one already
 does `begin` / `set local role` / `set_config('request.jwt.claim.sub', …)`
 against a real connection with RLS enforced.
 
@@ -442,7 +443,8 @@ what makes a missed push visible instead of invisible.
 
 The existing suites first: `npm run typecheck`, `npm run lint`, `npm run test`
 (125 tests), then `npm run test:stress` with `STRESS_DB_URL` pointed at Neon, then
-`npm run test:e2e` against a Neon-backed preview deployment.
+the manual checklist in `DEPLOYMENT.md` §8 against a Neon-backed preview
+deployment.
 
 Then the matrix that does not exist yet, and is the one that matters. **23
 policies, and for each: an allowed case, a denied case, and a no-session case.**
@@ -515,5 +517,5 @@ Two security cleanups worth doing in the same pass, both found during the audit
 and neither strictly part of the migration: `public_create_order` is still
 granted to `anon` even though the public order form became a redirect long ago,
 so nothing calls it — revoke it, or drop the function. And
-`scripts/stress-test.mjs` test 4 self-skips when no factory account is seeded,
+The former stress-test script's test 4 self-skipped when no factory account was seeded,
 which since migration 0033 is always, so it silently tests nothing.

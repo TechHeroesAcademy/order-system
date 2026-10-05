@@ -70,7 +70,6 @@ src/
   types/database.ts    Hand-written types mirroring the Postgres schema
 supabase/
   migrations/          Numbered SQL migrations — run in order, this is the source of truth
-  seed.sql             Demo users, regions, and sample orders for local/dev use
 ```
 
 > **Why is there still a `supabase/` folder?** It holds the migration chain,
@@ -113,7 +112,7 @@ npm run dev                    # http://localhost:3000
 ```
 
 Before the app is useful you need the database schema and seed data — see
-**DEPLOYMENT.md** for setup from nothing — the six files in `neon/bundled/`
+**DEPLOYMENT.md** for setup from nothing — the four files in `neon/bundled/`
 build the whole schema. **TRANSFER.md** for handing the system to a customer.
 
 ### Scripts

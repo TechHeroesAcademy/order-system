@@ -15,9 +15,6 @@ export default async function ModeratorOrdersPage({
 }: {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
-  // This route's layout allows both Owner and Moderator (Owner's own "أوردر
-  // جديد" flow lives under /moderator/orders/new too) — fetch the actual
-  // viewer role here rather than assuming, so canAssign is correct either way.
   const profile = await requireRole("owner", "moderator");
   const sp = await searchParams;
   const status = (typeof sp.status === "string" ? sp.status : "all") as OrderStatus | "all";

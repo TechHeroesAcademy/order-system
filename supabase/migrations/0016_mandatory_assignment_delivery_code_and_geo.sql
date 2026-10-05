@@ -1,44 +1,3 @@
--- 0016_mandatory_assignment_delivery_code_and_geo.sql
---
---   1) "driver and factory mandatory when a Moderator creates the order
---      (not Owner)" — the app layer (createModeratorOrderAction) is what
---      enforces "mandatory for Moderator, optional for Owner" (a role-based
---      UI rule doesn't belong in a shared DB function), but there was no
---      way to assign a driver AT creation time at all — driver assignment
---      only ever happened afterward, through the separate suggest/approve
---      distribution flow or the direct "change driver" control. This adds
---      an optional p_driver_id to create_order_internal/moderator_create_order,
---      mirroring exactly what reassign_order_driver's direct-assignment path
---      already does (assign + pre-approve + notify) so a driver picked at
---      creation is immediately visible to that driver, same as any other
---      direct assignment.
---
---   2) "the delivery code should appear anytime, not only the first time" —
---      by original design the plaintext code is never stored, only a bcrypt
---      hash (delivery_code_hash), specifically so nobody with read access to
---      the app or database could look it up and fake a delivery confirmation
---      — the code's entire value as proof-of-delivery is that only the
---      customer's paper receipt has it. Storing it in plaintext on `orders`
---      itself would leak it through every `select("*")` in the app,
---      including the driver's own order page — which would defeat the
---      point (a driver could "confirm delivery" without the customer ever
---      reading them the code). Instead: the plaintext lives in a new table
---      with RLS enabled and zero policies (default-deny for every direct
---      client request), reachable only through a SECURITY DEFINER RPC that
---      checks is_owner_or_moderator() itself — so Owner/Moderator can look
---      it up whenever they need to (e.g. to remind a customer who lost
---      their receipt), and a driver or factory account still can never see
---      it, same as before.
---
---   3) "factory maps link with lat/lon, Leaflet" — profiles.address (0015)
---      was free text only, good enough for a Google Maps *search* link but
---      not precise, and not something a map component can plot a pin from.
---      Adds nullable lat/lng columns (only meaningful for role='factory',
---      same as address) so the frontend can show an exact-location Maps
---      link and a real Leaflet map/pin instead of a text search.
-
--- ---------- 1) driver assignment at order creation ----------
-
 drop function if exists public.create_order_internal(text, text, text, uuid, integer, text, text, text, text, order_source, uuid, uuid);
 drop function if exists public.moderator_create_order(text, text, text, uuid, integer, text, text, text, text, uuid);
 
@@ -110,10 +69,6 @@ begin
   perform public.log_order_event(v_order.id, 'created', null, 'new',
     'تم إنشاء الأوردر عبر ' || case when p_source = 'website' then 'الموقع' else 'Messenger' end);
 
-  -- Same shortcut reassign_order_driver's direct-assignment path takes: a
-  -- driver picked right at creation is assigned AND pre-approved in one
-  -- step, so the order is immediately visible to them (see 0014) instead of
-  -- waiting on a separate suggest/approve pass.
   if p_driver_id is not null then
     v_new_status := case when v_order.status = 'new' then 'assigned' else v_order.status end;
 
@@ -144,12 +99,6 @@ end;
 $$;
 
 revoke all on function public.create_order_internal from public, anon, authenticated;
-
--- public_create_order's signature/body is untouched — it already defaults
--- p_factory_id and now simply also defaults the new p_driver_id (via
--- create_order_internal's own default) to null; anonymous website orders
--- were retired to a redirect-to-login anyway (see src/app/order/new), so
--- there's no path that would ever want to pass one.
 
 create or replace function public.moderator_create_order(
   p_customer_name text,
@@ -185,8 +134,6 @@ $$;
 revoke all on function public.moderator_create_order from public;
 grant execute on function public.moderator_create_order to authenticated;
 
--- ---------- 2) delivery code, viewable on demand (Owner/Moderator only) ----------
-
 create table if not exists public.order_delivery_codes (
   order_id uuid primary key references public.orders (id) on delete cascade,
   code text not null,
@@ -216,8 +163,6 @@ begin
     raise exception 'غير مصرح' using errcode = '42501';
   end if;
 
-  -- null for any order created before this migration shipped — it was
-  -- never captured in plaintext for those, only hashed (see 0004/0007).
   select code into v_code from public.order_delivery_codes where order_id = p_order_id;
   return v_code;
 end;
@@ -225,8 +170,6 @@ $$;
 
 revoke all on function public.get_order_delivery_code from public;
 grant execute on function public.get_order_delivery_code to authenticated;
-
--- ---------- 3) factory geo-coordinates ----------
 
 alter table public.profiles add column if not exists lat double precision;
 alter table public.profiles add column if not exists lng double precision;

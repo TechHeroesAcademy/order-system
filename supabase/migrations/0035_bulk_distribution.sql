@@ -1,19 +1,3 @@
--- 0035_bulk_distribution.sql
---
--- Approving distribution one order at a time, from inside each order's own
--- page, is the slowest thing a manager does. This adds set-based versions so
--- a whole area's worth of orders can be moved to a driver and approved in one
--- press, without changing what approving an order means.
---
--- Structure follows the create_order_internal pattern already used in
--- 0007/0014: the real work is extracted into an internal function, and both
--- the single-order RPC and the bulk RPC call it. That's what guarantees the
--- bulk path writes the same history event and sends the same notification as
--- the single path — there is no second copy of the logic to drift.
-
--- ── approve: the extracted body ─────────────────────────────────────────
--- Identical to the 0009 approve_distribution body with only the is_owner()
--- check lifted out to the callers. Internal: never granted to a client role.
 create or replace function public.approve_distribution_one(p_order_id uuid)
 returns void
 language plpgsql
@@ -61,20 +45,6 @@ begin
 end;
 $$;
 
--- ── approve: the bulk version ───────────────────────────────────────────
--- Returns a row per requested order rather than failing the whole call, so
--- one order that someone else already approved (or that has no driver yet)
--- doesn't throw away the other nineteen.
---
--- The begin/exception block around each order is what makes that work: a
--- plpgsql block with an EXCEPTION clause opens an implicit subtransaction, so
--- a failure rolls back only that order's update, history row and
--- notification, and the loop carries on.
---
--- ORDER BY is load-bearing, not tidiness. A bulk call holds row locks for
--- every order it touches until it commits, so two managers approving
--- overlapping selections in different on-screen orders would deadlock. Taking
--- the locks in a deterministic order means one simply waits for the other.
 create or replace function public.approve_distribution_bulk(p_order_ids uuid[])
 returns table (order_id uuid, order_number text, succeeded boolean, error text)
 language plpgsql
@@ -90,7 +60,6 @@ begin
   if coalesce(array_length(p_order_ids, 1), 0) = 0 then
     return;
   end if;
-  -- Bounded so one press can't hold hundreds of row locks on a live system.
   if array_length(p_order_ids, 1) > 200 then
     raise exception 'لا يمكن اعتماد أكثر من 200 أوردر في المرة الواحدة' using errcode = '22023';
   end if;
@@ -113,11 +82,6 @@ begin
 end;
 $$;
 
--- ── assign a driver: the same split ─────────────────────────────────────
--- Used by the bulk screen's "move the selected orders to this driver" before
--- approving. set_order_distribution (rather than reassign_order_driver) is
--- the right primitive here: the screen only ever shows orders still waiting
--- for approval, and this leaves them waiting.
 create or replace function public.set_order_distribution_one(
   p_order_id uuid,
   p_driver_id uuid,
@@ -183,8 +147,6 @@ begin
     raise exception 'لا يمكن تعديل أكثر من 200 أوردر في المرة الواحدة' using errcode = '22023';
   end if;
 
-  -- Validated once, before touching anything: a bad driver id is a mistake
-  -- about the whole selection, not a per-order outcome.
   select * into v_driver from public.profiles where id = p_driver_id;
   if v_driver is null or v_driver.role <> 'driver' or not v_driver.is_active then
     raise exception 'المندوب المحدد غير صالح' using errcode = '22023';
@@ -208,9 +170,6 @@ begin
 end;
 $$;
 
--- ── grants ──────────────────────────────────────────────────────────────
--- The _one functions carry no authorization of their own, so they must never
--- be callable directly by a client — only through the wrappers above.
 revoke all on function public.approve_distribution_one(uuid) from public, anon, authenticated;
 revoke all on function public.set_order_distribution_one(uuid, uuid, boolean) from public, anon, authenticated;
 
@@ -219,20 +178,6 @@ revoke all on function public.set_order_distribution_bulk(uuid[], uuid) from pub
 grant execute on function public.approve_distribution_bulk(uuid[]) to authenticated;
 grant execute on function public.set_order_distribution_bulk(uuid[], uuid) to authenticated;
 
--- ── "needs a driver" flag ───────────────────────────────────────────────
--- The board shows every order with no driver that isn't finished, which is a
--- derived predicate and needs no column. These two exist for the part that
--- can't be derived: WHY an order is sitting there, and how urgent it is.
---
--- An order at 'new' with no driver is routine backlog — nobody covers that
--- area yet, or a manager cleared the suggestion. An order at 'assigned' or
--- later with no driver is an orphan mid-delivery, which is impossible today
--- and only becomes reachable once removing a driver can strand their work
--- (the next migration). The flag is what tells those apart and carries the
--- reason into the notification.
---
--- Columns land here, one migration ahead of the code that sets them, so the
--- board can ship complete rather than with a half-built queue.
 alter table public.orders add column if not exists needs_allocation_at timestamptz;
 alter table public.orders add column if not exists needs_allocation_reason text;
 
@@ -245,13 +190,6 @@ comment on column public.orders.needs_allocation_at is
   'area). Cleared automatically by stamp_order_assignee_names the moment a '
   'driver is assigned or the order reaches a terminal status.';
 
--- Clearing lives in the existing BEFORE INSERT OR UPDATE trigger rather than
--- in each RPC that can assign a driver. There are five such paths
--- (set_order_distribution, reassign_order_driver, approve_distribution,
--- create_order_internal, and a manual owner UPDATE); a flag that has to be
--- cleared by hand in each would eventually be forgotten in one, and a stale
--- "needs a driver" banner on an order that has one is worse than no banner.
--- Same signature as the 0033 version, so the trigger itself is untouched.
 create or replace function public.stamp_order_assignee_names()
 returns trigger
 language plpgsql

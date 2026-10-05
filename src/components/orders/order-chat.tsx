@@ -22,40 +22,9 @@ const CHANNEL_TITLES_AR: Record<OrderChatChannel, string> = {
   factory: "دردشة المصنع",
 };
 
-/**
- * Poll cadence, in ms. The chat has no realtime channel (deliberately — see
- * the note below), so it asks the server on a timer. It starts fast and backs
- * off while nothing is happening, then snaps back to fast the moment anything
- * does: a message arrives, you send one, or the panel scrolls into view.
- *
- * This matters because it runs on a page a driver may leave open for a whole
- * shift. At a flat 4s that was ~900 requests an hour per open order page —
- * each one a server round-trip that re-verifies the session and re-reads the
- * thread — whether or not anyone was looking at it. With backoff, an idle
- * conversation costs about a fifteenth of that, while an active one is
- * exactly as responsive as before.
- */
 const POLL_LADDER_MS = [4000, 4000, 4000, 10000, 10000, 30000] as const;
 const POLL_IDLE_MS = 60000;
 
-/**
- * The per-order conversation between the assigned driver and a Manager
- * (order_messages + send_order_message(); migrations 0018/0019, narrowed in
- * 0034). There used to be a second 'factory' channel, closed when factories
- * stopped being accounts — old factory messages stay readable by a Manager
- * as history, but nothing writes to that channel any more, and Moderators
- * are no longer part of these conversations at all (they see no messages;
- * the RLS policy, not just this component, is what enforces that).
- *
- * No realtime channel: this app doesn't use Supabase Realtime anywhere
- * else, so a short poll while the panel is open follows the same
- * architecture as the rest of the app (RPC writes, revalidated/refetched
- * reads) instead of introducing a new pattern that nothing here has been
- * verified against. Polling pauses while the tab is hidden
- * (document.visibilitychange) and catches up immediately when it becomes
- * visible again, instead of burning a request every 4s in a background tab
- * nobody is looking at.
- */
 export function OrderChat({
   orderId,
   channel,
@@ -73,7 +42,6 @@ export function OrderChat({
   const lastCountRef = useRef(0);
   const panelRef = useRef<HTMLDivElement>(null);
 
-  // Bumped to reset the backoff to its fastest step — see quickenPolling().
   const [pollEpoch, setPollEpoch] = useState(0);
   const quickenPolling = useCallback(() => setPollEpoch((n) => n + 1), []);
 
@@ -82,9 +50,6 @@ export function OrderChat({
     let timer: ReturnType<typeof setTimeout> | undefined;
     let step = 0;
     let lastSignature = "";
-    // The panel sits below the order's actions, so it is frequently mounted
-    // but off-screen. Assume visible until the observer says otherwise, so a
-    // browser without IntersectionObserver behaves exactly as before.
     let onScreen = true;
 
     async function poll() {
@@ -95,7 +60,6 @@ export function OrderChat({
       setMessages(res.data);
       setLoaded(true);
 
-      // Anything new resets the cadence; an unchanged thread steps it down.
       const signature = `${res.data.length}:${res.data[res.data.length - 1]?.id ?? ""}`;
       if (signature !== lastSignature) {
         lastSignature = signature;
@@ -121,7 +85,6 @@ export function OrderChat({
       }
     }
 
-    // First load is immediate, exactly as before.
     void poll().then(() => !cancelled && schedule());
     document.addEventListener("visibilitychange", onVisibility);
 
@@ -133,7 +96,6 @@ export function OrderChat({
         (entries) => {
           const nowOnScreen = entries.some((e) => e.isIntersecting);
           if (nowOnScreen && !onScreen) {
-            // Scrolled into view — catch up right away.
             onScreen = true;
             step = 0;
             void poll().then(() => !cancelled && schedule());
@@ -171,10 +133,7 @@ export function OrderChat({
         return;
       }
       setDraft("");
-      // Optimistic append — the next poll will reconcile with the server copy.
       setMessages((prev) => [...prev, res.data]);
-      // A reply is most likely right after you send, so go back to checking
-      // frequently instead of staying on a backed-off interval.
       quickenPolling();
     });
   }

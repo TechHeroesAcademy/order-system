@@ -41,7 +41,6 @@ export interface OrderListResult {
   total: number;
 }
 
-/** Owner/Moderator order list with search + filters, newest first. */
 export async function listOrders(filters: OrderFilters = {}): Promise<OrderListResult> {
   const supabase = await createClient();
   const page = filters.page ?? 1;
@@ -49,10 +48,6 @@ export async function listOrders(filters: OrderFilters = {}): Promise<OrderListR
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
 
-  // assigned_driver_name / assigned_factory_name come straight off orders
-  // (migration 0032) rather than a live join to profiles — a join would
-  // silently lose the name the moment that driver/factory account is
-  // deleted, which is exactly the case this list needs to keep showing.
   let query = supabase
     .from("orders")
     .select("*, region:regions(name)", { count: "exact" })
@@ -69,17 +64,12 @@ export async function listOrders(filters: OrderFilters = {}): Promise<OrderListR
   }
   if (filters.search?.trim()) {
     const term = filters.search.trim();
-    // Explicit columns rather than PostgREST's filter string. The old form
-    // interpolated the search term into a comma-and-dot-delimited grammar,
-    // so a term containing a comma or a dot changed which columns were
-    // searched; this binds one parameter and names the columns in code.
     query = query.orIlike(["order_number", "customer_name", "customer_phone"], term);
   }
   if (filters.dateFrom) {
     query = query.gte("created_at", filters.dateFrom);
   }
   if (filters.dateTo) {
-    // dateTo is a plain date (YYYY-MM-DD); include the whole day.
     query = query.lt("created_at", `${filters.dateTo}T23:59:59.999`);
   }
   if (filters.minPieces != null) {
@@ -94,15 +84,6 @@ export async function listOrders(filters: OrderFilters = {}): Promise<OrderListR
   return { orders: (data as unknown as OrderListRow[]) ?? [], total: count ?? 0 };
 }
 
-/**
- * Every order, unpaginated, for the "تحميل كل البيانات" CSV export
- * (Owner-only — enforced by orders_select_staff RLS same as everywhere
- * else, exportOrdersCsvAction also checks requireRole("owner") before
- * calling this). Supabase caps a single request at 1000 rows regardless of
- * .range(), so this pages through in 1000-row batches rather than assuming
- * one request covers "all" — correct today and still correct once this
- * business has more than 1000 orders.
- */
 export async function listAllOrdersForExport(): Promise<OrderListRow[]> {
   const supabase = await createClient();
   const pageSize = 1000;
@@ -128,15 +109,6 @@ export async function getOrderById(id: string): Promise<Order | null> {
   return (data as Order) ?? null;
 }
 
-/**
- * Delivery codes for a page of orders in one round trip, keyed by order id —
- * the batch counterpart to getOrderDeliveryCodeAction (which stays for the
- * order-detail "reveal" flow). Used so the orders list can show every row's
- * code without firing one RPC per row. Owner/Moderator only — enforced by
- * get_order_delivery_codes() itself (see migration 0018); an empty array
- * short-circuits without a round trip since RPC calls with `= any('{}')`
- * are legal but pointless here.
- */
 export async function getOrderDeliveryCodesMap(orderIds: string[]): Promise<Record<string, string>> {
   if (orderIds.length === 0) return {};
   const supabase = await createClient();
@@ -149,27 +121,8 @@ export async function getOrderDeliveryCodesMap(orderIds: string[]): Promise<Reco
   return map;
 }
 
-/**
- * One of the two per-order chat threads — 'driver' (driver <-> Owner/
- * Moderator, migration 0018) or 'factory' (factory <-> Owner/Moderator,
- * migration 0019). Reads go straight through RLS (order_messages_select) —
- * same pattern as orders/order_history/notifications — so this is just a
- * plain select, gated by whether the current user is even allowed to see
- * any rows at all (an unauthorized caller simply gets an empty array back,
- * not an error, since RLS filters rather than rejects on SELECT).
- */
 export async function getOrderMessages(orderId: string, channel: OrderChatChannel): Promise<OrderMessage[]> {
   const supabase = await createClient();
-  // Capped because the open chat panel re-reads this thread on a timer, so
-  // an unbounded select is paid again every few seconds rather than once.
-  // 200 is far above any real thread — this is one conversation about one
-  // pot-recoating job between a driver and a manager, not a group channel —
-  // so in practice nothing is ever cut; it only stops a pathological thread
-  // from being re-downloaded in full on every poll.
-  //
-  // Newest-first with a limit, then reversed, so the cap keeps the *most
-  // recent* 200 messages. Ordering ascending and limiting would keep the
-  // oldest 200 and hide everything current, which is the opposite of useful.
   const { data, error } = await supabase
     .from("order_messages")
     .select("*, sender:profiles!order_messages_sender_id_fkey(full_name)")
@@ -192,12 +145,6 @@ export async function getOrderHistory(orderId: string): Promise<OrderHistoryEntr
   return (data as OrderHistoryEntry[]) ?? [];
 }
 
-/**
- * The columns the driver's own order list actually renders. Selecting `*`
- * here shipped roughly forty columns per row to a phone — including every
- * lifecycle timestamp, both code-attempt counters, the customer's maps link
- * and the notes — to render a card showing six of them.
- */
 const DRIVER_LIST_COLUMNS =
   "id, order_number, status, customer_name, customer_address, region_id, created_at, delivered_at, refused_at";
 
@@ -215,29 +162,11 @@ export type DriverListOrder = Pick<
 >;
 
 export interface DriverOrders {
-  /** Every non-terminal order. Unbounded on purpose — a driver must see all of their open work. */
   active: DriverListOrder[];
-  /** Only the page-size most recent finished orders. */
   completed: DriverListOrder[];
-  /** Exact total of finished orders, independent of how many were fetched. */
   completedTotal: number;
 }
 
-/**
- * Orders assigned to the current driver (RLS already scopes this, but we
- * also filter for clarity).
- *
- * This used to be a single unbounded `select *`, and the page then threw
- * most of it away: it renders every active order but only `.slice(0, 30)`
- * of the completed ones. A driver with a long history was downloading their
- * entire career to a phone over mobile data to show thirty cards.
- *
- * Two bounded queries instead of one unbounded one. That is one extra round
- * trip, taken deliberately: the completed query asks for `count: "exact"`,
- * so the exact total still comes back — in the Content-Range header, not as
- * rows — and the "مكتملة (N)" tab count stays exactly the number it was
- * before. Nothing visible changes; only the number of rows on the wire does.
- */
 export async function listMyDriverOrders(
   driverId: string,
   completedLimit = 30,
@@ -323,7 +252,6 @@ export async function getTopRegions(): Promise<TopRegionRow[]> {
   return (data as TopRegionRow[]) ?? [];
 }
 
-/** Where a month's orders came from — website, Messenger, or a driver in the street. */
 export async function getOrdersBySource(month?: string): Promise<OrderSourceRow[]> {
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("orders_by_source_report", month ? { p_month: month } : {});
@@ -331,7 +259,6 @@ export async function getOrdersBySource(month?: string): Promise<OrderSourceRow[
   return (data as OrderSourceRow[]) ?? [];
 }
 
-/** Who opened a month's orders, and how many of those were field orders. */
 export async function getOrdersByCreator(month?: string): Promise<OrderCreatorRow[]> {
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("orders_by_creator_report", month ? { p_month: month } : {});
@@ -339,15 +266,6 @@ export async function getOrdersByCreator(month?: string): Promise<OrderCreatorRo
   return (data as OrderCreatorRow[]) ?? [];
 }
 
-/**
- * Where this order sits in its customer's history (migration 0050) — the
- * position, the customer's total, and their other open orders.
- *
- * Returns null when there is nothing worth saying: an unknown order, a phone
- * too short to identify anybody, or a caller the RPC refuses. The order page
- * then renders without the line rather than failing, because this is context
- * about an order, not the order itself.
- */
 export async function getOrderCustomerContext(orderId: string): Promise<OrderCustomerContext | null> {
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("order_customer_context", { p_order_id: orderId });

@@ -52,9 +52,6 @@ const ROLE_LABELS_AR: Record<UserRole, string> = {
   factory: "المصنع",
 };
 
-// Factory accounts have their own dedicated "إضافة مصنع" tab now (see
-// AddFactoryPanel) — the shared "عضو جديد" dialog below only ever creates
-// driver/moderator/owner ("another manager") accounts.
 const ROLE_OPTIONS: UserRole[] = ["moderator", "driver", "owner"];
 
 export function TeamManager({
@@ -66,24 +63,14 @@ export function TeamManager({
   viewerRole,
 }: {
   staff: Profile[];
-  /** Workshops, from their own table — not staff accounts (migration 0033). */
   factories: Factory[];
   regions: Region[];
   driverRegionsMap: Record<string, string[]>;
-  /** Factory ids per manager (migration 0040). Governs push routing only — see ManagerFactoriesButton. */
   managerFactoriesMap: Record<string, string[]>;
-  /** Owner sees/can do everything; Moderator is scoped to driver/factory accounts. */
   viewerRole: UserRole;
 }) {
   const [staffList, setStaffList] = useState(staff);
 
-  // Typing a new منطقة name (migration 0025) can create a region — or
-  // change a driver's coverage — that this component didn't know about
-  // when it first mounted. router.refresh() re-fetches regions/
-  // driverRegionsMap server-side and passes new props down; this is React's
-  // own "adjust state when a prop changes" pattern (a render-time check +
-  // setState, not an effect) for actually picking that up in local state
-  // that AddRegionDialog also updates optimistically without a refresh.
   const [regionsList, setRegionsList] = useState(regions);
   const [prevRegions, setPrevRegions] = useState(regions);
   if (regions !== prevRegions) {
@@ -107,8 +94,6 @@ export function TeamManager({
 
   const isModerator = viewerRole === "moderator";
 
-  // "factory" can still appear on historical rows, so this filter stays even
-  // though no new account can have that role.
   const workers = useMemo(() => staffList.filter((m) => m.role !== "factory"), [staffList]);
 
   const [factoryList, setFactoryList] = useState(factories);
@@ -146,9 +131,6 @@ export function TeamManager({
               onCreated={(region) => setRegionsList((prev) => [...prev, region].sort((a, b) => a.name.localeCompare(b.name)))}
             />
           )}
-          {/* Adding a new worker or factory account is Manager-only now (see
-              migration 0024 / createStaffAccountAction) — a Moderator no
-              longer gets this control at all, not even scoped to drivers. */}
           {!isModerator && (
             <AddStaffDialog
               regions={regionsList}
@@ -231,12 +213,6 @@ export function TeamManager({
                             <span className="text-xs text-muted-foreground">—</span>
                           ) : (
                             <div className="flex gap-2">
-                              {/* Editing a driver's name and coverage is
-                                  Manager-only (migration 0037). */}
-                              {/* Factory coverage decides which orders'
-                                  chat messages reach this manager's phone.
-                                  Owner-only, matching set_manager_factories
-                                  (migration 0040). */}
                               {!isModerator && member.role !== "driver" && (
                                 <ManagerFactoriesButton
                                   managerId={member.id}
@@ -266,9 +242,6 @@ export function TeamManager({
                                 onToggled={(isActive) => toggleActive(member.id, isActive)}
                               />
                               <ResetPasswordButton userId={member.id} />
-                              {/* Deleting is Owner-only (deleteStaffAccountAction rejects
-                                  everyone else server-side too) and never offered for
-                                  another owner's row. */}
                               {!isModerator && member.role !== "owner" && (
                                 <DeleteStaffButton
                                   userId={member.id}
@@ -314,11 +287,6 @@ export function TeamManager({
   );
 }
 
-/**
- * Read-only display of the areas a driver covers. Editing lives in
- * EditDriverButton alongside the name, so there's one place to change a
- * driver rather than two dialogs that each do half of it.
- */
 function DriverRegionsCell({ regions, assignedIds }: { regions: Region[]; assignedIds: string[] }) {
   const assignedNames = regions.filter((r) => assignedIds.includes(r.id)).map((r) => r.name);
 
@@ -334,11 +302,6 @@ function DriverRegionsCell({ regions, assignedIds }: { regions: Region[]; assign
   );
 }
 
-/**
- * A manager's factory coverage. Reads "لا توجد مصانع" rather than an em dash
- * when empty, because empty here has a consequence — no chat notifications
- * reach that manager's phone — and a dash reads as "not applicable".
- */
 function ManagerFactoriesCell({ factories, assignedIds }: { factories: Factory[]; assignedIds: string[] }) {
   const assignedNames = factories.filter((f) => assignedIds.includes(f.id)).map((f) => f.name);
 
@@ -419,10 +382,6 @@ function AddStaffDialog({
   regions: Region[];
   onCreated: (profile: Profile) => void;
 }) {
-  // This dialog is Owner-only now (see TeamManager — a Moderator never even
-  // sees the trigger button), so every role in ROLE_OPTIONS is fair game;
-  // factory accounts still have their own separate "إضافة مصنع" tab
-  // (AddFactoryPanel) rather than being one more option here.
   const roleOptions = ROLE_OPTIONS;
   const [open, setOpen] = useState(false);
   const [fullName, setFullName] = useState("");
@@ -468,8 +427,6 @@ function AddStaffDialog({
         phone: parsed.data.phone,
         role: parsed.data.role,
         region_id: null,
-        // This dialog never creates a factory account anymore (see
-        // AddFactoryPanel), so there's never an address/pin to set here.
         address: null,
         lat: null,
         lng: null,
@@ -482,7 +439,6 @@ function AddStaffDialog({
       toast.success("تم إنشاء الحساب — يمكنه تسجيل الدخول برقم هاتفه وإنشاء كلمة مرور لأول مرة");
       reset();
       setOpen(false);
-      // A typed region name may have just created a brand-new region.
       if (parsed.data.region_names.length > 0) router.refresh();
     });
   }

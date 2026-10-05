@@ -1,37 +1,3 @@
--- 0014_driver_approval_fix_and_factory_assignment.sql
--- Two fixes, both from the same round of bug reports:
---
---   1) "I assigned the driver and nothing appears on his page" — root cause
---      confirmed by direct reproduction: reassign_order_driver() (the RPC
---      behind the "تعيين مندوب" / ChangeDriverButton control) sets
---      assigned_driver_id but never sets distribution_approved_at. The
---      orders_select_driver RLS policy (0008) requires
---      distribution_approved_at IS NOT NULL before a driver can see ANY
---      order, even one directly assigned to them — so an order assigned
---      this way was permanently invisible to that driver, with no
---      self-service recovery (approve_distribution, the only other RPC that
---      sets that column, is Owner-only and only reachable from the
---      suggest -> approve flow, not this one). Fix: reassign_order_driver
---      now also stamps distribution_approved_at (if not already set) and
---      advances a still-'new' order to 'assigned', exactly like
---      approve_distribution does — direct assignment is just a shortcut
---      through the same two steps, so it should leave the order in the same
---      state. Also fixes a smaller side effect of the same gap: the newly
---      assigned driver was never notified when the order was still 'new'
---      (skipped on purpose because the order wasn't visible to them yet) —
---      now that it's always visible immediately, always notify.
---
---   2) "I need to assign the factory when create the order" — multiple
---      factory accounts are already a normal, supported staff role (see
---      team-manager.tsx's role options), so this adds the same kind of
---      per-order routing that already exists for drivers: an optional
---      assigned_factory_id on the order, settable at creation, which
---      narrows that order's visibility on the factory dashboard to the
---      chosen factory account (an order left unassigned stays visible to
---      every factory account, same as today).
-
--- ---------- 1) fix reassign_order_driver ----------
-
 create or replace function public.reassign_order_driver(p_order_id uuid, p_new_driver_id uuid)
 returns void
 language plpgsql
@@ -66,9 +32,6 @@ begin
     select full_name into v_old_driver_name from public.profiles where id = v_order.assigned_driver_id;
   end if;
 
-  -- A direct assignment must make the order visible to the driver right
-  -- away, so it always carries the same "approval" step that the
-  -- suggest -> approve flow would otherwise require separately.
   v_new_status := case when v_order.status = 'new' then 'assigned' else v_order.status end;
 
   update public.orders
@@ -89,14 +52,10 @@ begin
       'تم نقل الأوردر ' || v_order.order_number || ' إلى مندوب آخر', null);
   end if;
 
-  -- Previously skipped for a brand-new order because it wasn't visible to
-  -- the driver yet — now it always is, so always notify.
   perform public.notify_user(p_new_driver_id, p_order_id, 'order_assigned',
     'تم إسناد أوردر إليك ' || v_order.order_number, 'العميل: ' || v_order.customer_name);
 end;
 $$;
-
--- ---------- 2) factory assignment ----------
 
 alter table public.orders add column if not exists assigned_factory_id uuid references public.profiles (id);
 create index if not exists orders_factory_idx on public.orders (assigned_factory_id);
@@ -104,19 +63,10 @@ create index if not exists orders_factory_idx on public.orders (assigned_factory
 comment on column public.orders.assigned_factory_id is
   'Optional: which factory account this order is routed to, set at creation. NULL means unassigned — visible to every factory account, same as before this column existed.';
 
--- create_order_internal gains an optional p_factory_id. A new trailing
--- parameter changes the function's argument-type signature, and Postgres
--- treats a changed signature as a distinct function rather than something
--- CREATE OR REPLACE can update in place — it would silently leave the old
--- 9/11-arg versions in the catalog alongside the new ones (and then every
--- call site becomes ambiguous, "is not unique"). Drop the old signatures
--- first so each function has exactly one, current version.
 drop function if exists public.create_order_internal(text, text, text, uuid, integer, text, text, text, text, order_source, uuid);
 drop function if exists public.public_create_order(text, text, text, uuid, integer, text, text, text, text);
 drop function if exists public.moderator_create_order(text, text, text, uuid, integer, text, text, text, text);
 
--- Validated the same way p_region_id's driver-equivalent would be (must be
--- an active factory account).
 create or replace function public.create_order_internal(
   p_customer_name text,
   p_customer_phone text,
@@ -183,12 +133,6 @@ begin
 end;
 $$;
 
--- The DROP above removed the old function object along with whatever
--- privileges 0007 had granted on it — CREATE OR REPLACE only updates an
--- existing object's body, it doesn't restore grants on one it just
--- recreated after a drop. Re-apply the same lockdown 0007 originally set:
--- this function trusts its caller completely, so it must stay unreachable
--- except through the two vetted wrappers below.
 revoke all on function public.create_order_internal from public, anon, authenticated;
 
 create or replace function public.public_create_order(
@@ -253,10 +197,6 @@ $$;
 revoke all on function public.moderator_create_order from public;
 grant execute on function public.moderator_create_order to authenticated;
 
--- RLS: an order with a factory assigned is only visible to that factory
--- account (owner/moderator are unaffected — orders_select_staff already
--- gives them full access); an unassigned order stays visible to every
--- factory account, same as before this column existed.
 drop policy if exists orders_select_factory on public.orders;
 create policy orders_select_factory on public.orders
   for select using (
@@ -277,14 +217,6 @@ create policy order_history_select_factory on public.order_history
     )
   );
 
--- factory_orders_view has security_invoker = false and does its own
--- authorization in its WHERE clause instead of relying on the orders RLS
--- above (that's what every factory-role read actually goes through — see
--- listFactoryOrders/getFactoryOrderByNumber) — so the same per-factory
--- filter has to be applied here directly too, alongside the new columns
--- for display. Dropped and recreated rather than CREATE OR REPLACE because
--- the new columns land in the middle of the column list, and Postgres
--- refuses to change an existing view's column order/names in place.
 drop view if exists public.factory_orders_view;
 
 create view public.factory_orders_view

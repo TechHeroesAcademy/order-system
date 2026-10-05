@@ -1,19 +1,3 @@
--- 0013_driver_reassignment_and_login.sql
--- Three things:
---   1) Let Owner/Moderator change an order's driver at any point in its
---      lifecycle (not just before distribution is approved) — the spec
---      explicitly asks for "نقل أوردر من مندوب إلى آخر" and the Owner asked
---      for it again directly ("add driver or change it whenever I want").
---   2) profiles.password_set + a unique index on phone, backing a phone
---      number + password login flow (staff sign in with their phone number,
---      creating a password themselves on first login instead of an Owner
---      sharing one or relying on email delivery).
---   3) driver_performance_report gains a per-driver on-time delivery rate —
---      the one field from spec section 21 ("تقارير أداء المندوبين") that was
---      still missing.
-
--- ---------- 1) reassign driver at any (non-terminal) status ----------
-
 create or replace function public.reassign_order_driver(p_order_id uuid, p_new_driver_id uuid)
 returns void
 language plpgsql
@@ -60,9 +44,6 @@ begin
       'تم نقل الأوردر ' || v_order.order_number || ' إلى مندوب آخر', null);
   end if;
 
-  -- Only notify the new driver immediately if they can already see the order
-  -- (i.e. distribution is past the pending-approval stage); before approval
-  -- this mirrors set_order_distribution, which doesn't notify either.
   if v_order.status <> 'new' then
     perform public.notify_user(p_new_driver_id, p_order_id, 'order_assigned',
       'تم إسناد أوردر إليك ' || v_order.order_number, 'العميل: ' || v_order.customer_name);
@@ -73,16 +54,12 @@ $$;
 revoke all on function public.reassign_order_driver from public;
 grant execute on function public.reassign_order_driver to authenticated;
 
--- ---------- 2) phone-number login support ----------
-
 alter table public.profiles add column if not exists password_set boolean not null default true;
 
 comment on column public.profiles.password_set is
   'false right after an Owner/Moderator creates the account (or resets its password) — the worker must set their own password on next login before signing in.';
 
 create unique index if not exists profiles_phone_unique_idx on public.profiles (phone) where phone is not null;
-
--- ---------- 3) driver_performance_report: add on-time delivery rate ----------
 
 drop function if exists public.driver_performance_report();
 

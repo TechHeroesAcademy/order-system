@@ -16,14 +16,6 @@ import { Badge } from "@/components/ui/badge";
 import type { TrackedOrder } from "@/types/database";
 import { cn } from "@/lib/utils";
 
-/**
- * The order-tracking field: order number + phone, submits through
- * trackOrderAction, and renders the DHL-style step-tracker result below the
- * form once something comes back. Shared between the dedicated /track page
- * (wrapped there with a back link and outer card chrome) and the inline
- * field on the homepage itself, so a visitor can look up an order without
- * leaving "/" first.
- */
 export function TrackOrderForm() {
   const [order, setOrder] = useState<TrackedOrder | null | undefined>(undefined);
   const [submitting, setSubmitting] = useState(false);
@@ -46,10 +38,6 @@ export function TrackOrderForm() {
     setOrder(res.data);
   }
 
-  // Animate the progress bar from 0 up to its real value every time a fresh
-  // result arrives, instead of just snapping into place — the bar element
-  // only exists once `order` is set, so the width has to be bumped a tick
-  // after mount for the CSS transition to have something to animate from.
   useEffect(() => {
     if (!order) return;
     const target = statusProgressPercent(order.status);
@@ -142,8 +130,6 @@ export function TrackOrderForm() {
             />
           </div>
 
-          {/* DHL-style step tracker: a row of filled/unfilled checkpoints
-              with a connecting line, instead of a plain timestamp list. */}
           <ol className="flex items-start justify-between">
             {milestones.map((m, idx) => {
               const reached = !!m.value;
@@ -194,9 +180,6 @@ export function TrackOrderForm() {
               );
             })}
           </ol>
-          {/* Labels are hidden per-step below sm (six Arabic labels don't
-              fit six narrow columns on a phone) — show just the most
-              recent milestone's label + time instead, DHL-app style. */}
           {milestones[reachedCount - 1] && (
             <p className="-mt-3 text-center text-xs text-muted-foreground sm:hidden">
               {milestones[reachedCount - 1].label} · {formatDateTime(milestones[reachedCount - 1].value)}

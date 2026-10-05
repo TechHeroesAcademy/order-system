@@ -20,22 +20,11 @@ import { ToggleFactoryActiveButton, DeleteFactoryButton } from "./factory-action
 import type { Factory } from "@/types/database";
 import type { FactoryPin } from "@/components/maps/factories-overview-map";
 
-// Leaflet touches `window` at render time, so this loads client-only —
-// dynamic(..., { ssr: false }) is how a "use client" component still opts a
-// child out of any server render pass.
 const FactoriesMap = dynamic(
   () => import("@/components/maps/factories-overview-map").then((m) => m.FactoriesMap),
   { ssr: false, loading: () => <div className="h-[360px] animate-pulse rounded-lg border bg-muted" /> },
 );
 
-/**
- * Factories tab of Team management — one general map of every factory pin,
- * plus (select a marker or a table row) an inline edit card for that
- * factory's address/Maps-link/pin, and the factories table itself. Replaces
- * the old design of one map here plus a second small map inside each
- * factory's own edit dialog — now there's exactly one map, and clicking a
- * pin (or a table row) is how you edit that factory.
- */
 export function FactoriesMapPanel({
   factories,
   onSaved,
@@ -50,24 +39,16 @@ export function FactoriesMapPanel({
   ) => void;
   onToggled: (id: string, isActive: boolean) => void;
   onDeleted: (id: string) => void;
-  /** Owner only — deleteFactoryAction rejects a Moderator server-side too, this just hides the control. */
   canDelete: boolean;
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [address, setAddress] = useState("");
   const [mapsUrlValue, setMapsUrlValue] = useState("");
   const [pin, setPin] = useState<{ lat: number; lng: number } | null>(null);
-  // Set only right after a successful link extraction — see FactoriesMap's
-  // focusPin prop. Kept separate from `pin` so selecting a factory or
-  // clicking/dragging on the map (which don't need the view to jump) don't
-  // also trigger a pan.
   const [focusPin, setFocusPin] = useState<{ lat: number; lng: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
-  // "extract the lat/lng from the link and pin on the map" — tried once per
-  // distinct pasted value (the ref guards against re-firing on a blur that
-  // didn't actually change anything, e.g. tabbing through with no edit).
   const [extractStatus, setExtractStatus] = useState<"idle" | "loading" | "found" | "not_found">("idle");
   const [extracting, startExtractTransition] = useTransition();
   const lastExtractedUrlRef = useRef<string | null>(null);
@@ -102,15 +83,6 @@ export function FactoriesMapPanel({
     lastExtractedUrlRef.current = factory.maps_url ?? null;
   }
 
-  /**
-   * Fires when the موقع field loses focus (covers both pasting a link and
-   * typing one out) — extracts coordinates from it and drops the pin on
-   * the map automatically, same as clicking the map by hand would. Only
-   * ever *sets* a pin from a successful extraction; it never clears an
-   * existing one just because the link didn't carry coordinates, so
-   * pasting a plain-text search link after already placing a pin by hand
-   * doesn't wipe that out.
-   */
   function handleMapsUrlBlur() {
     const trimmed = mapsUrlValue.trim();
     if (!trimmed || trimmed === lastExtractedUrlRef.current) return;
@@ -177,12 +149,6 @@ export function FactoriesMapPanel({
         </CardHeader>
         <CardContent className="space-y-3">
           {pins.length === 0 && factories.length > 0 ? (
-            // The map only ever plots a factory once someone explicitly sets
-            // its pin here — creating a factory account (or just giving it a
-            // text address) doesn't place it on the map by itself, so a
-            // freshly-added team with no pins set yet is expected to render
-            // as an empty map. Called out explicitly instead of leaving that
-            // as a silent blank map, which reads as broken.
             <Alert variant="warning">
               <MapPinOff className="size-4" />
               <AlertTitle>لا يوجد أي مصنع له موقع محدد على الخريطة بعد</AlertTitle>

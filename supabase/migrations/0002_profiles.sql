@@ -1,12 +1,9 @@
--- 0002_profiles.sql
--- One profile row per auth.users row, carrying the role that drives RBAC everywhere else.
-
 create table if not exists public.profiles (
   id uuid primary key references auth.users (id) on delete cascade,
   full_name text not null,
   phone text,
   role user_role not null default 'driver',
-  region_id uuid, -- FK added in 0003 after regions exists
+  region_id uuid,
   is_active boolean not null default true,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -14,7 +11,6 @@ create table if not exists public.profiles (
 
 comment on table public.profiles is 'Application user profile + role, one per auth.users row.';
 
--- Keep updated_at current on every update.
 create or replace function public.set_updated_at()
 returns trigger
 language plpgsql
@@ -30,9 +26,6 @@ create trigger set_profiles_updated_at
   before update on public.profiles
   for each row execute function public.set_updated_at();
 
--- Auto-create a profile whenever a new auth user is created.
--- Role/full_name/phone are read from the signup metadata (set by the inviting Owner
--- when creating the account, e.g. via supabase.auth.admin.createUser({ user_metadata })).
 create or replace function public.handle_new_user()
 returns trigger
 language plpgsql
@@ -57,7 +50,6 @@ create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
 
--- Helper used throughout RLS policies and RPCs to read the caller's role cheaply.
 create or replace function public.current_user_role()
 returns user_role
 language sql

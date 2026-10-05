@@ -3,15 +3,6 @@
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 
-/**
- * A horizontal bar-list chart (magnitude by category — spec section 23's
- * "أكثر المناطق طلبًا" / "أداء المندوبين"). Client component so the bars can
- * animate in from 0 on mount instead of snapping straight to their final
- * width, matching the rest of this page's motion.
- *
- * Single hue by design (sequential/magnitude job, not identity) — see the
- * dataviz skill's color-formula: one series, one color, never a rainbow.
- */
 export function BarList({
   items,
   colorClassName = "bg-primary",
@@ -20,17 +11,7 @@ export function BarList({
 }: {
   items: { label: string; value: number }[];
   colorClassName?: string;
-  /** Fixed max (e.g. 100 for a percentage scale) instead of the tallest bar. */
   max?: number;
-  /**
-   * Appended after each bar's numeric value (e.g. "%"). A plain string, not a
-   * formatter function — this component is rendered from a Server Component
-   * (the reports page), and a function prop can't cross that boundary unless
-   * it's a genuine Server Action reference (see the onConfirm comment in
-   * order-detail-view.tsx for the same class of bug). The only formatting
-   * this ever needed was a fixed suffix, so a string prop covers it without
-   * needing a function at all.
-   */
   valueSuffix?: string;
 }) {
   const [animated, setAnimated] = useState(false);

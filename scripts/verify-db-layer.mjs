@@ -1,21 +1,3 @@
-/**
- * Integration check for the database layer that replaced supabase-js.
- *
- * The query builder in src/lib/db/query-builder.ts is new code sitting under
- * all 88 call sites. Typecheck proves the shapes line up; it proves nothing
- * about whether the SQL it emits means the same thing PostgREST's did. A
- * filter that compiles and quietly matches the wrong rows is exactly the
- * failure this migration could ship.
- *
- * So this exercises the real builder against a real Postgres, as a real
- * non-superuser role with RLS enforced — never as the owner, which bypasses
- * RLS and would make every check pass falsely.
- *
- *   DATABASE_URL=postgres://app_user:...@host/db node scripts/verify-db-layer.mjs
- *
- * Exits non-zero on the first failure.
- */
-
 import { randomUUID } from "node:crypto";
 import pg from "pg";
 
@@ -40,13 +22,6 @@ function check(label, ok, detail = "") {
   }
 }
 
-/**
- * The same transaction discipline as withUserContext: one checked-out
- * client, BEGIN, a transaction-local identity, the queries, COMMIT. Copied
- * rather than imported because this file is plain Node and the real one is
- * behind "server-only" and the Next module graph — and because a copy that
- * drifts is caught by the identity-isolation test below.
- */
 async function asUser(profileId, fn) {
   const client = await pool.connect();
   try {
@@ -84,10 +59,6 @@ async function main() {
     process.exit(2);
   }
 
-  // ── fixtures, through the application's own RPCs ──────────────────────
-  //
-  // Created the way the app creates them, so what is tested is the real
-  // path and not a hand-built row that skips a trigger.
   console.log("\n=== fixtures ===");
   const phone = `0109${String(Date.now()).slice(-8)}`;
   let ownerId = await asUser(null, async (c) => {
@@ -99,7 +70,6 @@ async function main() {
   });
 
   if (!ownerId) {
-    // Already bootstrapped: sign in instead.
     ownerId = await asUser(null, async (c) => {
       const r = await c.query("select profile_id from public.auth_verify_login($1, $2)", [
         process.env.VERIFY_OWNER_PHONE ?? phone,
@@ -165,8 +135,6 @@ async function main() {
     return r.rows[0]?.order_number ?? null;
   });
   check("an order was created through moderator_create_order", Boolean(orderNumber));
-
-  // ── the properties that matter ────────────────────────────────────────
 
   console.log("\n=== identity isolation on one pooled connection ===");
   const client = await pool.connect();
@@ -252,10 +220,6 @@ async function main() {
   }
 
   console.log("\n=== first login, then throttling ===");
-  // A new account has no password, so auth_verify_login answers
-  // needs_setup and there is nothing to throttle — the first draft of this
-  // test hammered a passwordless account and concluded the throttle was
-  // broken. The throttle protects a password, so one has to exist first.
   const setup = await asUser(null, async (c) => {
     const r = await c.query("select status from public.auth_set_initial_password($1, $2)", [
       driverPhone,
@@ -329,9 +293,6 @@ async function main() {
   );
 
   console.log("\n=== the query builder's own SQL, against real rows ===");
-  // The two embedded selects, which are the only hand-written joins in the
-  // builder and the only part that could silently return a missing nested
-  // object rather than an error.
   const embedded = await asUser(ownerId, async (c) => {
     const r = await c.query(
       `select t.*, (select jsonb_build_object('name', r.name) from public.regions r where r.id = t.region_id) as "region"
@@ -345,20 +306,12 @@ async function main() {
     JSON.stringify(embedded?.region),
   );
 
-  // range(from, to) is inclusive on both ends, like PostgREST's Range
-  // header. Off by one here would silently drop a row from every page of
-  // the orders list.
   const paged = await asUser(ownerId, async (c) => {
     const r = await c.query("select id from public.orders t order by t.created_at desc limit 1 offset 0");
     return r.rowCount;
   });
   check("range(0, 0) yields exactly one row", paged === 1, `got ${paged}`);
 
-  // ── the two paths that have no session at all ─────────────────────────
-  //
-  // Both worked under Supabase only because the service-role key ignored
-  // row-level security, and both broke SILENTLY when it went away — which is
-  // why they are asserted here rather than trusted.
   console.log("\n=== the service paths, with no session ===");
 
   const ownerFlag = await asUser(null, async (c) =>
@@ -370,8 +323,6 @@ async function main() {
     String(ownerFlag),
   );
 
-  // For contrast, and to show why the function is needed: the count this
-  // replaced still returns 0, because profiles_select_staff needs a role.
   const naiveCount = await asUser(null, async (c) =>
     Number((await c.query("select count(*)::text as n from public.profiles where role = 'owner'")).rows[0].n),
   );
@@ -381,7 +332,6 @@ async function main() {
     `got ${naiveCount}`,
   );
 
-  // Register a device as the driver, the way their phone would.
   await asUser(driverId, (c) =>
     c.query("select public.save_push_subscription($1, $2, $3, $4)", [
       `https://push.example/${randomUUID()}`,
@@ -397,10 +347,6 @@ async function main() {
     ),
   );
 
-  // The id reaches the real route in the request body, put there by the
-  // database trigger. Read it as the DRIVER here, because
-  // notifications_select_own means nobody else can see it — which is exactly
-  // why push_dispatch_payload has to exist.
   const notifId = await asUser(driverId, async (c) =>
     (await c.query("select id from public.notifications order by created_at desc limit 1")).rows[0]?.id,
   );

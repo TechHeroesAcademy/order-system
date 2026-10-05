@@ -5,22 +5,6 @@ import { Button } from "@/components/ui/button";
 import { SetupForm } from "@/components/auth/setup-form";
 import { HeroBackground } from "@/components/shared/hero-background";
 
-/**
- * Rendered per request, not at build time.
- *
- * This page's content is a question about the database — does an owner
- * exist yet — and without this Next prerenders it as static HTML and bakes
- * in whatever the answer was during `next build`, where there is no database
- * at all. It then serves that forever.
- *
- * Which way it broke depended on how ownerExists() handled the build-time
- * failure: it currently fails closed, so a brand-new system was served
- * "تم إعداد حساب المدير بالفعل" and the owner could never be created. Before
- * that it failed open, so a configured system kept offering the bootstrap
- * form to anyone who visited. The second is not a security hole —
- * bootstrapOwnerAction re-checks, and bootstrap_owner() in the database
- * takes a row lock and refuses — but it is a confusing page either way.
- */
 export const dynamic = "force-dynamic";
 
 export default async function SetupPage() {

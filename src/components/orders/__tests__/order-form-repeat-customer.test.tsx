@@ -6,7 +6,6 @@ import type { CustomerOrderHistory, NewOrderResult, Region } from "@/types/datab
 import type { OrderFormValues } from "@/lib/domain/validators";
 import type { ActionResult } from "@/lib/actions/types";
 
-/** The create call OrderForm is handed. Typed so the mock has to match it. */
 type CreateOrderAction = (values: OrderFormValues) => Promise<ActionResult<NewOrderResult>>;
 
 const lookup = vi.fn();
@@ -17,13 +16,6 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 const regions: Region[] = [{ id: "r1", name: "المعادي" } as Region];
 
-/**
- * Scoped to the dialog on purpose. The inline line under the phone field and
- * the dialog title deliberately use the same "الأوردر رقم N له" wording, so
- * an unscoped text query matches both and cannot tell "the hint appeared"
- * from "the confirmation appeared" — which is the exact distinction these
- * tests exist to make.
- */
 function dialog() {
   return screen.findByRole("alertdialog");
 }
@@ -51,12 +43,6 @@ const twoPrevious: CustomerOrderHistory = {
   names_seen: ["سمير علي"],
 };
 
-/**
- * Fills every field the schema requires so submit actually reaches the
- * handler. Validation failing silently is the classic way a test like this
- * passes while proving nothing, so each test also asserts on what happened
- * rather than only on what did not.
- */
 async function fillForm(
   user: ReturnType<typeof userEvent.setup>,
   { phone = "01012345678", name = "سمير علي" } = {},
@@ -94,7 +80,6 @@ describe("OrderForm — repeat customer confirmation", () => {
     expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
   });
 
-  /** The core of the feature: the order must not exist until it is confirmed. */
   it("asks before creating anything when the number has ordered before", async () => {
     const user = userEvent.setup();
     lookup.mockResolvedValue({ ok: true, data: twoPrevious });
@@ -148,19 +133,11 @@ describe("OrderForm — repeat customer confirmation", () => {
     expect(box.getByText(/EL-0042/)).toBeInTheDocument();
   });
 
-  /**
-   * The failure mode the mandatory Maps link hit: the field never blurred,
-   * so the on-blur work never ran. The gate has to hold on submit, not on
-   * blur, which is what this pins down — the number is typed and the button
-   * pressed with focus never leaving the field.
-   */
   it("still checks a number that was never blurred before submitting", async () => {
     const user = userEvent.setup();
     lookup.mockResolvedValue({ ok: true, data: twoPrevious });
     render(<OrderForm regions={regions} action={action} showFactoryField={false} />);
 
-    // Fill everything else first, then the phone last, then submit via the
-    // keyboard so focus never leaves the phone input.
     await user.type(screen.getByLabelText("اسم العميل"), "سمير علي");
     await user.type(screen.getByLabelText("العنوان"), "شارع 9، المعادي");
     await user.type(
@@ -174,10 +151,6 @@ describe("OrderForm — repeat customer confirmation", () => {
     expect(action).not.toHaveBeenCalled();
   });
 
-  /**
-   * An unavailable convenience check must never block a real order — the
-   * customer is on the line.
-   */
   it("creates the order anyway when the lookup fails", async () => {
     const user = userEvent.setup();
     lookup.mockResolvedValue({ ok: false, error: "تعذر التحقق" });
@@ -211,7 +184,6 @@ describe("OrderForm — repeat customer confirmation", () => {
     expect(await screen.findByText(/عميل مكرر — هذا سيكون الأوردر رقم 3 له/)).toBeInTheDocument();
   });
 
-  /** A count that belongs to a different number is worse than no count. */
   it("drops the repeat line once the number is edited", async () => {
     const user = userEvent.setup();
     lookup.mockResolvedValue({ ok: true, data: twoPrevious });

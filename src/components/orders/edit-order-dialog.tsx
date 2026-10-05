@@ -24,22 +24,12 @@ import {
 } from "@/components/ui/dialog";
 import type { Order, Region } from "@/types/database";
 
-/**
- * Owner/Moderator correcting or updating any customer/order-detail field on
- * an existing order — a typo in the phone number, a wrong piece count, an
- * address correction, etc. Distribution (driver/factory) is reassigned
- * through ChangeDriverButton/ChangeFactoryButton instead, not here. See
- * updateOrderDetailsAction / update_order_details (migration 0021).
- */
 export function EditOrderDialog({ order, regions }: { order: Order; regions: Region[] }) {
   const [open, setOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const router = useRouter();
   const regionListId = useId();
 
-  // order carries only region_id (the FK) — resolve it to the typed name
-  // the text field now shows, from the same regions list already passed
-  // in for the datalist suggestions.
   const currentRegionName = regions.find((r) => r.id === order.region_id)?.name ?? "";
 
   const form = useForm<EditOrderValues>({
@@ -60,8 +50,6 @@ export function EditOrderDialog({ order, regions }: { order: Order; regions: Reg
 
   function onOpenChange(next: boolean) {
     if (next) {
-      // Re-sync from the latest order prop each time the dialog opens, in
-      // case it changed since the form was first mounted.
       form.reset({
         customer_name: order.customer_name,
         customer_phone: order.customer_phone,

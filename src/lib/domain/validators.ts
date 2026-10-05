@@ -1,17 +1,7 @@
 import { z } from "zod";
 
-/** Egyptian-friendly loose phone validation: digits, spaces, +, - allowed, 8-15 digits total. */
 const phoneRegex = /^[\d+\-\s]{8,20}$/;
 
-/**
- * A pasted Google Maps link — e.g. a "share link" copied from the Maps app
- * (Share > Copy link), which can be a long .../maps/place/... URL carrying
- * its own precise coordinates, or a shortened maps.app.goo.gl one. Loosely
- * validated (just "looks like an http(s) URL") rather than with z.string().url()
- * — Maps share links can be very long with unusual query characters, and the
- * point here is just to catch an obvious typo/non-link paste, not to
- * validate Google's URL format.
- */
 const mapsUrlField = z
   .string()
   .trim()
@@ -20,17 +10,6 @@ const mapsUrlField = z
   .nullable()
   .refine((v) => !v || /^https?:\/\/\S+$/i.test(v), "الصق رابط خرائط جوجل كامل (يبدأ بـ http:// أو https://)");
 
-/**
- * The same link, required. Used only when an order is being created.
- *
- * A pasted Maps link is the one location signal that is exact — a typed
- * address gets guessed at by a map search and a driver ends up on the wrong
- * street. Requiring it at creation is cheap, because whoever takes the
- * order has the customer on the phone and can ask for it.
- *
- * Deliberately NOT applied to editing (see editOrderSchema) or to a
- * factory's own details.
- */
 const requiredMapsUrlField = z
   .string({ error: "الصق رابط موقع العميل على خرائط جوجل" })
   .trim()
@@ -54,17 +33,7 @@ export const orderFormSchema = z.object({
     .trim()
     .min(5, "العنوان قصير جدًا")
     .max(500, "العنوان طويل جدًا"),
-  // Optional pasted Google Maps link for the customer's exact location —
-  // preferred over a text search of customer_address whenever present (see
-  // mapsUrlFor). Independent of customer_address, which stays required as
-  // the human-readable fallback and is always shown regardless.
-  //
-  // Mandatory at creation: an exact pin beats a guessed address search, and
-  // the person taking the order has the customer available to ask.
   customer_maps_url: requiredMapsUrlField,
-  // Typed by keyboard, not picked from a list (see migration 0025) — and
-  // mandatory: a blank/whitespace-only value fails here before it ever
-  // reaches find_or_create_region()'s own (defense-in-depth) check.
   region_name: z
     .string()
     .trim()
@@ -79,38 +48,12 @@ export const orderFormSchema = z.object({
   color: z.string().trim().max(100).optional().nullable(),
   work_required: z.string().trim().max(500).optional().nullable(),
   customer_notes: z.string().trim().max(1000).optional().nullable(),
-  // Optional at the schema level — whether picking a factory is actually
-  // required is a role/page-based UI rule, not something this shared
-  // schema can express; see OrderForm's requireFactory prop and
-  // createModeratorOrderAction's own server-side check.
   factory_id: z.string().uuid().optional().nullable(),
-  // No longer settable from OrderForm as of migration 0027 (the driver is
-  // always auto-suggested by region, never picked at creation time) — kept
-  // here only because EditOrderValues derives from this schema via
-  // .omit({ factory_id: true, driver_id: true }) and createModeratorOrderAction
-  // still rejects a non-null value defensively.
   driver_id: z.string().uuid().optional().nullable(),
 });
 
 export type OrderFormValues = z.infer<typeof orderFormSchema>;
 
-/**
- * Owner/Moderator editing an *existing* order's details after creation
- * (updateOrderDetailsAction / update_order_details). Every field an order
- * carries about the customer/job is editable this way; only the
- * distribution fields (factory_id/driver_id — reassigned through their own
- * dedicated flow, see ChangeDriverButton/ChangeFactoryButton) are excluded.
- */
-/**
- * Editing an existing order.
- *
- * customer_maps_url is put back to optional on purpose. It became mandatory
- * for *new* orders, but every order created before that has none — and
- * inheriting the requirement here would mean someone correcting a phone
- * typo on an old order is blocked until they produce a Maps link they may
- * not have. A rule introduced today should not retroactively lock records
- * created yesterday.
- */
 export const editOrderSchema = orderFormSchema
   .omit({ factory_id: true, driver_id: true })
   .extend({ customer_maps_url: mapsUrlField });
@@ -137,7 +80,6 @@ export const deliveryCodeSchema = z.object({
     .regex(/^\d{4}$/, "الكود مكوّن من 4 أرقام"),
 });
 
-/** Same 4-digit shape as deliveryCodeSchema, kept as its own export for the pickup-from-customer step (migration 0024) — same code format, different meaning. */
 export const pickupCodeSchema = deliveryCodeSchema;
 
 export const refusalReasonSchema = z.object({
@@ -159,26 +101,14 @@ export const createStaffAccountSchema = z.object({
     .trim()
     .regex(phoneRegex, "رقم الهاتف غير صالح")
     .refine((v) => v.replace(/\D/g, "").length >= 8, "رقم الهاتف غير صالح"),
-  // Optional: most staff (drivers/factory workers especially) sign in with
-  // their phone number and never need an email. When left blank we generate
-  // an internal one — it's never shown to them or used for login.
   email: z.string().trim().email("بريد إلكتروني غير صالح").optional().or(z.literal("")),
-  // No "factory" — factories stopped being accounts in migration 0033. The
-  // enum value still exists in the database for historical rows, but nothing
-  // may create one (see CreatableUserRole in types/database.ts).
   role: z.enum(["owner", "moderator", "driver"]),
-  // Typed area names, not ids picked from a checkbox list (migration
-  // 0025) — resolved/auto-created server-side via find_or_create_region().
   region_names: z
     .array(z.string().trim().min(2).max(100))
     .optional()
     .default([]),
 });
 
-/**
- * A factory's details. Factories are workshops rather than accounts since
- * migration 0033, so this no longer rides on the staff-account schema.
- */
 export const factoryDetailsSchema = z.object({
   name: z.string().trim().min(2, "اسم المصنع مطلوب").max(120),
   phone: z.string().trim().max(30).optional().nullable(),
@@ -188,7 +118,6 @@ export const factoryDetailsSchema = z.object({
   maps_url: mapsUrlField,
 });
 
-/** Step 1 of the phone-based login: just the phone number. */
 export const phoneLookupSchema = z.object({
   phone: z
     .string()
@@ -198,7 +127,6 @@ export const phoneLookupSchema = z.object({
 
 const newPasswordField = z.string().min(6, "كلمة المرور 6 أحرف على الأقل").max(72);
 
-/** Step 2a: first-ever login — the worker creates their own password. */
 export const setInitialPasswordSchema = z
   .object({
     phone: z.string().trim(),
@@ -210,13 +138,11 @@ export const setInitialPasswordSchema = z
     path: ["confirmPassword"],
   });
 
-/** Step 2b: returning login — phone + the password they already set. */
 export const phoneLoginSchema = z.object({
   phone: z.string().trim(),
   password: z.string().min(1, "أدخل كلمة المرور"),
 });
 
-/** First-run self-service Owner setup — no email, no dashboard step. */
 export const bootstrapOwnerSchema = z
   .object({
     full_name: z.string().trim().min(2, "الاسم قصير جدًا").max(120),

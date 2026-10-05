@@ -1,12 +1,5 @@
 import L from "leaflet";
 
-/**
- * A small brand-yellow pin, built as a plain SVG divIcon instead of
- * Leaflet's default marker image — the default relies on relative image
- * paths (marker-icon.png etc.) that don't resolve correctly once bundled by
- * Next.js/Turbopack, a very common Leaflet-in-a-bundler gotcha. A divIcon
- * sidesteps it entirely and lets the pin match the app's own palette.
- */
 export function createPinIcon(color = "#FFCC00") {
   return L.divIcon({
     html: `

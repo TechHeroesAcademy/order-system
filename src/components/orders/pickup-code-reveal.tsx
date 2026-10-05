@@ -6,15 +6,6 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { getOrderPickupCodeAction } from "@/lib/actions/orders";
 
-/**
- * Same click-to-reveal pattern as <DeliveryCodeReveal>, for the pickup
- * code instead — the code the driver needs from the customer to confirm
- * they collected the order (migration 0024). Owner/Moderator can look it
- * up again on demand (e.g. the customer needs it re-read to them) via a
- * dedicated RPC that keeps it out of reach of drivers, same reasoning as
- * the delivery code: seeing it in advance would let a driver "confirm
- * pickup" without ever actually visiting the customer.
- */
 export function PickupCodeReveal({ orderId }: { orderId: string }) {
   const [state, setState] = useState<"hidden" | "loading" | "shown" | "unavailable">("hidden");
   const [code, setCode] = useState<string | null>(null);

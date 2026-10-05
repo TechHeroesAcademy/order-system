@@ -1,13 +1,3 @@
--- 0009_workflow_rpcs.sql
--- Every legal state transition in the order lifecycle, each as its own RPC:
---   new -> (distribution set, pending approval) -> assigned -> collected
---        -> at_factory -> ready -> with_driver -> delivered
--- with 'refused' and 'cancelled' as side-exits. Each function checks the caller's
--- role and the order's current status server-side, so the workflow cannot be
--- skipped or reordered from the client no matter what the UI sends.
-
--- ---------- distribution ----------
-
 create or replace function public.suggest_drivers(p_order_id uuid)
 returns table (
   driver_id uuid,
@@ -138,8 +128,6 @@ begin
 end;
 $$;
 
--- ---------- driver actions ----------
-
 create or replace function public.driver_mark_collected(p_order_id uuid)
 returns void
 language plpgsql
@@ -200,8 +188,6 @@ create or replace function public.driver_deliver_to_customer(p_order_id uuid, p_
 returns boolean
 language plpgsql
 security definer
--- extensions included for crypt() below — see the note on create_order_internal
--- in 0007_order_creation.sql for why.
 set search_path = public, extensions
 as $$
 declare
@@ -257,8 +243,6 @@ begin
 end;
 $$;
 
--- ---------- factory actions ----------
-
 create or replace function public.factory_confirm_receipt(p_order_id uuid)
 returns void
 language plpgsql
@@ -307,8 +291,6 @@ begin
 end;
 $$;
 
--- ---------- owner: cancel ----------
-
 create or replace function public.owner_cancel_order(p_order_id uuid, p_reason text)
 returns void
 language plpgsql
@@ -332,8 +314,6 @@ begin
   perform public.log_order_event(p_order_id, 'cancelled', v_order.status, 'cancelled', p_reason);
 end;
 $$;
-
--- ---------- public customer tracking ----------
 
 drop type if exists public.tracked_order cascade;
 
@@ -390,10 +370,6 @@ $$;
 revoke all on function public.track_order from public;
 grant execute on function public.track_order to anon, authenticated;
 
--- ---------- lock down the rest to authenticated users only ----------
--- (Postgres grants EXECUTE to PUBLIC by default; every workflow RPC below does its
--- own role/ownership check internally, but we still remove anon access entirely
--- as defense in depth — an anonymous caller should never reach these at all.)
 revoke all on function public.suggest_drivers(uuid) from public;
 revoke all on function public.set_order_distribution(uuid, uuid, boolean) from public;
 revoke all on function public.clear_order_distribution(uuid) from public;

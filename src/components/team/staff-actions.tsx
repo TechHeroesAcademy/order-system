@@ -15,11 +15,6 @@ import {
 } from "@/components/ui/dialog";
 import { setStaffActiveAction, resetStaffPasswordAction, deleteStaffAccountAction } from "@/lib/actions/admin";
 
-/**
- * Shared row-actions used by both the workers table (TeamManager) and the
- * factories table (FactoriesMapPanel) — split out so neither imports from
- * the other (FactoriesMapPanel is rendered from inside TeamManager).
- */
 export function ToggleActiveButton({
   userId,
   isActive,
@@ -51,12 +46,6 @@ export function ToggleActiveButton({
   );
 }
 
-/**
- * Invalidates the old password immediately and flips the account back to
- * "needs to set a password" — the worker just signs in with their phone
- * number as usual and is prompted to create a new one, no temp password to
- * relay over the phone.
- */
 export function ResetPasswordButton({ userId }: { userId: string }) {
   const [pending, startTransition] = useTransition();
 
@@ -78,13 +67,6 @@ export function ResetPasswordButton({ userId }: { userId: string }) {
   );
 }
 
-/**
- * Owner-only, permanent — deletes the account entirely (see
- * deleteStaffAccountAction). Every order this worker ever touched keeps
- * showing their name; only the account itself is gone. Gated behind a
- * confirmation dialog like CancelOrderButton, since there's no undo here
- * either.
- */
 export function DeleteStaffButton({
   userId,
   fullName,
@@ -93,7 +75,6 @@ export function DeleteStaffButton({
 }: {
   userId: string;
   fullName: string;
-  /** Drivers have their active orders moved before the account goes — see deleteStaffAccountAction. */
   isDriver?: boolean;
   onDeleted: () => void;
 }) {
@@ -110,8 +91,6 @@ export function DeleteStaffButton({
       const { reassigned, resuggested, unallocated } = res.data;
       const moved = reassigned + resuggested;
 
-      // Say what happened to their work, now, rather than leaving the manager
-      // to find out later — especially the orders nobody could take.
       if (unallocated > 0) {
         toast.warning(
           `تم حذف الحساب. تم نقل ${moved} أوردر، و${unallocated} أوردر بحاجة لتعيين مندوب يدويًا — موجودة في صفحة التوزيع.`,

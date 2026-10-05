@@ -13,21 +13,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import type { RepeatCustomerNotice } from "@/lib/domain/customer-history";
 
-/**
- * Shown between pressing "create" and the order actually being created, when
- * the customer's phone number has ordered before.
- *
- * An AlertDialog rather than a toast: this asks a question and the answer
- * changes what happens, so it has to be acknowledged. A toast would be
- * dismissed by the same press that created the order.
- *
- * It confirms rather than blocks — a repeat customer is normal and usually
- * good news, so "متابعة" is the primary button and nothing here can stop a
- * real order being taken. The two cases that deserve a second look (an order
- * already in flight, and a name that does not match the one on file) are
- * called out separately above the buttons rather than being left for the
- * reader to work out from the counts.
- */
 export function RepeatCustomerDialog({
   notice,
   open,

@@ -1,11 +1,3 @@
--- 0007_order_creation.sql
--- Order creation for both intake channels described in the spec:
---   1) "Website" — the customer creates the order themselves, no login required.
---   2) "Messenger" — the Moderator chats with the customer on Messenger and enters
---      the order on their behalf.
--- Both paths return the plaintext delivery code exactly once, to be written on the
--- customer's paper receipt. From then on only a hash is stored (see 0004_orders.sql).
-
 create or replace function public.generate_delivery_code()
 returns text
 language sql
@@ -38,10 +30,6 @@ create or replace function public.create_order_internal(
 returns public.new_order_result
 language plpgsql
 security definer
--- extensions is included because Supabase installs pgcrypto (crypt/gen_salt,
--- used below) into the "extensions" schema by default, not "public"; a plain
--- local Postgres install puts it in "public", which is why this gap wasn't
--- caught by local testing.
 set search_path = public, extensions
 as $$
 declare
@@ -83,16 +71,8 @@ begin
 end;
 $$;
 
--- create_order_internal has no role/ownership check of its own — it trusts its
--- caller completely (including which order_source and created_by to record). It
--- must never be callable directly by anon/authenticated; only the two vetted
--- wrappers below (which run as this function's owner once inside their own
--- SECURITY DEFINER body) may reach it.
 revoke all on function public.create_order_internal from public, anon, authenticated;
 
--- Public entry point: anyone (anonymous website visitor) can create an order for
--- themselves. SECURITY DEFINER bypasses RLS internally but the function itself only
--- ever inserts a single well-formed row — it does not expose any read access.
 create or replace function public.public_create_order(
   p_customer_name text,
   p_customer_phone text,
@@ -121,7 +101,6 @@ $$;
 revoke all on function public.public_create_order from public;
 grant execute on function public.public_create_order to anon, authenticated;
 
--- Moderator/Owner entry point for Messenger-sourced orders.
 create or replace function public.moderator_create_order(
   p_customer_name text,
   p_customer_phone text,

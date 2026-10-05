@@ -1,3 +1,176 @@
+-- ============================================================================
+-- NEON SETUP — PART 4 OF 4
+--
+-- PASTE THIS WHOLE FILE INTO NEON'S SQL EDITOR AND RUN IT.
+-- Run the parts in order. Wait for each to finish before starting the next.
+-- Each part is safe to re-run: every statement is idempotent.
+--
+-- The Neon-specific part: replaces auth.uid(), removes the PostgREST roles,
+-- adds the password and login machinery that replaces GoTrue, and the two
+-- service paths (push dispatch, the owner check) that used to rely on
+-- Supabase's service-role key bypassing row-level security.
+--
+-- GENERATED — do not edit. Edit the source files listed below and re-run
+-- scripts/build-neon-bundle.mjs, so Supabase and Neon cannot drift apart.
+--
+-- Contains, in order:
+--    1. neon/migrations/0001_auth_shim.sql
+--    2. neon/migrations/0002_local_auth.sql
+--    3. neon/migrations/0003_service_paths.sql
+-- ============================================================================
+
+-- The chain installs pgcrypto/pg_trgm into the extensions schema (as Supabase
+-- does) and several functions resolve against it. Declared per part rather
+-- than relied on from the database default, so pasting a part into a fresh
+-- editor session always works.
+set search_path = public, extensions;
+
+
+
+-- ========== neon/migrations/0001_auth_shim.sql ========================
+
+do $$
+begin
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema = 'auth' and table_name = 'users'
+      and column_name in ('instance_id', 'encrypted_password', 'confirmation_token')
+  ) then
+    raise exception
+      'Refusing to run: this looks like a real Supabase-managed database '
+      '(auth.users has Supabase-specific columns). This migration '
+      'overwrites auth.uid() and is meant for a bare Neon/Postgres '
+      'database only — running it against live Supabase would break '
+      'every RLS policy in production immediately. Aborting.';
+  end if;
+end$$;
+
+create schema if not exists auth;
+
+create or replace function auth.uid() returns uuid
+language sql
+stable
+as $$
+  select nullif(current_setting('app.current_profile_id', true), '')::uuid
+$$;
+
+comment on function auth.uid() is
+  'Neon replacement for Supabase''s auth.uid(). Reads the caller''s profile '
+  'id from the app.current_profile_id session setting instead of a JWT '
+  'claim. Returns NULL when unset, matching GoTrue''s behavior for an '
+  'unauthenticated request — every policy that compares a column to '
+  'auth.uid() already handles that NULL case correctly (the comparison is '
+  'simply never true), so this preserves existing behavior exactly. '
+  'Verified directly: with no session set, RLS-protected tables return '
+  'zero rows; with it set to a specific profile id, only that profile''s '
+  'own rows are visible, tested against a non-superuser role with RLS '
+  'actually enforced (not the schema owner, which bypasses RLS).';
+
+create or replace function public.set_current_profile_id(p_profile_id uuid)
+returns void
+language plpgsql
+as $$
+begin
+  perform set_config('app.current_profile_id', coalesce(p_profile_id::text, ''), true);
+end;
+$$;
+
+comment on function public.set_current_profile_id(uuid) is
+  'Sets auth.uid() for the remainder of the current transaction. Call once, '
+  'first, inside the same transaction as the request''s queries. Passing '
+  'NULL clears it (auth.uid() then returns NULL, the unauthenticated case).';
+
+alter table public.profiles drop constraint if exists profiles_id_fkey;
+alter table public.profiles alter column id set default gen_random_uuid();
+
+drop trigger if exists on_auth_user_created on auth.users;
+drop function if exists public.handle_new_user();
+
+do $$
+begin
+  if not exists (select 1 from pg_roles where rolname = 'app_user') then
+    create role app_user nologin;
+  end if;
+end$$;
+
+do $$
+declare r text;
+begin
+  foreach r in array array['anon', 'authenticated', 'service_role'] loop
+    if exists (select 1 from pg_roles where rolname = r) then
+      execute format('revoke all on schema public from %I', r);
+      execute format('revoke all on all tables in schema public from %I', r);
+      execute format('revoke all on all functions in schema public from %I', r);
+      execute format('revoke all on all sequences in schema public from %I', r);
+      execute format('revoke all on schema extensions from %I', r);
+      execute format('revoke all on all functions in schema extensions from %I', r);
+    end if;
+  end loop;
+end$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_roles where rolname = 'authenticated') then
+    create role authenticated nologin;
+  end if;
+end$$;
+
+do $$
+declare r text;
+begin
+  foreach r in array array['anon', 'service_role'] loop
+    if exists (select 1 from pg_roles where rolname = r) then
+      begin
+        execute format('drop role %I', r);
+        raise notice 'dropped the % role', r;
+      exception when others then
+        raise notice
+          'could not drop the % role (%) — it has been stripped of all '
+          'privileges and is NOLOGIN, so this is cosmetic only', r, sqlerrm;
+      end;
+    end if;
+  end loop;
+end$$;
+
+grant usage on schema public to app_user;
+
+grant select, update on public.profiles to app_user;
+grant select, insert, update, delete on public.regions to app_user;
+grant select, insert, update, delete on public.driver_regions to app_user;
+grant select, insert, update on public.orders to app_user;
+grant select on public.order_history to app_user;
+grant select, insert, update on public.order_messages to app_user;
+grant select, update on public.notifications to app_user;
+
+grant select, insert, update, delete on public.factories to app_user;
+grant select on public.manager_factories to app_user;
+grant select, insert, update, delete on public.push_subscriptions to app_user;
+
+grant execute on all functions in schema public to app_user;
+
+grant authenticated to app_user;
+
+do $$
+begin
+  if not exists (select 1 from pg_roles where rolname = 'app_admin') then
+    begin
+      create role app_admin nologin bypassrls;
+    exception when insufficient_privilege or feature_not_supported then
+      create role app_admin nologin;
+      raise notice
+        'app_admin created WITHOUT bypassrls (this database would not grant '
+        'it). Use SECURITY DEFINER lookup functions for the pre-login path; '
+        'see the migration guide.';
+    end;
+  end if;
+end$$;
+
+grant usage on schema public to app_admin;
+grant select on public.profiles to app_admin;
+
+
+-- ========== neon/migrations/0002_local_auth.sql =======================
+
 create extension if not exists pgcrypto with schema extensions;
 
 create or replace function public.canonical_phone(p_phone text)
@@ -400,3 +573,111 @@ update public.profiles p
     where c.profile_id = p.id and c.password_hash is null
  )
    and p.password_set;
+
+
+-- ========== neon/migrations/0003_service_paths.sql ====================
+
+create or replace function public.push_dispatch_payload(p_notification_id uuid)
+returns table (
+  notification_id uuid,
+  order_id uuid,
+  notification_type text,
+  title text,
+  body text,
+  recipient_role public.user_role,
+  recipient_active boolean,
+  subscription_id uuid,
+  endpoint text,
+  p256dh text,
+  auth_secret text
+)
+language plpgsql
+security definer
+set search_path = public
+as $$
+#variable_conflict use_column
+begin
+  return query
+    select n.id,
+           n.order_id,
+           n.type::text,
+           n.title,
+           n.body,
+           p.role,
+           p.is_active,
+           s.id,
+           s.endpoint,
+           s.p256dh,
+           s.auth
+      from public.notifications n
+      join public.profiles p on p.id = n.user_id
+      left join public.push_subscriptions s on s.user_id = n.user_id
+     where n.id = p_notification_id
+       and p.is_active;
+end;
+$$;
+
+comment on function public.push_dispatch_payload(uuid) is
+  'Everything /api/push/dispatch needs to deliver one notification. Replaces '
+  'the three cross-user reads that relied on Supabase''s service-role key. '
+  'Returns nothing for an unknown notification or a deactivated recipient.';
+
+create or replace function public.push_prune_subscriptions(p_ids uuid[])
+returns integer
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare v_n integer;
+begin
+  if p_ids is null or array_length(p_ids, 1) is null then return 0; end if;
+  delete from public.push_subscriptions where id = any(p_ids);
+  get diagnostics v_n = row_count;
+  return v_n;
+end;
+$$;
+
+create or replace function public.push_mark_delivered(p_ids uuid[])
+returns integer
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare v_n integer;
+begin
+  if p_ids is null or array_length(p_ids, 1) is null then return 0; end if;
+  update public.push_subscriptions
+     set last_success_at = now(), failure_count = 0
+   where id = any(p_ids);
+  get diagnostics v_n = row_count;
+  return v_n;
+end;
+$$;
+
+create or replace function public.owner_exists()
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select exists (
+    select 1 from public.profiles where role = 'owner' and is_active
+  );
+$$;
+
+comment on function public.owner_exists() is
+  'Whether the one-time owner bootstrap has already happened. Reachable '
+  'without a session, and returns exactly one bit for that reason.';
+
+revoke all on function public.push_dispatch_payload(uuid) from public;
+revoke all on function public.push_prune_subscriptions(uuid[]) from public;
+revoke all on function public.push_mark_delivered(uuid[]) from public;
+revoke all on function public.owner_exists() from public;
+
+grant execute on function public.push_dispatch_payload(uuid) to app_user;
+grant execute on function public.push_prune_subscriptions(uuid[]) to app_user;
+grant execute on function public.push_mark_delivered(uuid[]) to app_user;
+grant execute on function public.owner_exists() to app_user;
+
+grant execute on function public.increment_push_failures(uuid[]) to app_user;

@@ -6,14 +6,6 @@ import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/db/client";
 import { ok, fail, toErrorMessage, type ActionResult } from "./types";
 
-/**
- * Factories are workshops, not staff accounts (migration 0033) — so they have
- * their own actions instead of riding on the staff-account ones. The
- * authorization on each RPC deliberately mirrors what the equivalent staff
- * action allowed before the split: creating and deleting were Manager-only,
- * editing details and toggling active were Manager or Moderator.
- */
-
 const factorySchema = z.object({
   name: z.string().trim().min(2, "اسم المصنع مطلوب"),
   phone: z.string().trim().optional().nullable(),
@@ -26,8 +18,6 @@ const factorySchema = z.object({
 export type FactoryInput = z.infer<typeof factorySchema>;
 
 function revalidateFactoryViews() {
-  // Factories show up on the team screen, in every order picker, and on the
-  // driver's order page (the "where am I driving to" strip).
   revalidatePath("/owner/team");
   revalidatePath("/owner");
   revalidatePath("/moderator");
@@ -95,12 +85,6 @@ export async function setFactoryActiveAction(
   return ok(undefined);
 }
 
-/**
- * Only ever succeeds for a factory no order has ever used — the foreign key
- * is ON DELETE RESTRICT precisely so a workshop with history can't be erased
- * out from under its orders. The RPC turns that constraint error into a
- * readable instruction to deactivate instead.
- */
 export async function deleteFactoryAction(factoryId: string): Promise<ActionResult> {
   await requireRole("owner");
 

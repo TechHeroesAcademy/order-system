@@ -24,12 +24,6 @@ function history(over: Partial<CustomerOrderHistory>): CustomerOrderHistory {
 }
 
 describe("phoneMatchKey", () => {
-  /**
-   * This has to agree with the database, which matches on the last 8 digits
-   * (migration 0049, same rule track_order has used since 0009). If these
-   * ever disagree, the form would show "first order" for a customer the
-   * database counts as returning, or the reverse.
-   */
   it("reduces every way one Egyptian number gets written to the same key", () => {
     const keys = [
       "01012345678",
@@ -89,10 +83,6 @@ describe("buildRepeatCustomerNotice", () => {
     expect(notice.breakdown).not.toContain("رفض");
   });
 
-  /**
-   * The case this feature is really for: the same job entered twice by two
-   * people who did not know about each other.
-   */
   it("warns separately when the customer still has an order in flight", () => {
     const notice = buildRepeatCustomerNotice(
       history({ previous_orders: 2, delivered_orders: 1, open_orders: 1 }),
@@ -151,7 +141,6 @@ describe("buildRepeatCustomerNotice", () => {
       expect(notice.nameMismatch).toBeNull();
     });
 
-    /** Extra spaces are a typing artifact, not a different customer. */
     it("ignores differences in whitespace", () => {
       const notice = buildRepeatCustomerNotice(
         history({ previous_orders: 1, names_seen: ["سمير علي"] }),
@@ -193,10 +182,6 @@ describe("buildCustomerSequenceNote", () => {
     };
   }
 
-  /**
-   * Most customers have one order. A "1 من 1" line on every order page would
-   * be noise, and noise is what stops the repeat case being noticed.
-   */
   it("shows nothing for a customer with a single order", () => {
     expect(buildCustomerSequenceNote(context())).toBeNull();
   });
@@ -210,7 +195,6 @@ describe("buildCustomerSequenceNote", () => {
     expect(note?.headline).toContain("رقم 3 من 4");
   });
 
-  /** The oldest order in a history must read as 1, not as the newest number. */
   it("numbers the first order in a long history as 1", () => {
     const note = buildCustomerSequenceNote(context({ customer_order_index: 1, total_orders: 5 }));
     expect(note?.headline).toContain("رقم 1 من 5");
@@ -231,11 +215,6 @@ describe("buildCustomerSequenceNote", () => {
     expect(note?.openWarning).toContain("2 أوردرات أخرى");
   });
 
-  /**
-   * The order being looked at is itself usually open; counting it would put
-   * a duplicate warning on every single order. The exclusion happens in the
-   * RPC, so what this pins down is that zero means no warning at all.
-   */
   it("stays quiet when the customer has nothing else open", () => {
     const note = buildCustomerSequenceNote(
       context({ customer_order_index: 2, total_orders: 2, other_open_orders: 0 }),

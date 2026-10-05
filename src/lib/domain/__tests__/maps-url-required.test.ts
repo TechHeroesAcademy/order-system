@@ -1,14 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { orderFormSchema, editOrderSchema } from "../validators";
 
-/**
- * The Maps link is required when an order is created and optional when one
- * is edited. That asymmetry is deliberate and easy to "tidy up" by mistake:
- * editOrderSchema is derived from orderFormSchema, so simply removing its
- * .extend() would inherit the requirement and lock every order created
- * before the rule existed — none of which has a link. Someone correcting a
- * phone typo on an old order would be blocked until they produced one.
- */
 const NEW_ORDER = {
   customer_name: "عميل",
   customer_phone: "01012345678",

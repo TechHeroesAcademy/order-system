@@ -6,14 +6,6 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { getOrderDeliveryCodeAction } from "@/lib/actions/orders";
 
-/**
- * The delivery code used to only ever be shown once, right after order
- * creation — by design, only a bcrypt hash was stored. Owner/Moderator can
- * now look it up again on demand (e.g. the customer lost their paper
- * receipt) via a dedicated RPC that keeps it out of reach of drivers — see
- * migration 0016. Click-to-reveal rather than shown by default, so it isn't
- * just sitting on screen for anyone glancing at the page.
- */
 export function DeliveryCodeReveal({ orderId }: { orderId: string }) {
   const [state, setState] = useState<"hidden" | "loading" | "shown" | "unavailable">("hidden");
   const [code, setCode] = useState<string | null>(null);

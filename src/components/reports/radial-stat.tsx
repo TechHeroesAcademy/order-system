@@ -3,11 +3,6 @@
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 
-/**
- * A single-metric radial gauge (0-100%) — spec section 23's "نسبة الأوردرات
- * المكتملة" / "معدل التأخير". Client component so the ring animates in from
- * 0 on mount, same motion language as BarList.
- */
 export function RadialStat({
   label,
   percent,

@@ -18,13 +18,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { reassignOrderFactoryAction } from "@/lib/actions/orders";
 import type { Factory } from "@/types/database";
 
-/**
- * Lets the Owner/Moderator route an order to a different factory at any
- * point before it's closed — same shape as <ChangeDriverButton>, on top of
- * (not instead of) picking a factory at creation. The location shown to the
- * assigned driver updates the moment this commits, since their page always
- * reads assigned_factory_id fresh (see reassign_order_factory, migration 0018).
- */
 export function ChangeFactoryButton({
   orderId,
   currentFactoryId,
@@ -34,7 +27,6 @@ export function ChangeFactoryButton({
   orderId: string;
   currentFactoryId: string | null;
   factories: Factory[];
-  /** Icon-only trigger for tight spaces (an orders-table row) instead of the full-width labeled button. */
   compact?: boolean;
 }) {
   const [open, setOpen] = useState(false);

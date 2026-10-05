@@ -2,57 +2,6 @@ import "server-only";
 import type { QueryResultRow } from "pg";
 import { withUserContext, type Querier } from "./with-user-context";
 
-/**
- * A small query builder with the same shape as the one supabase-js gave us.
- *
- * WHY A SHIM RATHER THAN 42 HAND-WRITTEN QUERIES
- *
- * The 42 table queries in this app are spread across 12 files and are, with
- * two exceptions, plain filters. Translating each one by hand means 42
- * chances to drop an `.eq()`, invert a range, or quietly widen what a driver
- * can see — and the ones that would hurt most are the ones that still
- * return rows afterwards. Keeping the call shape and replacing the engine
- * means those files are read and re-read against a diff of imports, not a
- * diff of logic.
- *
- * It is deliberately NOT a general PostgREST implementation. It supports
- * exactly the methods this codebase uses, counted from the source:
- * select/insert/update/delete, eq/in/not/is/gte/lte/lt, order, range, limit,
- * single/maybeSingle, and the { count: "exact" } option. Anything else is a
- * compile error rather than a silent no-op, which is the point — a shim that
- * accepts a filter it does not apply is worse than no shim.
- *
- * Every value goes through a bound parameter. Only identifiers (table and
- * column names) are interpolated, and those are validated against a strict
- * pattern first, so a column name arriving from somewhere unexpected cannot
- * become SQL.
- *
- * Each terminal call runs in its own withUserContext transaction. That
- * matches what it replaces: under PostgREST every .from() was a separate
- * HTTP request and therefore a separate transaction, so nothing about
- * atomicity changes. Where several statements must be atomic, this codebase
- * already puts them in a SECURITY DEFINER function, which is where that
- * belongs.
- */
-
-/**
- * Whether a function in `public` is set-returning, cached for the life of
- * the process.
- *
- * One small catalog query per distinct function name per warm instance —
- * there are 49 of them in the whole app, and a serverless instance handles
- * many requests, so this is paid approximately once and never again. The
- * alternative was inferring it from the result shape, which cannot be done
- * correctly: a TABLE function returning one row is indistinguishable from a
- * composite-returning one.
- *
- * This codebase deliberately has no overloaded functions — the plan for the
- * driver-removal work says so explicitly, after being bitten twice by
- * CREATE OR REPLACE with a changed argument list silently creating a second
- * overload. If one ever appears, `bool_or` means a disagreement resolves to
- * "set-returning", which is the current, pre-fix behaviour: an array. That
- * is the safe direction, because it is what every call site survived before.
- */
 const setReturningCache = new Map<string, boolean>();
 
 async function isSetReturning(q: Querier, fn: string): Promise<boolean> {
@@ -71,7 +20,6 @@ async function isSetReturning(q: Querier, fn: string): Promise<boolean> {
   return retset;
 }
 
-/** Identifiers are interpolated, so they are checked rather than trusted. */
 const IDENT = /^[a-z_][a-z0-9_]*$/i;
 
 function ident(name: string): string {
@@ -82,15 +30,6 @@ function ident(name: string): string {
   return `"${trimmed}"`;
 }
 
-/**
- * The two embedded selects this app uses, declared rather than parsed.
- *
- * PostgREST turns `*, region:regions(name)` into a nested object by
- * following the foreign key. A general implementation of that is a schema
- * crawler; there are two of these in the whole codebase, so they are listed
- * here instead and anything else throws. A third one added later fails
- * loudly at the call site rather than silently returning no nested object.
- */
 const EMBEDS: Record<string, { sql: string; alias: string }> = {
   "*, region:regions(name)": {
     alias: "region",
@@ -120,7 +59,6 @@ export interface Result<T> {
   count: number | null;
 }
 
-/** Postgres error shape, narrowed without `any`. */
 function toResultError(e: unknown): { message: string; code?: string } {
   if (e && typeof e === "object") {
     const o = e as { message?: unknown; code?: unknown };
@@ -148,8 +86,6 @@ class QueryBuilder<T extends QueryResultRow> implements PromiseLike<Result<T[]>>
   ) {}
 
   select(columns = "*", options: SelectOptions = {}): this {
-    // On an insert/update/delete, .select() means RETURNING rather than a
-    // fresh query — same as PostgREST.
     this.columns = columns;
     this.options = options;
     return this;
@@ -197,19 +133,8 @@ class QueryBuilder<T extends QueryResultRow> implements PromiseLike<Result<T[]>>
     return this;
   }
 
-  /**
-   * `.not("status", "in", [...])` is the only form of .not() used here, and
-   * the signature is narrowed to it on purpose: supabase-js's generic
-   * `.not(column, operator, value)` would let a typo in the operator through
-   * as a filter that never matches.
-   */
   not(column: string, operator: "in", values: unknown[] | string): this {
     if (operator !== "in") throw new Error(`.not() supports only "in" here`);
-    // PostgREST took this as the string "(a,b,c)" and two call sites still
-    // build it that way. Accepted and parsed rather than changed at the call
-    // sites, so the status lists there stay written exactly once — they are
-    // derived from TERMINAL_STATUSES, and retyping them as arrays is how the
-    // two copies drift.
     const list = Array.isArray(values)
       ? values
       : values
@@ -221,11 +146,6 @@ class QueryBuilder<T extends QueryResultRow> implements PromiseLike<Result<T[]>>
     return this;
   }
 
-  /**
-   * Replaces the one PostgREST `.or("a.ilike.%x%,b.ilike.%x%")` call site.
-   * Explicit columns and one term instead of a string that has to be parsed
-   * — the search box is the only thing that uses it.
-   */
   orIlike(columns: string[], term: string): this {
     this.filters.push({ kind: "orIlike", columns, term });
     return this;
@@ -245,14 +165,11 @@ class QueryBuilder<T extends QueryResultRow> implements PromiseLike<Result<T[]>>
     return this;
   }
 
-  /** Inclusive on both ends, like PostgREST's Range header. */
   range(from: number, to: number): this {
     this.offsetValue = from;
     this.limitValue = to - from + 1;
     return this;
   }
-
-  // ── terminals ─────────────────────────────────────────────────────────
 
   async maybeSingle<R extends QueryResultRow = T>(): Promise<Result<R | null>> {
     const res = await this.run();
@@ -266,8 +183,6 @@ class QueryBuilder<T extends QueryResultRow> implements PromiseLike<Result<T[]>>
     if (res.error) return { data: null, error: res.error, count: null };
     const rows = (res.data ?? []) as unknown as R[];
     if (rows.length !== 1) {
-      // PostgREST's PGRST116. Kept as an error rather than returning null so
-      // call sites that rely on "exactly one" keep failing loudly.
       return {
         data: null,
         error: { message: "Expected exactly one row", code: "PGRST116" },
@@ -283,8 +198,6 @@ class QueryBuilder<T extends QueryResultRow> implements PromiseLike<Result<T[]>>
   ): PromiseLike<R1 | R2> {
     return this.run().then(onfulfilled, onrejected);
   }
-
-  // ── compilation ───────────────────────────────────────────────────────
 
   private buildWhere(values: unknown[]): string {
     const clauses: string[] = [];
@@ -302,7 +215,7 @@ class QueryBuilder<T extends QueryResultRow> implements PromiseLike<Result<T[]>>
         }
         case "in": {
           if (f.values.length === 0) {
-            clauses.push("false"); // `in ()` is not valid SQL; nothing matches
+            clauses.push("false");
             break;
           }
           values.push(f.values);
@@ -310,7 +223,7 @@ class QueryBuilder<T extends QueryResultRow> implements PromiseLike<Result<T[]>>
           break;
         }
         case "notIn": {
-          if (f.values.length === 0) break; // excludes nothing
+          if (f.values.length === 0) break;
           values.push(f.values);
           clauses.push(`t.${ident(f.column)} <> all($${values.length})`);
           break;
@@ -373,9 +286,6 @@ class QueryBuilder<T extends QueryResultRow> implements PromiseLike<Result<T[]>>
 
     let count: number | null = null;
     if (this.options.count === "exact") {
-      // A separate statement, like PostgREST's Content-Range: the count is
-      // of the whole filtered set, independent of limit/offset, which is
-      // what the "مكتملة (N)" tab and the orders pager both need.
       const r = await q.query<{ n: string }>(
         `select count(*)::text as n from ${table} ${where}`,
         values,
@@ -387,11 +297,6 @@ class QueryBuilder<T extends QueryResultRow> implements PromiseLike<Result<T[]>>
     const order = this.orderBy.length
       ? `order by ${this.orderBy
           .map((o) => {
-            // Spelled out rather than left to the default. Postgres puts
-            // NULLs last on ASC and first on DESC, so the unallocated-orders
-            // queue — ordered by needs_allocation_at DESC, where unflagged
-            // orders are NULL — would otherwise sort the ones nobody flagged
-            // above the ones that need a driver.
             const nulls =
               o.nullsFirst === undefined ? "" : o.nullsFirst ? " nulls first" : " nulls last";
             return `t.${ident(o.column)} ${o.ascending ? "asc" : "desc"}${nulls}`;
@@ -412,9 +317,6 @@ class QueryBuilder<T extends QueryResultRow> implements PromiseLike<Result<T[]>>
     const rows = Array.isArray(this.payload) ? this.payload : [this.payload!];
     if (rows.length === 0) return { data: [] as unknown as T[], error: null, count: null };
 
-    // One column list for the whole batch, taken from the first row. Every
-    // insert in this codebase is a batch of uniform rows; a ragged batch
-    // would silently drop columns, so it is rejected.
     const cols = Object.keys(rows[0]);
     for (const r of rows) {
       const k = Object.keys(r);
@@ -451,8 +353,6 @@ class QueryBuilder<T extends QueryResultRow> implements PromiseLike<Result<T[]>>
     if (sets.length === 0) throw new Error("update(): nothing to set");
 
     const where = this.buildWhere(values);
-    // An UPDATE with no WHERE would rewrite the table. Every call site has
-    // one; this makes a future one that forgets fail instead of succeed.
     if (!where) throw new Error("update(): refusing to run without a filter");
 
     const res = await q.query<T>(
@@ -477,14 +377,6 @@ class QueryBuilder<T extends QueryResultRow> implements PromiseLike<Result<T[]>>
   }
 }
 
-/**
- * A database handle bound to one identity for the length of a request.
- *
- * `.from()` and `.rpc()` keep the shapes the application already calls, so
- * the 88 call sites did not have to be rewritten by hand. The identity is
- * fixed at construction from the verified session and cannot be changed
- * afterwards — there is no setter.
- */
 export class DbClient {
   constructor(private readonly profileId: string | null) {}
 
@@ -492,15 +384,6 @@ export class DbClient {
     return new QueryBuilder<T>(this.profileId, table);
   }
 
-  /**
-   * Calls a Postgres function. Named arguments, matching how the SQL
-   * declares them, so adding a parameter with a default never shifts the
-   * meaning of an existing call — which positional arguments would.
-   *
-   * Scalar- and composite-returning functions come back as the value
-   * itself; set-returning ones as an array. That mirrors PostgREST, and
-   * .single() on the result narrows it the same way it did.
-   */
   rpc<T = unknown>(fn: string, args: Record<string, unknown> = {}): RpcCall<T> {
     return new RpcCall<T>(() => this.runRpc<T>(fn, args));
   }
@@ -517,8 +400,6 @@ export class DbClient {
       return await withUserContext(this.profileId, async (q) => {
         const res = await q.query(`select * from public.${ident(fn)}(${argList})`, values);
 
-        // A function returning a single scalar arrives as one row with one
-        // column named after the function.
         const fields = res.fields.map((f) => f.name);
         if (fields.length === 1 && fields[0] === fn) {
           const rows = res.rows.map((r) => (r as Record<string, unknown>)[fn]);
@@ -529,29 +410,6 @@ export class DbClient {
           };
         }
 
-        // A function returning a COMPOSITE type is different, and the
-        // difference is not visible in the result: `select * from f()`
-        // EXPANDS a composite into its columns, so it looks exactly like a
-        // one-row set-returning function. PostgREST distinguished them —
-        // SETOF/TABLE became a JSON array, a plain composite became a
-        // single object — and the call sites were written against that.
-        //
-        // Getting this wrong is what blanked the order number and both the
-        // pickup and delivery codes on every newly created order. The four
-        // affected functions return a composite without SETOF:
-        // public_create_order, moderator_create_order and
-        // driver_create_field_order (new_order_result), and
-        // send_order_message (order_messages). Their callers read
-        // `data.order_number`, `data.delivery_code`, `data.pickup_code` —
-        // and `data` was a one-element ARRAY, so every one of those was
-        // undefined. No error, no empty page: just blank values where the
-        // numbers should be. The `as NewOrderResult` cast at each call site
-        // is why typecheck had nothing to say about it.
-        //
-        // So ask the catalog rather than guessing from the shape. Row count
-        // cannot answer it: dashboard_stats, customer_order_history and
-        // order_customer_context are set-returning functions that always
-        // yield exactly one row and whose callers correctly expect an array.
         if (!(await isSetReturning(q, fn))) {
           return {
             data: (res.rows[0] ?? null) as unknown as T,
@@ -568,13 +426,6 @@ export class DbClient {
   }
 }
 
-/**
- * The result of .rpc(), awaitable directly or narrowed with .single().
- *
- * supabase-js returned a builder here, and ten call sites chain .single() on
- * a report function that returns one row. Keeping that shape means those
- * call sites were not touched.
- */
 class RpcCall<T> implements PromiseLike<Result<T>> {
   constructor(private readonly exec: () => Promise<Result<T>>) {}
 
@@ -585,13 +436,6 @@ class RpcCall<T> implements PromiseLike<Result<T>> {
     return this.exec().then(onfulfilled, onrejected);
   }
 
-  /**
-   * One row rather than an array, for a set-returning function that yields
-   * exactly one — dashboard_stats, daily_report, monthly_report.
-   *
-   * An empty result is an error, not null: every caller of this treats the
-   * value as present and would otherwise read fields off undefined.
-   */
   async single<R = T>(): Promise<Result<R>> {
     const res = await this.exec();
     if (res.error) return { data: null, error: res.error, count: null };

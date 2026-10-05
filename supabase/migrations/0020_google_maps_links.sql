@@ -1,29 +1,7 @@
--- 0020_google_maps_links.sql
---
--- "Add another field for the Google Maps link (like
--- https://www.google.com/maps/place/...)" — until now, a location's map link
--- was always *derived* (precise lat/lng from the picker, or a free-text
--- address run through a Maps search). That's fine for a factory pinned with
--- the Leaflet picker, but a customer's exact location often only exists as a
--- link someone already shares on WhatsApp/Messenger (Google Maps app >
--- Share > Copy link) — a long "place" URL carrying its own precise
--- coordinates that a text search can't reconstruct. This adds an optional,
--- directly-pasted Google Maps link field for both the customer (on the
--- order) and the factory (on its profile), which mapsUrlFor() now prefers
--- over lat/lng and over a text-address search whenever it's present.
---
--- Also powers "pressing open shows both the customer's and the factory's
--- location" for the driver — see driver-order-actions.tsx and
--- driver/orders/[id]/page.tsx, updated alongside this migration.
-
--- ---------- customer's pasted Maps link (per order) ----------
-
 alter table public.orders add column if not exists customer_maps_url text;
 
 comment on column public.orders.customer_maps_url is
   'Optional Google Maps link pasted by staff at order creation (a Maps "share" link, e.g. https://www.google.com/maps/place/...). Preferred over a free-text customer_address search by mapsUrlFor() whenever present. Null falls back to searching customer_address.';
-
--- ---------- factory's pasted Maps link (per profile) ----------
 
 alter table public.profiles add column if not exists maps_url text;
 
@@ -52,15 +30,6 @@ begin
   return new;
 end;
 $$;
-
--- ---------- order-creation RPCs: add p_customer_maps_url ----------
---
--- A new trailing parameter changes the argument-type signature — Postgres
--- would otherwise leave the old signature in the catalog alongside the new
--- one (an overload), and every call site becomes ambiguous. Same pattern as
--- every previous parameter addition here (0014, 0016): drop the exact old
--- signature first, then recreate with the new trailing (default-null)
--- parameter appended.
 
 drop function if exists public.create_order_internal(text, text, text, uuid, integer, text, text, text, text, order_source, uuid, uuid, uuid);
 drop function if exists public.public_create_order(text, text, text, uuid, integer, text, text, text, text, uuid);

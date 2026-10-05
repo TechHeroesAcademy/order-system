@@ -15,12 +15,6 @@ import {
 } from "@/components/ui/dialog";
 import { setFactoryActiveAction, deleteFactoryAction } from "@/lib/actions/factories";
 
-/**
- * Row actions for the factories table. Deliberately separate from
- * staff-actions.tsx: a factory is a workshop, not an account (migration
- * 0033), so there is no password to reset and nothing to sign in as — those
- * controls existed only because factories used to be staff accounts.
- */
 export function ToggleFactoryActiveButton({
   factoryId,
   isActive,
@@ -52,12 +46,6 @@ export function ToggleFactoryActiveButton({
   );
 }
 
-/**
- * Only ever succeeds for a factory no order has ever been routed to — the
- * foreign key is ON DELETE RESTRICT so a workshop with history can't be
- * erased out from under its orders. When that's the case the server comes
- * back telling the user to deactivate instead, which is surfaced as-is.
- */
 export function DeleteFactoryButton({
   factoryId,
   name,

@@ -12,18 +12,6 @@ import { createFactoryAction } from "@/lib/actions/factories";
 import { factoryDetailsSchema } from "@/lib/domain/validators";
 import type { Factory } from "@/types/database";
 
-/**
- * "إضافة مصنع" — its own tab next to "الموظفون"/"المصانع" (not a dialog,
- * not a separate page/browser tab), so creating a factory account gets a
- * form with room to breathe instead of squeezing into the same dialog as
- * driver/moderator/owner accounts. Pasting a Google Maps link here
- * auto-extracts its coordinates (resolveMapsUrlCoordsAction) and sets the
- * pin right away — no separate "now go click the map" step needed unless
- * the link didn't carry coordinates (a plain text-search link, or one that
- * couldn't be resolved), in which case the old fallback still applies:
- * pick this factory from the table in the Factories tab and click its spot
- * on the map.
- */
 export function AddFactoryPanel({ onCreated }: { onCreated: (factory: Factory) => void }) {
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
@@ -48,7 +36,6 @@ export function AddFactoryPanel({ onCreated }: { onCreated: (factory: Factory) =
     lastExtractedUrlRef.current = null;
   }
 
-  /** Same behavior as the edit card in FactoriesMapPanel — see the comment there. */
   function handleMapsUrlBlur() {
     const trimmed = mapsUrl.trim();
     if (!trimmed || trimmed === lastExtractedUrlRef.current) return;
@@ -97,10 +84,6 @@ export function AddFactoryPanel({ onCreated }: { onCreated: (factory: Factory) =
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
-      // The parent (TeamManager) switches to the Factories tab right after
-      // this fires, where the new row now appears in the table — that jump
-      // is the success confirmation, so there's no separate "done" screen
-      // to show here (it would just flash and disappear).
       onCreated(factory);
       toast.success(
         pin

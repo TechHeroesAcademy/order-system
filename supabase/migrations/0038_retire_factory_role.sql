@@ -1,18 +1,3 @@
--- 0038_retire_factory_role.sql
---
--- The last step of removing factory accounts: drops everything that only
--- existed to serve them, and closes the transitional allowances the earlier
--- migrations carried so they'd be correct for both the old and new builds.
---
--- RUN THIS LAST, and only once all of the following are true:
---   1. migrations 0033-0037 have been applied
---   2. the app build without /factory is live
---   3. `delete from public.profiles where role = 'factory';` has been run
---
--- The guard below enforces (3) rather than trusting it: dropping the factory
--- RLS policies while a factory account still exists would leave that account
--- signed in with no policy governing what it can read.
-
 do $$
 declare
   v_remaining integer;
@@ -24,33 +9,20 @@ begin
       '(delete from public.profiles where role = ''factory'';) and make sure the '
       'app build without /factory is live. Nothing has been changed.', v_remaining;
   end if;
-end $$;
+end$$;
 
--- ── the factory dashboard's view ────────────────────────────────────────
--- Only ever read by the factory screens, which no longer exist.
 drop view if exists public.factory_orders_view;
 
--- ── factory RLS policies ────────────────────────────────────────────────
--- No account can hold this role any more, so these can never match.
 drop policy if exists orders_select_factory on public.orders;
 drop policy if exists order_history_select_factory on public.order_history;
 
--- This one let an assigned driver read the factory's address off its profile
--- row. Drivers now read that from public.factories, which has its own policy
--- (migration 0033), so this is obsolete rather than merely dormant.
 drop policy if exists profiles_select_factory_for_assigned_driver on public.profiles;
 
--- ── a Moderator's editable rows ─────────────────────────────────────────
--- Was role in ('driver','factory'); with factory accounts gone it is drivers.
 drop policy if exists profiles_update_moderator on public.profiles;
 create policy profiles_update_moderator on public.profiles
   for update using (public.current_user_role() = 'moderator' and role = 'driver')
   with check (public.current_user_role() = 'moderator' and role = 'driver');
 
--- ── close the transitional allowances ───────────────────────────────────
--- 0034 let a factory account keep pressing these so it wouldn't break between
--- that migration and the deploy that removed its screens. That window is
--- closed. Bodies are otherwise identical to 0034.
 create or replace function public.factory_confirm_receipt(p_order_id uuid)
 returns void
 language plpgsql
@@ -126,9 +98,6 @@ begin
 end;
 $$;
 
--- The factory branch here can never be true again (nothing can be an
--- assigned_factory_id and a profile id at once now that factories are their
--- own table). Same signature, so this is a plain replace.
 create or replace function public.can_read_order_channel(
   p_order_id uuid,
   p_channel text,
@@ -150,12 +119,6 @@ as $$
   );
 $$;
 
--- ── make the role unreachable for new accounts ──────────────────────────
--- Postgres has no ALTER TYPE ... DROP VALUE, and the value must stay anyway:
--- order_history.actor_role and order_messages.sender_role still hold it for
--- work done while factories were accounts, and those records have to keep
--- rendering. This constraint makes it impossible to create another one by
--- accident, which is the part that actually matters.
 alter table public.profiles drop constraint if exists profiles_role_not_factory;
 alter table public.profiles add constraint profiles_role_not_factory check (role <> 'factory');
 

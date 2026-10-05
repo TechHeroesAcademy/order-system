@@ -17,9 +17,6 @@ const buttonVariants = cva(
         secondary:
           "bg-secondary text-secondary-foreground hover:bg-secondary/80",
         ghost: "hover:bg-accent hover:text-accent-foreground",
-        // --primary is a bright fill color (~1.5:1 contrast on white) — great
-        // for buttons/badges, unreadable as small text, so the link variant
-        // uses a darker amber "ink" instead of the raw brand yellow.
         link: "text-amber-700 dark:text-amber-400 underline-offset-4 hover:underline",
         success: "bg-success text-success-foreground hover:bg-success/90",
       },

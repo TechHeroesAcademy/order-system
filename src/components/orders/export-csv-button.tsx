@@ -6,15 +6,6 @@ import { Loader2, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { exportOrdersCsvAction } from "@/lib/actions/orders";
 
-/**
- * "تحميل كل البيانات" — fetches every order as CSV text from
- * exportOrdersCsvAction (Owner-only) and turns it into a browser download
- * client-side. A Server Action can only return data, not a file response
- * with headers, so the Blob + object URL + synthetic <a click> is the
- * standard way to turn that data into an actual download without a
- * dedicated API route (this app has none — see AGENTS.md/CLAUDE.md for why
- * that's the established pattern here).
- */
 export function ExportCsvButton() {
   const [pending, startTransition] = useTransition();
 

@@ -22,23 +22,11 @@ const ROLE_LABEL_AR: Record<string, string> = {
 };
 
 export default async function HomePage() {
-  // This page used to redirect a signed-in visitor straight to their role's
-  // dashboard, which meant a plain browser refresh (or just typing the site
-  // address) on "/" never actually showed the homepage — it always bounced
-  // onward. The homepage now always renders; a signed-in visitor gets a
-  // one-click "go to my dashboard" card instead of an automatic redirect.
-  // Login (and first-run Owner setup) send people straight to their
-  // dashboard on their own, so this doesn't add an extra step there.
   const profile = await getCurrentProfile();
   const dashboardHref = profile?.is_active ? (ROLE_HOME[profile.role] ?? null) : null;
 
   return (
     <main className="min-h-screen">
-      {/* Hero: brand + the order-tracking field itself, right here on the
-          homepage — a visitor doesn't have to click through to /track just
-          to look something up. The photo/gradient only cover this section,
-          not the whole page, so it doesn't stretch thin behind the
-          about-us/login content further down. */}
       <section className="relative flex flex-col items-center gap-8 overflow-hidden p-6 py-14 sm:py-20">
         <HeroBackground />
 
@@ -66,9 +54,6 @@ export default async function HomePage() {
         </Card>
       </section>
 
-      {/* About us — EL REWAD renews cooking utensils (new coating, like-new
-          quality) rather than a generic delivery business; the copy below
-          says that plainly instead of describing "orders" in the abstract. */}
       <section className="mx-auto max-w-3xl px-6 py-14">
         <div className="mb-8 text-center space-y-2 animate-fade-in-up">
           <h2 className="text-2xl font-bold">من نحن</h2>
@@ -108,8 +93,6 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* Staff sign-in — for the team (Moderator/Manager/drivers/factories),
-          placed last so the customer-facing content above it comes first. */}
       <section className="mx-auto max-w-xl px-6 pb-16">
         {dashboardHref ? (
           <Card className="animate-fade-in-up border-0 bg-primary text-primary-foreground shadow-xl">

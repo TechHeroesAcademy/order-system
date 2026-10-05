@@ -1,6 +1,3 @@
--- 0006_notifications.sql
--- Simple, clear in-app notifications per role (matches the spec: "إشعارات بسيطة وواضحة").
-
 create table if not exists public.notifications (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references public.profiles (id) on delete cascade,
@@ -36,7 +33,6 @@ begin
 end;
 $$;
 
--- Notify every active user with a given role (used for Owner-facing events).
 create or replace function public.notify_role(
   p_role user_role,
   p_order_id uuid,

@@ -27,8 +27,6 @@ import type {
   OrderCustomerContext,
 } from "@/types/database";
 
-// customer_address is rendered separately below (with a Maps link), not
-// through this generic loop.
 const FIELD_LABELS: { key: keyof Order; label: string }[] = [
   { key: "customer_name", label: "اسم العميل" },
   { key: "customer_phone", label: "رقم الهاتف" },
@@ -68,40 +66,14 @@ export function OrderDetailView({
   assignedFactoryMapsUrl?: string | null;
   viewerProfile: Profile;
   canManageDistribution: boolean;
-  /** Active drivers, for the "change driver" control below — only needed when canManageDistribution. */
   drivers?: Profile[];
-  /** Active factories, for the "change factory" control below — only needed when canManageDistribution. */
   factories?: Factory[];
-  /** All regions, for the edit-order dialog's region picker — only needed when canManageDistribution. */
   regions?: Region[];
-  /**
-   * Where this order sits in its customer's history (migration 0050). Null
-   * when the customer has no history worth showing, or when the lookup was
-   * unavailable — the page renders the same either way.
-   */
   customerContext?: OrderCustomerContext | null;
-  /** Where order pages live for this viewer, for the link to the previous order. */
   orderBasePath: string;
 }) {
   const delayed = isOrderDelayed(order.status, order.created_at);
   const isTerminal = ["delivered", "refused", "cancelled"].includes(order.status);
-  // Three distinct permissions, deliberately kept as three named flags
-  // rather than reusing one for all of them — they diverge:
-  //   canManageDistribution — editing order details, delivery/pickup codes.
-  //                           Moderator included. Despite the name it no
-  //                           longer covers distribution itself; renaming it
-  //                           touches every order page and is a separate
-  //                           change.
-  //   canAssign             — deciding who delivers an order: the
-  //                           distribution panel, changing the driver or
-  //                           factory (0024), and cancelling (0030). Manager
-  //                           only, matching the database — every RPC behind
-  //                           these is is_owner().
-  //   canChat               — the driver conversation. Manager only: chat is
-  //                           between the driver and the manager, and the
-  //                           database enforces the same rule (0034), so a
-  //                           Moderator sees no messages even if this were
-  //                           wrong.
   const canAssign = viewerProfile.role === "owner";
   const canChat = viewerProfile.role === "owner";
 
@@ -252,11 +224,6 @@ export function OrderDetailView({
           </Card>
         )}
 
-        {/* Manager only. A Moderator used to see this panel with both its
-            buttons hidden — a read-only view of a decision they cannot make,
-            which also cost a suggested-drivers lookup on every order page for
-            no purpose. Who the driver is stays visible to them above
-            ("المندوب المسؤول"), so nothing is hidden that they need. */}
         {canAssign && order.status === "new" && (
           <DistributionPanel
             orderId={order.id}
@@ -276,26 +243,12 @@ export function OrderDetailView({
           </Card>
         )}
 
-        {/* Manual override for the factory step — the database already lets
-            Owner/Moderator do this (not just the factory account), for when
-            someone needs to correct or skip ahead without waiting on the
-            factory dashboard. */}
         {canManageDistribution && (order.status === "collected" || order.status === "at_factory") && (
           <Card>
             <CardHeader>
               <CardTitle className="text-base">إجراءات المصنع</CardTitle>
             </CardHeader>
             <CardContent className="pt-0">
-              {/* .bind(null, order.id), not () => factoryConfirmReceiptAction(order.id) — this
-                  component is a Server Component and ConfirmActionButton is a Client
-                  Component, so onConfirm has to cross that boundary. A real Server Action
-                  reference survives that (Next.js serializes it specially, including a
-                  .bind()'s pre-bound args), but a plain arrow-function closure wrapping one
-                  does not — React throws "Event handlers cannot be passed to Client
-                  Component props" the instant this renders. Since this card shows for
-                  Owner/Moderator on any order sitting at collected/at_factory, this crashed
-                  the order-detail page for both roles too, not just the factory account's
-                  own page (digest 250852290). */}
               {order.status === "collected" && (
                 <ConfirmActionButton
                   label="تأكيد استلام المصنع"

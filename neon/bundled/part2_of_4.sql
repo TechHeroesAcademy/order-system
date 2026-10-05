@@ -1,5 +1,5 @@
 -- ============================================================================
--- NEON SETUP — PART 3 OF 6
+-- NEON SETUP — PART 2 OF 4
 --
 -- PASTE THIS WHOLE FILE INTO NEON'S SQL EDITOR AND RUN IT.
 -- Run the parts in order. Wait for each to finish before starting the next.
@@ -11,18 +11,29 @@
 -- scripts/build-neon-bundle.mjs, so Supabase and Neon cannot drift apart.
 --
 -- Contains, in order:
---    1. supabase/migrations/0032_delete_worker.sql
---    2. supabase/migrations/0033_factories_table.sql
---    3. supabase/migrations/0034_driver_runs_factory_steps_and_chat_lockdown.sql
---    4. supabase/migrations/0035_bulk_distribution.sql
---    5. supabase/migrations/0036_driver_removal_reassignment.sql
---    6. supabase/migrations/0037_edit_driver_details.sql
---    7. supabase/migrations/0038_retire_factory_role.sql
---    8. supabase/migrations/0039_report_performance.sql
---    9. supabase/migrations/0040_push_subscriptions_and_manager_factories.sql
---   10. neon/migrations/0041_push_dispatch_trigger.neon.sql
---   11. supabase/migrations/0042_push_settings_table.sql
---   12. supabase/migrations/0043_moderator_notifications_delivered_only.sql
+--    1. supabase/migrations/0022_factory_permanent_order_history.sql
+--    2. supabase/migrations/0023_fix_factory_premature_visibility.sql
+--    3. supabase/migrations/0024_pickup_code_owner_only_assignment_and_fair_auto_distribution.sql
+--    4. supabase/migrations/0025_region_free_text_matching.sql
+--    5. supabase/migrations/0026_pickup_points.sql
+--    6. supabase/migrations/0027_factory_only_order_creation.sql
+--    7. supabase/migrations/0028_remove_pickup_points.sql
+--    8. supabase/migrations/0029_driver_chat_hidden_after_reassignment.sql
+--    9. supabase/migrations/0030_owner_only_cancel_and_no_moderator_team.sql
+--   10. supabase/migrations/0031_wider_order_numbers.sql
+--   11. supabase/migrations/0032_delete_worker.sql
+--   12. supabase/migrations/0033_factories_table.sql
+--   13. supabase/migrations/0034_driver_runs_factory_steps_and_chat_lockdown.sql
+--   14. supabase/migrations/0035_bulk_distribution.sql
+--   15. supabase/migrations/0036_driver_removal_reassignment.sql
+--   16. supabase/migrations/0037_edit_driver_details.sql
+--   17. supabase/migrations/0038_retire_factory_role.sql
+--   18. supabase/migrations/0039_report_performance.sql
+--   19. supabase/migrations/0040_push_subscriptions_and_manager_factories.sql
+--   20. neon/migrations/0041_push_dispatch_trigger.neon.sql
+--   21. supabase/migrations/0042_push_settings_table.sql
+--   22. supabase/migrations/0043_moderator_notifications_delivered_only.sql
+--   23. supabase/migrations/0045_field_orders_enum_and_creator.sql
 -- ============================================================================
 
 -- The chain installs pgcrypto/pg_trgm into the extensions schema (as Supabase
@@ -33,40 +44,1370 @@ set search_path = public, extensions;
 
 
 
+-- ========== supabase/migrations/0022_factory_permanent_order_history.sql 
+
+drop policy if exists orders_select_factory on public.orders;
+create policy orders_select_factory on public.orders
+  for select using (
+    public.current_user_role() = 'factory'
+    and (
+      assigned_factory_id = auth.uid()
+      or (assigned_factory_id is null and status in ('collected', 'at_factory', 'ready'))
+    )
+  );
+
+drop policy if exists order_history_select_factory on public.order_history;
+create policy order_history_select_factory on public.order_history
+  for select using (
+    public.current_user_role() = 'factory'
+    and exists (
+      select 1 from public.orders o
+      where o.id = order_history.order_id
+        and (
+          o.assigned_factory_id = auth.uid()
+          or (o.assigned_factory_id is null and o.status in ('collected', 'at_factory', 'ready'))
+        )
+    )
+  );
+
+drop view if exists public.factory_orders_view;
+
+create view public.factory_orders_view
+with (security_invoker = false) as
+select
+  o.id,
+  o.order_number,
+  o.status,
+  o.pieces_count,
+  o.piece_details,
+  o.color,
+  o.work_required,
+  o.assigned_driver_id,
+  p.full_name as assigned_driver_name,
+  o.assigned_factory_id,
+  f.full_name as assigned_factory_name,
+  f.address as assigned_factory_address,
+  o.collected_at,
+  o.handed_to_factory_at,
+  o.factory_received_at,
+  o.factory_ready_at,
+  o.driver_pickup_at,
+  o.delivered_at,
+  o.created_at
+from public.orders o
+left join public.profiles p on p.id = o.assigned_driver_id
+left join public.profiles f on f.id = o.assigned_factory_id
+where
+  public.current_user_role() in ('owner', 'moderator')
+  or (
+    public.current_user_role() = 'factory'
+    and (
+      o.assigned_factory_id = auth.uid()
+      or (o.assigned_factory_id is null and o.status in ('collected', 'at_factory', 'ready'))
+    )
+  );
+
+grant select on public.factory_orders_view to authenticated;
+
+
+-- ========== supabase/migrations/0023_fix_factory_premature_visibility.sql 
+
+drop policy if exists orders_select_factory on public.orders;
+create policy orders_select_factory on public.orders
+  for select using (
+    public.current_user_role() = 'factory'
+    and (
+      (assigned_factory_id = auth.uid() and status not in ('new', 'assigned'))
+      or (assigned_factory_id is null and status in ('collected', 'at_factory', 'ready'))
+    )
+  );
+
+drop policy if exists order_history_select_factory on public.order_history;
+create policy order_history_select_factory on public.order_history
+  for select using (
+    public.current_user_role() = 'factory'
+    and exists (
+      select 1 from public.orders o
+      where o.id = order_history.order_id
+        and (
+          (o.assigned_factory_id = auth.uid() and o.status not in ('new', 'assigned'))
+          or (o.assigned_factory_id is null and o.status in ('collected', 'at_factory', 'ready'))
+        )
+    )
+  );
+
+create or replace view public.factory_orders_view
+with (security_invoker = false) as
+select
+  o.id,
+  o.order_number,
+  o.status,
+  o.pieces_count,
+  o.piece_details,
+  o.color,
+  o.work_required,
+  o.assigned_driver_id,
+  p.full_name as assigned_driver_name,
+  o.assigned_factory_id,
+  f.full_name as assigned_factory_name,
+  f.address as assigned_factory_address,
+  o.collected_at,
+  o.handed_to_factory_at,
+  o.factory_received_at,
+  o.factory_ready_at,
+  o.driver_pickup_at,
+  o.delivered_at,
+  o.created_at
+from public.orders o
+left join public.profiles p on p.id = o.assigned_driver_id
+left join public.profiles f on f.id = o.assigned_factory_id
+where
+  public.current_user_role() in ('owner', 'moderator')
+  or (
+    public.current_user_role() = 'factory'
+    and (
+      (o.assigned_factory_id = auth.uid() and o.status not in ('new', 'assigned'))
+      or (o.assigned_factory_id is null and o.status in ('collected', 'at_factory', 'ready'))
+    )
+  );
+
+grant select on public.factory_orders_view to authenticated;
+
+
+-- ========== supabase/migrations/0024_pickup_code_owner_only_assignment_and_fair_auto_distribution.sql 
+
+alter table public.orders add column if not exists pickup_code_hash text;
+alter table public.orders add column if not exists failed_pickup_code_attempts integer not null default 0;
+alter table public.orders add column if not exists pickup_code_last_attempt_at timestamptz;
+
+comment on column public.orders.pickup_code_hash is
+  'bcrypt hash of the code the driver must get from the customer to confirm pickup (driver_mark_collected) — same protection model as delivery_code_hash, just at the other end of the trip. Null for orders created before this migration; driver_mark_collected treats a null hash as "no code was ever issued" and skips the check rather than rejecting the driver forever.';
+
+create table if not exists public.order_pickup_codes (
+  order_id uuid primary key references public.orders (id) on delete cascade,
+  code text not null,
+  created_at timestamptz not null default now()
+);
+
+comment on table public.order_pickup_codes is
+  'Plaintext pickup codes, mirroring order_delivery_codes (0016) exactly: RLS enabled with zero policies (every direct client request denied by default), reachable only through get_order_pickup_code() below.';
+
+alter table public.order_pickup_codes enable row level security;
+revoke all on public.order_pickup_codes from public, anon, authenticated;
+
+create or replace function public.get_order_pickup_code(p_order_id uuid)
+returns text
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_code text;
+begin
+  if not public.is_owner_or_moderator() then
+    raise exception 'غير مصرح' using errcode = '42501';
+  end if;
+
+  select code into v_code from public.order_pickup_codes where order_id = p_order_id;
+  return v_code;
+end;
+$$;
+
+revoke all on function public.get_order_pickup_code from public;
+grant execute on function public.get_order_pickup_code to authenticated;
+
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_attribute a
+    join pg_type t on t.typrelid = a.attrelid
+    join pg_namespace n on n.oid = t.typnamespace
+    where n.nspname = 'public'
+      and t.typname = 'new_order_result'
+      and a.attname = 'pickup_code'
+      and not a.attisdropped
+  ) then
+    alter type public.new_order_result add attribute pickup_code text;
+  end if;
+end$$;
+
+drop function if exists public.driver_mark_collected(uuid);
+
+create or replace function public.driver_mark_collected(p_order_id uuid, p_code text)
+returns boolean
+language plpgsql
+security definer
+set search_path = public, extensions
+as $$
+declare
+  v_order public.orders;
+  v_ok boolean;
+begin
+  select * into v_order from public.orders where id = p_order_id for update;
+  if v_order is null then raise exception 'الأوردر غير موجود'; end if;
+  if v_order.assigned_driver_id <> auth.uid() then raise exception 'غير مصرح' using errcode = '42501'; end if;
+  if v_order.status <> 'assigned' then raise exception 'الأوردر ليس بحالة تسمح بتسجيل الاستلام من العميل'; end if;
+
+  if v_order.pickup_code_hash is null then
+    v_ok := true;
+  else
+    v_ok := (crypt(coalesce(p_code, ''), v_order.pickup_code_hash) = v_order.pickup_code_hash);
+  end if;
+
+  if v_ok then
+    update public.orders set status = 'collected', collected_at = now() where id = p_order_id;
+    perform public.log_order_event(p_order_id, 'collected_from_customer', 'assigned', 'collected', 'تم استلام الأوردر من العميل');
+    perform public.notify_staff(p_order_id, 'order_collected',
+      'تم استلام الأوردر ' || v_order.order_number || ' من العميل', null, auth.uid());
+  else
+    update public.orders
+      set failed_pickup_code_attempts = failed_pickup_code_attempts + 1,
+          pickup_code_last_attempt_at = now()
+      where id = p_order_id;
+    perform public.log_order_event(p_order_id, 'pickup_code_mismatch', 'assigned', 'assigned', 'محاولة استلام من العميل بكود غير صحيح');
+  end if;
+
+  return v_ok;
+end;
+$$;
+
+revoke all on function public.driver_mark_collected(uuid, text) from public;
+grant execute on function public.driver_mark_collected(uuid, text) to authenticated;
+
+create or replace function public.set_order_distribution(p_order_id uuid, p_driver_id uuid, p_is_suggestion boolean default false)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_status order_status;
+begin
+  if not public.is_owner() then
+    raise exception 'تحديد المندوب من صلاحية المدير فقط' using errcode = '42501';
+  end if;
+
+  select status into v_status from public.orders where id = p_order_id for update;
+  if v_status is null then
+    raise exception 'الأوردر غير موجود';
+  end if;
+  if v_status <> 'new' then
+    raise exception 'لا يمكن تعديل توزيع أوردر تم اعتماده بالفعل';
+  end if;
+
+  update public.orders
+    set assigned_driver_id = p_driver_id,
+        suggested_driver_id = case when p_is_suggestion then p_driver_id else suggested_driver_id end
+    where id = p_order_id;
+
+  perform public.log_order_event(p_order_id, 'distribution_set', v_status, v_status,
+    'تم تحديد مندوب للتوزيع (بانتظار الاعتماد)');
+end;
+$$;
+
+create or replace function public.clear_order_distribution(p_order_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_status order_status;
+begin
+  if not public.is_owner() then
+    raise exception 'تحديد المندوب من صلاحية المدير فقط' using errcode = '42501';
+  end if;
+
+  select status into v_status from public.orders where id = p_order_id for update;
+  if v_status <> 'new' then
+    raise exception 'لا يمكن إلغاء توزيع أوردر تم اعتماده بالفعل';
+  end if;
+
+  update public.orders set assigned_driver_id = null where id = p_order_id;
+  perform public.log_order_event(p_order_id, 'distribution_cleared', v_status, v_status, 'تم إلغاء التوزيع المقترح');
+end;
+$$;
+
+create or replace function public.reassign_order_driver(p_order_id uuid, p_new_driver_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_order public.orders;
+  v_new_driver public.profiles;
+  v_old_driver_name text;
+  v_new_status public.order_status;
+begin
+  if not public.is_owner() then
+    raise exception 'تغيير المندوب من صلاحية المدير فقط' using errcode = '42501';
+  end if;
+
+  select * into v_order from public.orders where id = p_order_id for update;
+  if v_order is null then raise exception 'الأوردر غير موجود'; end if;
+  if v_order.status in ('delivered', 'cancelled', 'refused') then
+    raise exception 'لا يمكن تغيير المندوب لأوردر منتهٍ';
+  end if;
+
+  select * into v_new_driver from public.profiles where id = p_new_driver_id;
+  if v_new_driver is null or v_new_driver.role <> 'driver' or not v_new_driver.is_active then
+    raise exception 'المندوب المحدد غير صالح';
+  end if;
+  if v_order.assigned_driver_id = p_new_driver_id then
+    raise exception 'هذا المندوب مسؤول عن الأوردر بالفعل';
+  end if;
+
+  if v_order.assigned_driver_id is not null then
+    select full_name into v_old_driver_name from public.profiles where id = v_order.assigned_driver_id;
+  end if;
+
+  v_new_status := case when v_order.status = 'new' then 'assigned' else v_order.status end;
+
+  update public.orders
+    set assigned_driver_id = p_new_driver_id,
+        distribution_approved_at = coalesce(distribution_approved_at, now()),
+        distribution_approved_by = coalesce(distribution_approved_by, auth.uid()),
+        status = v_new_status
+    where id = p_order_id;
+
+  perform public.log_order_event(p_order_id, 'driver_reassigned', v_order.status, v_new_status,
+    case when v_old_driver_name is not null
+      then 'تم تغيير المندوب من ' || v_old_driver_name || ' إلى ' || v_new_driver.full_name
+      else 'تم تعيين مندوب: ' || v_new_driver.full_name
+    end);
+
+  if v_order.assigned_driver_id is not null then
+    perform public.notify_user(v_order.assigned_driver_id, p_order_id, 'reassigned_away',
+      'تم نقل الأوردر ' || v_order.order_number || ' إلى مندوب آخر', null);
+  end if;
+
+  perform public.notify_user(p_new_driver_id, p_order_id, 'order_assigned',
+    'تم إسناد أوردر إليك ' || v_order.order_number, 'العميل: ' || v_order.customer_name);
+  perform public.notify_staff(p_order_id, 'driver_reassigned',
+    'تم تغيير مندوب الأوردر ' || v_order.order_number, null, auth.uid());
+end;
+$$;
+
+create or replace function public.reassign_order_factory(p_order_id uuid, p_new_factory_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_order public.orders;
+  v_new_factory public.profiles;
+  v_old_factory_name text;
+begin
+  if not public.is_owner() then
+    raise exception 'تغيير المصنع من صلاحية المدير فقط' using errcode = '42501';
+  end if;
+
+  select * into v_order from public.orders where id = p_order_id for update;
+  if v_order is null then raise exception 'الأوردر غير موجود'; end if;
+  if v_order.status in ('delivered', 'cancelled', 'refused') then
+    raise exception 'لا يمكن تغيير المصنع لأوردر منتهٍ';
+  end if;
+
+  select * into v_new_factory from public.profiles where id = p_new_factory_id;
+  if v_new_factory is null or v_new_factory.role <> 'factory' or not v_new_factory.is_active then
+    raise exception 'المصنع المحدد غير صالح';
+  end if;
+  if v_order.assigned_factory_id = p_new_factory_id then
+    raise exception 'هذا المصنع مخصص للأوردر بالفعل';
+  end if;
+
+  if v_order.assigned_factory_id is not null then
+    select full_name into v_old_factory_name from public.profiles where id = v_order.assigned_factory_id;
+  end if;
+
+  update public.orders set assigned_factory_id = p_new_factory_id where id = p_order_id;
+
+  perform public.log_order_event(p_order_id, 'factory_reassigned', v_order.status, v_order.status,
+    case when v_old_factory_name is not null
+      then 'تم تغيير المصنع من ' || v_old_factory_name || ' إلى ' || v_new_factory.full_name
+      else 'تم تحديد المصنع: ' || v_new_factory.full_name
+    end);
+
+  if v_order.assigned_driver_id is not null then
+    perform public.notify_user(v_order.assigned_driver_id, p_order_id, 'factory_reassigned',
+      'تم تغيير المصنع الخاص بالأوردر ' || v_order.order_number,
+      'المصنع الجديد: ' || v_new_factory.full_name);
+  end if;
+
+  if v_order.status in ('collected', 'at_factory', 'ready') then
+    perform public.notify_user(p_new_factory_id, p_order_id, 'order_assigned',
+      'تم تخصيص أوردر لمصنعكم ' || v_order.order_number, null);
+  end if;
+
+  perform public.notify_staff(p_order_id, 'factory_reassigned',
+    'تم تغيير مصنع الأوردر ' || v_order.order_number, null, auth.uid());
+end;
+$$;
+
+create or replace function public.pick_fair_driver_for_region(p_region_id uuid)
+returns uuid
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select p.id
+  from public.profiles p
+  where p.role = 'driver'
+    and p.is_active
+    and p_region_id is not null
+    and exists (
+      select 1 from public.driver_regions dr
+      where dr.driver_id = p.id and dr.region_id = p_region_id
+    )
+  order by (
+    select count(*) from public.orders o
+    where o.assigned_driver_id = p.id
+      and o.status not in ('delivered', 'cancelled', 'refused')
+  ) asc, p.full_name asc
+  limit 1;
+$$;
+
+create or replace function public.create_order_internal(
+  p_customer_name text,
+  p_customer_phone text,
+  p_customer_address text,
+  p_region_id uuid,
+  p_pieces_count integer,
+  p_piece_details text,
+  p_color text,
+  p_work_required text,
+  p_customer_notes text,
+  p_source order_source,
+  p_created_by uuid,
+  p_factory_id uuid default null,
+  p_driver_id uuid default null,
+  p_customer_maps_url text default null
+)
+returns public.new_order_result
+language plpgsql
+security definer
+set search_path = public, extensions
+as $$
+declare
+  v_code text := public.generate_delivery_code();
+  v_pickup_code text := public.generate_delivery_code();
+  v_order public.orders;
+  v_result public.new_order_result;
+  v_factory public.profiles;
+  v_driver public.profiles;
+  v_new_status public.order_status;
+  v_maps_url text := nullif(trim(coalesce(p_customer_maps_url, '')), '');
+  v_auto_driver_id uuid;
+  v_auto_driver_name text;
+begin
+  if length(trim(p_customer_name)) = 0 then
+    raise exception 'اسم العميل مطلوب' using errcode = '22023';
+  end if;
+  if length(trim(p_customer_phone)) < 8 then
+    raise exception 'رقم هاتف العميل غير صالح' using errcode = '22023';
+  end if;
+  if p_pieces_count is null or p_pieces_count < 1 then
+    raise exception 'عدد القطع يجب أن يكون 1 على الأقل' using errcode = '22023';
+  end if;
+
+  if p_factory_id is not null then
+    select * into v_factory from public.profiles where id = p_factory_id;
+    if v_factory is null or v_factory.role <> 'factory' or not v_factory.is_active then
+      raise exception 'المصنع المحدد غير صالح' using errcode = '22023';
+    end if;
+  end if;
+
+  if p_driver_id is not null then
+    select * into v_driver from public.profiles where id = p_driver_id;
+    if v_driver is null or v_driver.role <> 'driver' or not v_driver.is_active then
+      raise exception 'المندوب المحدد غير صالح' using errcode = '22023';
+    end if;
+  end if;
+
+  insert into public.orders (
+    customer_name, customer_phone, customer_address, customer_maps_url, region_id,
+    pieces_count, piece_details, color, work_required, customer_notes,
+    source, created_by, delivery_code_hash, pickup_code_hash, assigned_factory_id
+  ) values (
+    trim(p_customer_name), trim(p_customer_phone), trim(p_customer_address), v_maps_url, p_region_id,
+    p_pieces_count, p_piece_details, p_color, p_work_required, p_customer_notes,
+    p_source, p_created_by, crypt(v_code, gen_salt('bf')), crypt(v_pickup_code, gen_salt('bf')), p_factory_id
+  )
+  returning * into v_order;
+
+  insert into public.order_delivery_codes (order_id, code) values (v_order.id, v_code);
+  insert into public.order_pickup_codes (order_id, code) values (v_order.id, v_pickup_code);
+
+  perform public.log_order_event(v_order.id, 'created', null, 'new',
+    'تم إنشاء الأوردر عبر ' || case when p_source = 'website' then 'الموقع' else 'Messenger' end);
+
+  if p_driver_id is not null then
+    v_new_status := case when v_order.status = 'new' then 'assigned' else v_order.status end;
+
+    update public.orders
+      set assigned_driver_id = p_driver_id,
+          distribution_approved_at = now(),
+          distribution_approved_by = p_created_by,
+          status = v_new_status
+      where id = v_order.id;
+
+    v_order.status := v_new_status;
+
+    perform public.log_order_event(v_order.id, 'driver_reassigned', 'new', v_new_status,
+      'تم تعيين مندوب عند إنشاء الأوردر: ' || v_driver.full_name);
+
+    perform public.notify_user(p_driver_id, v_order.id, 'order_assigned',
+      'تم إسناد أوردر إليك ' || v_order.order_number, 'العميل: ' || v_order.customer_name);
+  else
+    v_auto_driver_id := public.pick_fair_driver_for_region(p_region_id);
+    if v_auto_driver_id is not null then
+      update public.orders
+        set assigned_driver_id = v_auto_driver_id,
+            suggested_driver_id = v_auto_driver_id
+        where id = v_order.id;
+
+      select full_name into v_auto_driver_name from public.profiles where id = v_auto_driver_id;
+      perform public.log_order_event(v_order.id, 'distribution_set', 'new', 'new',
+        'تم اقتراح مندوب تلقائيًا حسب المنطقة: ' || v_auto_driver_name || ' (بانتظار اعتماد المدير)');
+    end if;
+  end if;
+
+  perform public.notify_role('owner', v_order.id, 'new_order', 'أوردر جديد ' || v_order.order_number,
+    'تم استلام أوردر جديد من ' || v_order.customer_name);
+
+  v_result.order_id := v_order.id;
+  v_result.order_number := v_order.order_number;
+  v_result.delivery_code := v_code;
+  v_result.pickup_code := v_pickup_code;
+  return v_result;
+end;
+$$;
+
+revoke all on function public.create_order_internal from public, anon, authenticated;
+
+create or replace function public.moderator_create_order(
+  p_customer_name text,
+  p_customer_phone text,
+  p_customer_address text,
+  p_region_id uuid,
+  p_pieces_count integer,
+  p_piece_details text default null,
+  p_color text default null,
+  p_work_required text default null,
+  p_customer_notes text default null,
+  p_factory_id uuid default null,
+  p_driver_id uuid default null,
+  p_customer_maps_url text default null
+)
+returns public.new_order_result
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not public.is_owner_or_moderator() then
+    raise exception 'غير مصرح لك بإنشاء أوردر' using errcode = '42501';
+  end if;
+
+  if not public.is_owner() and (p_driver_id is not null or p_factory_id is not null) then
+    raise exception 'تحديد المندوب أو المصنع من صلاحية المدير فقط' using errcode = '42501';
+  end if;
+
+  return public.create_order_internal(
+    p_customer_name, p_customer_phone, p_customer_address, p_region_id,
+    p_pieces_count, p_piece_details, p_color, p_work_required, p_customer_notes,
+    'messenger', auth.uid(), p_factory_id, p_driver_id, p_customer_maps_url
+  );
+end;
+$$;
+
+revoke all on function public.moderator_create_order from public;
+grant execute on function public.moderator_create_order to authenticated;
+
+
+-- ========== supabase/migrations/0025_region_free_text_matching.sql ====
+
+create or replace function public.find_or_create_region(p_name text)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_name text := regexp_replace(trim(coalesce(p_name, '')), '\s+', ' ', 'g');
+  v_id uuid;
+begin
+  if length(v_name) < 2 then
+    raise exception 'اكتب اسم المنطقة' using errcode = '22023';
+  end if;
+  if length(v_name) > 100 then
+    raise exception 'اسم المنطقة طويل جدًا' using errcode = '22023';
+  end if;
+
+  insert into public.regions (name) values (v_name)
+  on conflict (name) do update set name = excluded.name
+  returning id into v_id;
+
+  return v_id;
+end;
+$$;
+
+revoke all on function public.find_or_create_region from public;
+grant execute on function public.find_or_create_region to authenticated;
+
+create or replace function public.set_driver_regions_by_name(p_driver_id uuid, p_region_names text[])
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_name text;
+  v_id uuid;
+  v_ids uuid[] := '{}';
+begin
+  if not coalesce(public.is_owner_or_moderator(), false) then
+    raise exception 'غير مصرح' using errcode = '42501';
+  end if;
+
+  if not exists (select 1 from public.profiles where id = p_driver_id and role = 'driver') then
+    raise exception 'هذا الحساب ليس مندوبًا';
+  end if;
+
+  foreach v_name in array coalesce(p_region_names, '{}'::text[])
+  loop
+    if length(trim(coalesce(v_name, ''))) > 0 then
+      v_id := public.find_or_create_region(v_name);
+      if not (v_id = any(v_ids)) then
+        v_ids := array_append(v_ids, v_id);
+      end if;
+    end if;
+  end loop;
+
+  delete from public.driver_regions where driver_id = p_driver_id;
+
+  if array_length(v_ids, 1) > 0 then
+    insert into public.driver_regions (driver_id, region_id)
+    select p_driver_id, x from unnest(v_ids) as x;
+  end if;
+end;
+$$;
+
+revoke all on function public.set_driver_regions_by_name from public;
+grant execute on function public.set_driver_regions_by_name to authenticated;
+
+drop function if exists public.create_order_internal(
+  text, text, text, uuid, integer, text, text, text, text, order_source, uuid, uuid, uuid, text
+);
+
+create or replace function public.create_order_internal(
+  p_customer_name text,
+  p_customer_phone text,
+  p_customer_address text,
+  p_region_name text,
+  p_pieces_count integer,
+  p_piece_details text,
+  p_color text,
+  p_work_required text,
+  p_customer_notes text,
+  p_source order_source,
+  p_created_by uuid,
+  p_factory_id uuid default null,
+  p_driver_id uuid default null,
+  p_customer_maps_url text default null
+)
+returns public.new_order_result
+language plpgsql
+security definer
+set search_path = public, extensions
+as $$
+declare
+  v_code text := public.generate_delivery_code();
+  v_pickup_code text := public.generate_delivery_code();
+  v_region_id uuid;
+  v_order public.orders;
+  v_result public.new_order_result;
+  v_factory public.profiles;
+  v_driver public.profiles;
+  v_new_status public.order_status;
+  v_maps_url text := nullif(trim(coalesce(p_customer_maps_url, '')), '');
+  v_auto_driver_id uuid;
+  v_auto_driver_name text;
+begin
+  if length(trim(p_customer_name)) = 0 then
+    raise exception 'اسم العميل مطلوب' using errcode = '22023';
+  end if;
+  if length(trim(p_customer_phone)) < 8 then
+    raise exception 'رقم هاتف العميل غير صالح' using errcode = '22023';
+  end if;
+  if p_pieces_count is null or p_pieces_count < 1 then
+    raise exception 'عدد القطع يجب أن يكون 1 على الأقل' using errcode = '22023';
+  end if;
+
+  v_region_id := public.find_or_create_region(p_region_name);
+
+  if p_factory_id is not null then
+    select * into v_factory from public.profiles where id = p_factory_id;
+    if v_factory is null or v_factory.role <> 'factory' or not v_factory.is_active then
+      raise exception 'المصنع المحدد غير صالح' using errcode = '22023';
+    end if;
+  end if;
+
+  if p_driver_id is not null then
+    select * into v_driver from public.profiles where id = p_driver_id;
+    if v_driver is null or v_driver.role <> 'driver' or not v_driver.is_active then
+      raise exception 'المندوب المحدد غير صالح' using errcode = '22023';
+    end if;
+  end if;
+
+  insert into public.orders (
+    customer_name, customer_phone, customer_address, customer_maps_url, region_id,
+    pieces_count, piece_details, color, work_required, customer_notes,
+    source, created_by, delivery_code_hash, pickup_code_hash, assigned_factory_id
+  ) values (
+    trim(p_customer_name), trim(p_customer_phone), trim(p_customer_address), v_maps_url, v_region_id,
+    p_pieces_count, p_piece_details, p_color, p_work_required, p_customer_notes,
+    p_source, p_created_by, crypt(v_code, gen_salt('bf')), crypt(v_pickup_code, gen_salt('bf')), p_factory_id
+  )
+  returning * into v_order;
+
+  insert into public.order_delivery_codes (order_id, code) values (v_order.id, v_code);
+  insert into public.order_pickup_codes (order_id, code) values (v_order.id, v_pickup_code);
+
+  perform public.log_order_event(v_order.id, 'created', null, 'new',
+    'تم إنشاء الأوردر عبر ' || case when p_source = 'website' then 'الموقع' else 'Messenger' end);
+
+  if p_driver_id is not null then
+    v_new_status := case when v_order.status = 'new' then 'assigned' else v_order.status end;
+
+    update public.orders
+      set assigned_driver_id = p_driver_id,
+          distribution_approved_at = now(),
+          distribution_approved_by = p_created_by,
+          status = v_new_status
+      where id = v_order.id;
+
+    v_order.status := v_new_status;
+
+    perform public.log_order_event(v_order.id, 'driver_reassigned', 'new', v_new_status,
+      'تم تعيين مندوب عند إنشاء الأوردر: ' || v_driver.full_name);
+
+    perform public.notify_user(p_driver_id, v_order.id, 'order_assigned',
+      'تم إسناد أوردر إليك ' || v_order.order_number, 'العميل: ' || v_order.customer_name);
+  else
+    v_auto_driver_id := public.pick_fair_driver_for_region(v_region_id);
+    if v_auto_driver_id is not null then
+      update public.orders
+        set assigned_driver_id = v_auto_driver_id,
+            suggested_driver_id = v_auto_driver_id
+        where id = v_order.id;
+
+      select full_name into v_auto_driver_name from public.profiles where id = v_auto_driver_id;
+      perform public.log_order_event(v_order.id, 'distribution_set', 'new', 'new',
+        'تم اقتراح مندوب تلقائيًا حسب المنطقة: ' || v_auto_driver_name || ' (بانتظار اعتماد المدير)');
+    end if;
+  end if;
+
+  perform public.notify_role('owner', v_order.id, 'new_order', 'أوردر جديد ' || v_order.order_number,
+    'تم استلام أوردر جديد من ' || v_order.customer_name);
+
+  v_result.order_id := v_order.id;
+  v_result.order_number := v_order.order_number;
+  v_result.delivery_code := v_code;
+  v_result.pickup_code := v_pickup_code;
+  return v_result;
+end;
+$$;
+
+revoke all on function public.create_order_internal from public, anon, authenticated;
+
+drop function if exists public.public_create_order(
+  text, text, text, uuid, integer, text, text, text, text, uuid, text
+);
+
+create or replace function public.public_create_order(
+  p_customer_name text,
+  p_customer_phone text,
+  p_customer_address text,
+  p_region_name text,
+  p_pieces_count integer,
+  p_piece_details text default null,
+  p_color text default null,
+  p_work_required text default null,
+  p_customer_notes text default null,
+  p_factory_id uuid default null,
+  p_customer_maps_url text default null
+)
+returns public.new_order_result
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  return public.create_order_internal(
+    p_customer_name, p_customer_phone, p_customer_address, p_region_name,
+    p_pieces_count, p_piece_details, p_color, p_work_required, p_customer_notes,
+    'website', null, p_factory_id, null, p_customer_maps_url
+  );
+end;
+$$;
+
+revoke all on function public.public_create_order from public;
+grant execute on function public.public_create_order to anon, authenticated;
+
+drop function if exists public.moderator_create_order(
+  text, text, text, uuid, integer, text, text, text, text, uuid, uuid, text
+);
+
+create or replace function public.moderator_create_order(
+  p_customer_name text,
+  p_customer_phone text,
+  p_customer_address text,
+  p_region_name text,
+  p_pieces_count integer,
+  p_piece_details text default null,
+  p_color text default null,
+  p_work_required text default null,
+  p_customer_notes text default null,
+  p_factory_id uuid default null,
+  p_driver_id uuid default null,
+  p_customer_maps_url text default null
+)
+returns public.new_order_result
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not public.is_owner_or_moderator() then
+    raise exception 'غير مصرح لك بإنشاء أوردر' using errcode = '42501';
+  end if;
+
+  if not public.is_owner() and (p_driver_id is not null or p_factory_id is not null) then
+    raise exception 'تحديد المندوب أو المصنع من صلاحية المدير فقط' using errcode = '42501';
+  end if;
+
+  return public.create_order_internal(
+    p_customer_name, p_customer_phone, p_customer_address, p_region_name,
+    p_pieces_count, p_piece_details, p_color, p_work_required, p_customer_notes,
+    'messenger', auth.uid(), p_factory_id, p_driver_id, p_customer_maps_url
+  );
+end;
+$$;
+
+revoke all on function public.moderator_create_order from public;
+grant execute on function public.moderator_create_order to authenticated;
+
+drop function if exists public.update_order_details(
+  uuid, text, text, text, text, uuid, integer, text, text, text, text
+);
+
+create or replace function public.update_order_details(
+  p_order_id uuid,
+  p_customer_name text,
+  p_customer_phone text,
+  p_customer_address text,
+  p_customer_maps_url text,
+  p_region_name text,
+  p_pieces_count integer,
+  p_piece_details text,
+  p_color text,
+  p_work_required text,
+  p_customer_notes text
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_order public.orders;
+  v_new_maps_url text := nullif(trim(coalesce(p_customer_maps_url, '')), '');
+  v_region_id uuid;
+  v_changes text := '';
+begin
+  if not coalesce(public.is_owner_or_moderator(), false) then
+    raise exception 'غير مصرح لك بتعديل بيانات الأوردر' using errcode = '42501';
+  end if;
+
+  select * into v_order from public.orders where id = p_order_id for update;
+  if v_order is null then
+    raise exception 'الأوردر غير موجود';
+  end if;
+
+  if length(trim(coalesce(p_customer_name, ''))) = 0 then
+    raise exception 'اسم العميل مطلوب' using errcode = '22023';
+  end if;
+  if length(trim(coalesce(p_customer_phone, ''))) < 8 then
+    raise exception 'رقم هاتف العميل غير صالح' using errcode = '22023';
+  end if;
+  if length(trim(coalesce(p_customer_address, ''))) < 5 then
+    raise exception 'العنوان قصير جدًا' using errcode = '22023';
+  end if;
+  if p_pieces_count is null or p_pieces_count < 1 then
+    raise exception 'عدد القطع يجب أن يكون 1 على الأقل' using errcode = '22023';
+  end if;
+
+  v_region_id := public.find_or_create_region(p_region_name);
+
+  if trim(v_order.customer_name) is distinct from trim(p_customer_name) then
+    v_changes := v_changes || 'الاسم، ';
+  end if;
+  if trim(v_order.customer_phone) is distinct from trim(p_customer_phone) then
+    v_changes := v_changes || 'الهاتف، ';
+  end if;
+  if trim(v_order.customer_address) is distinct from trim(p_customer_address) then
+    v_changes := v_changes || 'العنوان، ';
+  end if;
+  if coalesce(v_order.customer_maps_url, '') is distinct from coalesce(v_new_maps_url, '') then
+    v_changes := v_changes || 'رابط الخريطة، ';
+  end if;
+  if v_order.region_id is distinct from v_region_id then
+    v_changes := v_changes || 'المنطقة، ';
+  end if;
+  if v_order.pieces_count is distinct from p_pieces_count then
+    v_changes := v_changes || 'عدد القطع، ';
+  end if;
+  if coalesce(v_order.piece_details, '') is distinct from coalesce(p_piece_details, '') then
+    v_changes := v_changes || 'تفاصيل القطع، ';
+  end if;
+  if coalesce(v_order.color, '') is distinct from coalesce(p_color, '') then
+    v_changes := v_changes || 'اللون، ';
+  end if;
+  if coalesce(v_order.work_required, '') is distinct from coalesce(p_work_required, '') then
+    v_changes := v_changes || 'المطلوب عمله، ';
+  end if;
+  if coalesce(v_order.customer_notes, '') is distinct from coalesce(p_customer_notes, '') then
+    v_changes := v_changes || 'الملاحظات، ';
+  end if;
+
+  update public.orders set
+    customer_name = trim(p_customer_name),
+    customer_phone = trim(p_customer_phone),
+    customer_address = trim(p_customer_address),
+    customer_maps_url = v_new_maps_url,
+    region_id = v_region_id,
+    pieces_count = p_pieces_count,
+    piece_details = p_piece_details,
+    color = p_color,
+    work_required = p_work_required,
+    customer_notes = p_customer_notes
+  where id = p_order_id;
+
+  if v_changes <> '' then
+    perform public.log_order_event(p_order_id, 'details_edited', v_order.status, v_order.status,
+      'تم تعديل: ' || left(v_changes, length(v_changes) - 2));
+  end if;
+end;
+$$;
+
+revoke all on function public.update_order_details from public, anon, authenticated;
+grant execute on function public.update_order_details to authenticated;
+
+
+-- ========== supabase/migrations/0026_pickup_points.sql ================
+
+create table if not exists public.pickup_points (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  address text,
+  lat double precision,
+  lng double precision,
+  maps_url text,
+  is_active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+comment on table public.pickup_points is
+  'Drop-off locations for collected cooking utensils, region-scoped like driver coverage areas (see pickup_point_regions). The pickup-point-to-factory leg itself is not tracked here — see the migration header comment.';
+
+drop trigger if exists set_pickup_points_updated_at on public.pickup_points;
+create trigger set_pickup_points_updated_at
+  before update on public.pickup_points
+  for each row execute function public.set_updated_at();
+
+create table if not exists public.pickup_point_regions (
+  pickup_point_id uuid not null references public.pickup_points(id) on delete cascade,
+  region_id uuid not null references public.regions(id) on delete cascade,
+  primary key (pickup_point_id, region_id)
+);
+
+comment on table public.pickup_point_regions is
+  'Which منطقة name(s) each pickup point covers — same shape as driver_regions.';
+
+alter table public.pickup_points enable row level security;
+alter table public.pickup_point_regions enable row level security;
+
+drop policy if exists pickup_points_select_staff on public.pickup_points;
+create policy pickup_points_select_staff on public.pickup_points
+  for select using (auth.role() = 'authenticated');
+
+drop policy if exists pickup_point_regions_select_staff on public.pickup_point_regions;
+create policy pickup_point_regions_select_staff on public.pickup_point_regions
+  for select using (auth.role() = 'authenticated');
+
+grant select on public.pickup_points to authenticated;
+grant select on public.pickup_point_regions to authenticated;
+
+create or replace function public.create_pickup_point(
+  p_name text,
+  p_address text,
+  p_maps_url text,
+  p_region_names text[]
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_id uuid;
+  v_name text;
+  v_region_id uuid;
+begin
+  if not coalesce(public.is_owner_or_moderator(), false) then
+    raise exception 'غير مصرح' using errcode = '42501';
+  end if;
+  if length(trim(coalesce(p_name, ''))) = 0 then
+    raise exception 'اسم نقطة التجميع مطلوب' using errcode = '22023';
+  end if;
+
+  insert into public.pickup_points (name, address, maps_url)
+  values (
+    trim(p_name),
+    nullif(trim(coalesce(p_address, '')), ''),
+    nullif(trim(coalesce(p_maps_url, '')), '')
+  )
+  returning id into v_id;
+
+  foreach v_name in array coalesce(p_region_names, '{}'::text[])
+  loop
+    if length(trim(coalesce(v_name, ''))) > 0 then
+      v_region_id := public.find_or_create_region(v_name);
+      insert into public.pickup_point_regions (pickup_point_id, region_id)
+        values (v_id, v_region_id)
+        on conflict do nothing;
+    end if;
+  end loop;
+
+  return v_id;
+end;
+$$;
+revoke all on function public.create_pickup_point(text, text, text, text[]) from public;
+grant execute on function public.create_pickup_point(text, text, text, text[]) to authenticated;
+
+create or replace function public.update_pickup_point(
+  p_id uuid,
+  p_name text,
+  p_address text,
+  p_maps_url text
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not coalesce(public.is_owner_or_moderator(), false) then
+    raise exception 'غير مصرح' using errcode = '42501';
+  end if;
+  if length(trim(coalesce(p_name, ''))) = 0 then
+    raise exception 'اسم نقطة التجميع مطلوب' using errcode = '22023';
+  end if;
+
+  update public.pickup_points
+    set name = trim(p_name),
+        address = nullif(trim(coalesce(p_address, '')), ''),
+        maps_url = nullif(trim(coalesce(p_maps_url, '')), '')
+    where id = p_id;
+
+  if not found then
+    raise exception 'نقطة التجميع غير موجودة';
+  end if;
+end;
+$$;
+revoke all on function public.update_pickup_point(uuid, text, text, text) from public;
+grant execute on function public.update_pickup_point(uuid, text, text, text) to authenticated;
+
+create or replace function public.set_pickup_point_active(p_id uuid, p_is_active boolean)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not coalesce(public.is_owner_or_moderator(), false) then
+    raise exception 'غير مصرح' using errcode = '42501';
+  end if;
+
+  update public.pickup_points set is_active = p_is_active where id = p_id;
+  if not found then
+    raise exception 'نقطة التجميع غير موجودة';
+  end if;
+end;
+$$;
+revoke all on function public.set_pickup_point_active(uuid, boolean) from public;
+grant execute on function public.set_pickup_point_active(uuid, boolean) to authenticated;
+
+create or replace function public.set_pickup_point_regions(p_pickup_point_id uuid, p_region_names text[])
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_name text;
+  v_id uuid;
+  v_ids uuid[] := '{}';
+begin
+  if not coalesce(public.is_owner_or_moderator(), false) then
+    raise exception 'غير مصرح' using errcode = '42501';
+  end if;
+  if not exists (select 1 from public.pickup_points where id = p_pickup_point_id) then
+    raise exception 'نقطة التجميع غير موجودة';
+  end if;
+
+  foreach v_name in array coalesce(p_region_names, '{}'::text[]) loop
+    if length(trim(coalesce(v_name, ''))) > 0 then
+      v_id := public.find_or_create_region(v_name);
+      if not (v_id = any(v_ids)) then
+        v_ids := array_append(v_ids, v_id);
+      end if;
+    end if;
+  end loop;
+
+  delete from public.pickup_point_regions where pickup_point_id = p_pickup_point_id;
+  if array_length(v_ids, 1) > 0 then
+    insert into public.pickup_point_regions (pickup_point_id, region_id)
+      select p_pickup_point_id, x from unnest(v_ids) as x;
+  end if;
+end;
+$$;
+revoke all on function public.set_pickup_point_regions(uuid, text[]) from public;
+grant execute on function public.set_pickup_point_regions(uuid, text[]) to authenticated;
+
+
+-- ========== supabase/migrations/0027_factory_only_order_creation.sql ==
+
+create or replace function public.moderator_create_order(
+  p_customer_name text,
+  p_customer_phone text,
+  p_customer_address text,
+  p_region_name text,
+  p_pieces_count integer,
+  p_piece_details text default null,
+  p_color text default null,
+  p_work_required text default null,
+  p_customer_notes text default null,
+  p_factory_id uuid default null,
+  p_driver_id uuid default null,
+  p_customer_maps_url text default null
+)
+returns public.new_order_result
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not public.is_owner_or_moderator() then
+    raise exception 'غير مصرح لك بإنشاء أوردر' using errcode = '42501';
+  end if;
+
+  if p_driver_id is not null then
+    raise exception 'يتم تعيين المندوب تلقائيًا عند إنشاء الأوردر، لا يمكن اختياره يدويًا' using errcode = '42501';
+  end if;
+
+  return public.create_order_internal(
+    p_customer_name, p_customer_phone, p_customer_address, p_region_name,
+    p_pieces_count, p_piece_details, p_color, p_work_required, p_customer_notes,
+    'messenger', auth.uid(), p_factory_id, null, p_customer_maps_url
+  );
+end;
+$$;
+
+revoke all on function public.moderator_create_order(text, text, text, text, integer, text, text, text, text, uuid, uuid, text) from public;
+grant execute on function public.moderator_create_order(text, text, text, text, integer, text, text, text, text, uuid, uuid, text) to authenticated;
+
+
+-- ========== supabase/migrations/0028_remove_pickup_points.sql =========
+
+drop function if exists public.set_pickup_point_regions(uuid, text[]);
+drop function if exists public.set_pickup_point_active(uuid, boolean);
+drop function if exists public.update_pickup_point(uuid, text, text, text);
+drop function if exists public.create_pickup_point(text, text, text, text[]);
+
+drop table if exists public.pickup_point_regions cascade;
+drop table if exists public.pickup_points cascade;
+
+
+-- ========== supabase/migrations/0029_driver_chat_hidden_after_reassignment.sql 
+
+alter table public.order_messages add column if not exists driver_id uuid references public.profiles(id);
+
+update public.order_messages om
+  set driver_id = o.assigned_driver_id
+  from public.orders o
+  where om.order_id = o.id
+    and om.channel = 'driver'
+    and om.driver_id is distinct from o.assigned_driver_id;
+
+create index if not exists order_messages_driver_stint_idx on public.order_messages (order_id, driver_id) where channel = 'driver';
+
+drop policy if exists order_messages_select on public.order_messages;
+drop function if exists public.can_read_order_channel(uuid, text, uuid);
+
+create or replace function public.can_read_order_channel(
+  p_order_id uuid,
+  p_channel text,
+  p_user_id uuid,
+  p_message_driver_id uuid default null
+)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1 from public.orders o
+    where o.id = p_order_id
+      and (
+        (p_channel = 'driver' and o.assigned_driver_id = p_user_id and p_message_driver_id = p_user_id)
+        or (p_channel = 'factory' and o.assigned_factory_id = p_user_id)
+      )
+  );
+$$;
+
+revoke all on function public.can_read_order_channel(uuid, text, uuid, uuid) from public;
+grant execute on function public.can_read_order_channel(uuid, text, uuid, uuid) to authenticated;
+
+create policy order_messages_select on public.order_messages
+  for select using (
+    public.is_owner_or_moderator()
+    or public.can_read_order_channel(order_messages.order_id, order_messages.channel, auth.uid(), order_messages.driver_id)
+  );
+
+create or replace function public.send_order_message(p_order_id uuid, p_channel text, p_body text)
+returns public.order_messages
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_order public.orders;
+  v_role user_role := public.current_user_role();
+  v_body text := trim(coalesce(p_body, ''));
+  v_channel text := coalesce(p_channel, 'driver');
+  v_row public.order_messages;
+begin
+  if v_channel not in ('driver', 'factory') then
+    raise exception 'قناة دردشة غير صالحة';
+  end if;
+  if length(v_body) = 0 then
+    raise exception 'اكتب رسالة قبل الإرسال' using errcode = '22023';
+  end if;
+  if length(v_body) > 1000 then
+    raise exception 'الرسالة طويلة جدًا — بحد أقصى 1000 حرف' using errcode = '22023';
+  end if;
+
+  select * into v_order from public.orders where id = p_order_id;
+  if v_order is null then
+    raise exception 'الأوردر غير موجود';
+  end if;
+
+  if not (
+    public.is_owner_or_moderator()
+    or (v_channel = 'driver' and v_role = 'driver' and v_order.assigned_driver_id = auth.uid())
+    or (v_channel = 'factory' and v_role = 'factory' and v_order.assigned_factory_id = auth.uid())
+  ) then
+    raise exception 'غير مصرح' using errcode = '42501';
+  end if;
+
+  insert into public.order_messages (order_id, channel, sender_id, sender_role, body, driver_id)
+  values (
+    p_order_id, v_channel, auth.uid(), v_role, v_body,
+    case when v_channel = 'driver' then v_order.assigned_driver_id else null end
+  )
+  returning * into v_row;
+
+  if v_channel = 'driver' then
+    if v_role = 'driver' then
+      perform public.notify_staff(p_order_id, 'chat_message',
+        'رسالة جديدة (دردشة المندوب) على الأوردر ' || v_order.order_number, v_body);
+    elsif v_order.assigned_driver_id is not null then
+      perform public.notify_user(v_order.assigned_driver_id, p_order_id, 'chat_message',
+        'رسالة جديدة على الأوردر ' || v_order.order_number, v_body);
+    end if;
+  else
+    if v_role = 'factory' then
+      perform public.notify_staff(p_order_id, 'chat_message',
+        'رسالة جديدة (دردشة المصنع) على الأوردر ' || v_order.order_number, v_body);
+    elsif v_order.assigned_factory_id is not null then
+      perform public.notify_user(v_order.assigned_factory_id, p_order_id, 'chat_message',
+        'رسالة جديدة على الأوردر ' || v_order.order_number, v_body);
+    end if;
+  end if;
+
+  return v_row;
+end;
+$$;
+
+revoke all on function public.send_order_message(uuid, text, text) from public;
+grant execute on function public.send_order_message(uuid, text, text) to authenticated;
+
+
+-- ========== supabase/migrations/0030_owner_only_cancel_and_no_moderator_team.sql 
+
+create or replace function public.owner_cancel_order(p_order_id uuid, p_reason text)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_order public.orders;
+begin
+  if not public.is_owner() then
+    raise exception 'إلغاء الأوردر من صلاحية المدير فقط' using errcode = '42501';
+  end if;
+
+  select * into v_order from public.orders where id = p_order_id for update;
+  if v_order is null then raise exception 'الأوردر غير موجود'; end if;
+  if v_order.status in ('delivered', 'cancelled') then
+    raise exception 'لا يمكن إلغاء أوردر تم تسليمه أو ملغى بالفعل';
+  end if;
+
+  update public.orders set status = 'cancelled', cancelled_at = now(), cancel_reason = p_reason where id = p_order_id;
+  perform public.log_order_event(p_order_id, 'cancelled', v_order.status, 'cancelled', p_reason);
+  perform public.notify_staff(p_order_id, 'order_cancelled', 'تم إلغاء الأوردر ' || v_order.order_number, p_reason, auth.uid());
+end;
+$$;
+
+revoke all on function public.owner_cancel_order(uuid, text) from public;
+grant execute on function public.owner_cancel_order(uuid, text) to authenticated;
+
+
+-- ========== supabase/migrations/0031_wider_order_numbers.sql ==========
+
+create or replace function public.set_order_number()
+returns trigger
+language plpgsql
+as $$
+begin
+  if new.order_number is null or new.order_number = '' then
+    new.order_number := 'ORD-' || lpad(nextval('public.order_number_seq')::text, 5, '0');
+  end if;
+  return new;
+end;
+$$;
+
+
 -- ========== supabase/migrations/0032_delete_worker.sql ================
-
--- 0032_delete_worker.sql
---
--- "I need the access for the manager to delete the worker and it will
--- fully erased but the orders with his name still saved" —
---
--- "Fully erased" means the Owner can permanently remove a driver/moderator/
--- factory account (no login, gone from the team list) via the Auth Admin
--- API (auth.users delete — profiles.id already cascades off that, see
--- 0002). The problem: orders.assigned_driver_id / assigned_factory_id (and
--- a few internal-only columns below) reference profiles(id) with the
--- Postgres default ON DELETE NO ACTION, which currently BLOCKS deleting
--- any worker who was ever assigned to an order — i.e. almost every real
--- driver/factory account.
---
--- Fix, two parts:
---   1) Snapshot the driver/factory name onto the order itself the moment
---      it's assigned (trigger below), so the order keeps showing "delivered
---      by Ahmed" forever, independent of whether profiles still has a row
---      for Ahmed.
---   2) Change every profiles(id) foreign key that can point at a worker to
---      ON DELETE SET NULL, so deleting the account detaches it from old
---      rows instead of failing outright. For the columns nothing ever
---      displays by name (suggested_driver_id, distribution_approved_by,
---      created_by, order_history.actor_id) this is a no-op for the UI —
---      order_history already only ever shows actor_role, never a joined
---      name. For order_messages.sender_id the chat UI already falls back
---      to a role label when the sender relation is null (see order-chat.tsx),
---      so a deleted sender's old messages just show "مندوب"/"مصنع"/... etc
---      instead of a name, exactly like a message from an unknown sender
---      would today.
-
--- ---------- 1) snapshot columns + stamping trigger ----------
 
 alter table public.orders add column if not exists assigned_driver_name text;
 alter table public.orders add column if not exists assigned_factory_name text;
@@ -81,12 +1422,6 @@ set assigned_factory_name = p.full_name
 from public.profiles p
 where o.assigned_factory_id = p.id and o.assigned_factory_name is null;
 
--- Stamps the name whenever assigned_driver_id/assigned_factory_id is set
--- to an actual profile. Deliberately never *clears* the name (not even
--- when the id goes null) — that's what makes the name survive both a
--- plain unassign and, later, the profile itself being deleted out from
--- under it (ON DELETE SET NULL below fires an UPDATE with the new id NULL,
--- which this trigger also sees and correctly ignores).
 create or replace function public.stamp_order_assignee_names()
 returns trigger
 language plpgsql
@@ -110,8 +1445,6 @@ drop trigger if exists stamp_order_assignee_names on public.orders;
 create trigger stamp_order_assignee_names
   before insert or update on public.orders
   for each row execute function public.stamp_order_assignee_names();
-
--- ---------- 2) profiles(id) FKs: NO ACTION -> SET NULL ----------
 
 alter table public.orders drop constraint orders_assigned_driver_id_fkey;
 alter table public.orders add constraint orders_assigned_driver_id_fkey
@@ -137,8 +1470,6 @@ alter table public.order_history drop constraint order_history_actor_id_fkey;
 alter table public.order_history add constraint order_history_actor_id_fkey
   foreign key (actor_id) references public.profiles (id) on delete set null;
 
--- sender_id was "not null" — a deleted sender has to be able to go null,
--- so the column itself has to allow it before the constraint can.
 alter table public.order_messages alter column sender_id drop not null;
 alter table public.order_messages drop constraint order_messages_sender_id_fkey;
 alter table public.order_messages add constraint order_messages_sender_id_fkey
@@ -147,21 +1478,6 @@ alter table public.order_messages add constraint order_messages_sender_id_fkey
 alter table public.order_messages drop constraint order_messages_driver_id_fkey;
 alter table public.order_messages add constraint order_messages_driver_id_fkey
   foreign key (driver_id) references public.profiles (id) on delete set null;
-
--- ---------- 3) factory_orders_view: stop reading the driver's name via a
---    live join to profiles ----------
---
--- Same bug as everywhere else: `p.full_name as assigned_driver_name` reads
--- the *current* profiles row every time the view is queried, so a factory
--- looking at its own permanent order history (0022) would see a deleted
--- driver's name vanish. Point it at the new snapshot column on orders
--- instead — same column name, same position, so CREATE OR REPLACE is fine
--- (see 0023's note: only legal when the SELECT list doesn't change shape).
--- The driver join is dropped entirely since nothing else in this view used
--- it; the factory join stays, for assigned_factory_address (there is no
--- persistent snapshot of a factory's address — losing it once the factory
--- account is deleted is fine, since there both is nowhere left to send a
--- driver and the factory's *name* still shows via o.assigned_factory_name).
 
 create or replace view public.factory_orders_view
 with (security_invoker = false) as
@@ -202,30 +1518,6 @@ grant select on public.factory_orders_view to authenticated;
 
 -- ========== supabase/migrations/0033_factories_table.sql ==============
 
--- 0033_factories_table.sql
---
--- Factories stop being login accounts and become what they actually are:
--- places an order is routed to. Until now a factory was a `profiles` row with
--- role='factory', which meant the company's two workshops were modelled as
--- staff members with passwords, sessions and a dashboard.
---
--- This migration is deliberately ZERO behaviour change: it creates the new
--- table, copies the existing factories into it **preserving their UUIDs**, and
--- repoints everything that reads factory data. Factory accounts keep working
--- exactly as before — they are retired in a later migration, after the app
--- build that stops using them is live.
---
--- Why preserve the UUIDs: orders.assigned_factory_id already holds those ids
--- across every order ever created. Keeping them means the foreign key can be
--- repointed with zero data remapping, no window where the column dangles, and
--- no risk of silently reattaching an order to the wrong factory.
---
--- Ordering inside this file matters and it is all one transaction (the Supabase
--- SQL editor wraps a submitted script in one, and DDL is transactional in
--- Postgres): create → copy → assert no orphans → swap the constraint → repoint
--- the readers. Either all of it lands or none of it does.
-
--- ── the table ───────────────────────────────────────────────────────────
 create table if not exists public.factories (
   id uuid primary key default gen_random_uuid(),
   name text not null,
@@ -248,14 +1540,6 @@ create trigger set_factories_updated_at
   before update on public.factories
   for each row execute function public.set_updated_at();
 
--- ── copy the existing factories, ids and all ────────────────────────────
--- Selected by union rather than by role alone: if any order references an id
--- that is no longer role='factory' (data drift, a role edited by hand), a
--- role-only copy would miss it and the constraint swap below would fail
--- halfway. The union guarantees every referenced id gets a row.
---
--- phone, is_active and created_at come along too — phone is the only way to
--- ring the workshop, and dropping it here would lose it for good.
 insert into public.factories (id, name, phone, address, lat, lng, maps_url, is_active, created_at)
 select p.id, p.full_name, p.phone, p.address, p.lat, p.lng, p.maps_url, p.is_active, p.created_at
 from public.profiles p
@@ -263,7 +1547,6 @@ where p.role = 'factory'
    or p.id in (select o.assigned_factory_id from public.orders o where o.assigned_factory_id is not null)
 on conflict (id) do nothing;
 
--- ── prove there is nothing to lose before touching the constraint ───────
 do $$
 declare
   v_orphans integer;
@@ -278,30 +1561,12 @@ begin
       'ABORT: % order(s) point at a factory id with no matching factories row. '
       'Nothing has been changed. Investigate before re-running.', v_orphans;
   end if;
-end $$;
+end$$;
 
--- ── repoint the foreign key ─────────────────────────────────────────────
--- ON DELETE RESTRICT, not SET NULL. 0032 used SET NULL only because deleting
--- an auth user cascaded into profiles and would otherwise have blocked
--- deleting any worker. That reason is gone: a factory is no longer an auth
--- user. Keeping SET NULL would mean one stray `delete from factories`
--- silently detaches every historical order from its factory, recoverable only
--- by fuzzy-matching the snapshot name. RESTRICT makes that impossible;
--- deactivating (is_active = false) is the real "retire a factory" operation.
 alter table public.orders drop constraint if exists orders_assigned_factory_id_fkey;
 alter table public.orders add constraint orders_assigned_factory_id_fkey
   foreign key (assigned_factory_id) references public.factories (id) on delete restrict;
 
--- ── access ──────────────────────────────────────────────────────────────
--- Every signed-in role may read factories: drivers need the address and map
--- pin of the workshop they're driving to, and staff need the list to route
--- orders. This replaces the narrow per-order policy on profiles
--- (profiles_select_factory_for_assigned_driver, 0015) which existed because
--- profiles rows carry personal data for *people*. A factories row is the
--- company's own workshop address — there is nothing here to scope per order,
--- and dropping the correlated subquery makes every profiles read cheaper.
--- Writes are not granted at all: they go through the SECURITY DEFINER RPCs
--- below, which carry the authorization checks.
 alter table public.factories enable row level security;
 
 drop policy if exists factories_select on public.factories;
@@ -310,15 +1575,6 @@ create policy factories_select on public.factories
 
 grant select on public.factories to authenticated;
 
--- ── repoint: the snapshot-name trigger ──────────────────────────────────
--- This one is the quiet data-loss risk. The 0032 version reads
---   select full_name into new.assigned_factory_name from public.profiles ...
--- and in plpgsql a SELECT ... INTO that matches zero rows sets the target to
--- NULL. So the moment the factory profile rows go away, the next update that
--- touches assigned_factory_id would blank the very snapshot column 0032 added
--- to preserve the name. Reading from factories fixes the source; the coalesce
--- makes it structurally impossible to blank an existing name even if the row
--- is missing for any other reason.
 create or replace function public.stamp_order_assignee_names()
 returns trigger
 language plpgsql
@@ -339,11 +1595,6 @@ begin
 end;
 $$;
 
--- ── repoint: order creation ─────────────────────────────────────────────
--- Factory selection is mandatory at creation, and this function validates the
--- chosen factory against profiles. If it isn't repointed before the factory
--- profiles are removed, order creation stops working outright. Body is
--- otherwise byte-for-byte the 0025 version.
 create or replace function public.create_order_internal(
   p_customer_name text,
   p_customer_phone text,
@@ -388,9 +1639,6 @@ begin
     raise exception 'عدد القطع يجب أن يكون 1 على الأقل' using errcode = '22023';
   end if;
 
-  -- Mandatory + resolved to a canonical region row here — after the basic
-  -- field checks above, so an invalid name never gets created as a
-  -- side effect of a request that was going to fail anyway.
   v_region_id := public.find_or_create_region(p_region_name);
 
   if p_factory_id is not null then
@@ -442,9 +1690,6 @@ begin
     perform public.notify_user(p_driver_id, v_order.id, 'order_assigned',
       'تم إسناد أوردر إليك ' || v_order.order_number, 'العميل: ' || v_order.customer_name);
   else
-    -- Same fair, region-based suggestion as 0024 — only the input changed,
-    -- not the matching itself: v_region_id is the same canonical id
-    -- pick_fair_driver_for_region() always matched on before this.
     v_auto_driver_id := public.pick_fair_driver_for_region(v_region_id);
     if v_auto_driver_id is not null then
       update public.orders
@@ -469,13 +1714,6 @@ begin
 end;
 $$;
 
--- ── repoint: factory reassignment ───────────────────────────────────────
--- Two changes from the 0024 version: the factory is validated against
--- factories instead of profiles, and the notify_user() aimed at the factory
--- account is dropped. That second one is not cosmetic — notifications.user_id
--- has a foreign key to profiles, so once assigned_factory_id stops being a
--- profiles id, that call would raise a foreign-key violation and take the
--- whole reassignment down with it.
 create or replace function public.reassign_order_factory(p_order_id uuid, p_new_factory_id uuid)
 returns void
 language plpgsql
@@ -527,13 +1765,6 @@ begin
     'تم تغيير مصنع الأوردر ' || v_order.order_number, null, auth.uid());
 end;
 $$;
-
--- ── factory CRUD ────────────────────────────────────────────────────────
--- Authorization deliberately mirrors what the equivalent staff-account
--- actions allow today, so nobody silently gains or loses an ability in this
--- migration: creating and deleting were owner-only (createStaffAccountAction,
--- deleteStaffAccountAction), editing details and toggling active were
--- owner-or-moderator (updateStaffLocationAction, setStaffActiveAction).
 
 create or replace function public.create_factory(
   p_name text,
@@ -620,11 +1851,6 @@ begin
 end;
 $$;
 
--- Deletion is a real delete, and the RESTRICT constraint means it only
--- succeeds for a factory no order has ever used. That is the intended
--- behaviour — a workshop with history is deactivated, never deleted — so the
--- foreign-key error is caught and turned into an instruction rather than a
--- raw Postgres message.
 create or replace function public.delete_factory(p_factory_id uuid)
 returns void
 language plpgsql
@@ -660,37 +1886,6 @@ grant execute on function public.delete_factory(uuid) to authenticated;
 
 -- ========== supabase/migrations/0034_driver_runs_factory_steps_and_chat_lockdown.sql 
 
--- 0034_driver_runs_factory_steps_and_chat_lockdown.sql
---
--- Two changes, both prerequisites for retiring the factory accounts:
---
--- 1. The DRIVER now presses the factory steps. Waiting for a factory account
---    to confirm receipt and then mark the work finished was the bottleneck
---    this whole change exists to remove — the driver is standing at the
---    workshop, so the driver records what happened.
---
--- 2. Chat becomes driver <-> Manager only. The factory channel is closed,
---    and Moderators lose chat entirely (read and write).
---
--- Every function here keeps its exact signature and is replaced in place, so
--- this migration is correct for BOTH the currently-deployed build and the one
--- that follows it. That is what makes it safe to run this before deploying,
--- which is the required order — see the transitional note on the factory role
--- below.
-
--- ── the two factory steps, now driver-operated ──────────────────────────
--- Authorization changes shape here. The old check was role-only:
---   if public.current_user_role() not in ('factory','owner','moderator')
--- which never checked whether the order had anything to do with the caller —
--- any factory account could advance any order in the system. That gap is
--- fixed while we're in here: the row is now locked BEFORE the authorization
--- decision, because the decision needs the row.
---
--- The 'factory' term is TRANSITIONAL. It exists only so a factory account
--- still signed in on the current build keeps working between this migration
--- and the deploy that removes their screens. It is removed in the cleanup
--- migration once no profile carries that role.
-
 create or replace function public.factory_confirm_receipt(p_order_id uuid)
 returns void
 language plpgsql
@@ -706,19 +1901,13 @@ begin
   if not (
     coalesce(public.is_owner_or_moderator(), false)
     or (public.current_user_role() = 'driver' and v_order.assigned_driver_id = auth.uid())
-    or public.current_user_role() = 'factory'  -- transitional, removed in cleanup
+    or public.current_user_role() = 'factory'
   ) then
     raise exception 'غير مصرح' using errcode = '42501';
   end if;
 
   if v_order.status <> 'collected' then raise exception 'الأوردر ليس بحالة تسمح بتأكيد الاستلام في المصنع'; end if;
 
-  -- When the driver records this themselves they may never have pressed the
-  -- separate "heading to the factory" button, which is what used to stamp
-  -- handed_to_factory_at. Stamp it here if it's still empty so
-  -- handed_to_factory_at <= factory_received_at always holds — the daily
-  -- report's "entered factory" count and the customer tracking timeline both
-  -- read those two together.
   update public.orders
      set status = 'at_factory',
          factory_received_at = now(),
@@ -728,7 +1917,6 @@ begin
   perform public.log_order_event(p_order_id, 'factory_confirmed_receipt', 'collected', 'at_factory',
     'تم تسليم الأوردر للمصنع');
 
-  -- Don't notify the driver about their own press.
   if v_order.assigned_driver_id is not null and v_order.assigned_driver_id is distinct from auth.uid() then
     perform public.notify_user(v_order.assigned_driver_id, p_order_id, 'factory_received',
       'تم استلام الأوردر ' || v_order.order_number || ' في المصنع', null);
@@ -754,7 +1942,7 @@ begin
   if not (
     coalesce(public.is_owner_or_moderator(), false)
     or (public.current_user_role() = 'driver' and v_order.assigned_driver_id = auth.uid())
-    or public.current_user_role() = 'factory'  -- transitional, removed in cleanup
+    or public.current_user_role() = 'factory'
   ) then
     raise exception 'غير مصرح' using errcode = '42501';
   end if;
@@ -774,13 +1962,6 @@ begin
     'الأوردر ' || v_order.order_number || ' جاهز للاستلام من المصنع', null, auth.uid());
 end;
 $$;
-
--- ── stop notifying the factory account ──────────────────────────────────
--- Not cosmetic: notifications.user_id has a foreign key to profiles, and
--- assigned_factory_id now points at factories. Leaving these calls in place
--- would make the driver's hand-off and pickup raise a foreign-key violation
--- the moment the factory profile rows are deleted — the driver would simply
--- be unable to record either step. Bodies are otherwise unchanged from 0019.
 
 create or replace function public.driver_hand_to_factory(p_order_id uuid)
 returns void
@@ -827,16 +2008,6 @@ begin
 end;
 $$;
 
--- ── chat: driver <-> Manager only ───────────────────────────────────────
--- The factory channel is closed to new messages (existing ones stay readable
--- by a Manager as history), and Moderators lose chat entirely.
---
--- Note the notification change at the bottom: driver messages used to go
--- through notify_staff, which notifies Managers AND Moderators, with the
--- message text as the notification body. Changing only the read policy would
--- have stopped Moderators opening the chat while still delivering them every
--- message verbatim in their notification bell.
-
 create or replace function public.send_order_message(p_order_id uuid, p_channel text, p_body text)
 returns public.order_messages
 language plpgsql
@@ -872,16 +2043,11 @@ begin
     raise exception 'غير مصرح' using errcode = '42501';
   end if;
 
-  -- driver_id stamps which driver's stint this message belongs to — see
-  -- can_read_order_channel (0029) for why that matters after a reassignment.
   insert into public.order_messages (order_id, channel, sender_id, sender_role, body, driver_id)
   values (p_order_id, v_channel, auth.uid(), v_role, v_body, v_order.assigned_driver_id)
   returning * into v_row;
 
   if v_role = 'driver' then
-    -- notify_role('owner', ...) rather than notify_staff: the body carries
-    -- the message text, and Moderators are no longer part of these
-    -- conversations.
     perform public.notify_role('owner', p_order_id, 'chat_message',
       'رسالة جديدة من المندوب على الأوردر ' || v_order.order_number, v_body);
   elsif v_order.assigned_driver_id is not null then
@@ -893,9 +2059,6 @@ begin
 end;
 $$;
 
--- Read side. is_owner() replaces is_owner_or_moderator(); the
--- can_read_order_channel() branch is what still lets the assigned driver read
--- their own stint's messages.
 drop policy if exists order_messages_select on public.order_messages;
 create policy order_messages_select on public.order_messages
   for select using (
@@ -906,22 +2069,6 @@ create policy order_messages_select on public.order_messages
 
 -- ========== supabase/migrations/0035_bulk_distribution.sql ============
 
--- 0035_bulk_distribution.sql
---
--- Approving distribution one order at a time, from inside each order's own
--- page, is the slowest thing a manager does. This adds set-based versions so
--- a whole area's worth of orders can be moved to a driver and approved in one
--- press, without changing what approving an order means.
---
--- Structure follows the create_order_internal pattern already used in
--- 0007/0014: the real work is extracted into an internal function, and both
--- the single-order RPC and the bulk RPC call it. That's what guarantees the
--- bulk path writes the same history event and sends the same notification as
--- the single path — there is no second copy of the logic to drift.
-
--- ── approve: the extracted body ─────────────────────────────────────────
--- Identical to the 0009 approve_distribution body with only the is_owner()
--- check lifted out to the callers. Internal: never granted to a client role.
 create or replace function public.approve_distribution_one(p_order_id uuid)
 returns void
 language plpgsql
@@ -969,20 +2116,6 @@ begin
 end;
 $$;
 
--- ── approve: the bulk version ───────────────────────────────────────────
--- Returns a row per requested order rather than failing the whole call, so
--- one order that someone else already approved (or that has no driver yet)
--- doesn't throw away the other nineteen.
---
--- The begin/exception block around each order is what makes that work: a
--- plpgsql block with an EXCEPTION clause opens an implicit subtransaction, so
--- a failure rolls back only that order's update, history row and
--- notification, and the loop carries on.
---
--- ORDER BY is load-bearing, not tidiness. A bulk call holds row locks for
--- every order it touches until it commits, so two managers approving
--- overlapping selections in different on-screen orders would deadlock. Taking
--- the locks in a deterministic order means one simply waits for the other.
 create or replace function public.approve_distribution_bulk(p_order_ids uuid[])
 returns table (order_id uuid, order_number text, succeeded boolean, error text)
 language plpgsql
@@ -998,7 +2131,6 @@ begin
   if coalesce(array_length(p_order_ids, 1), 0) = 0 then
     return;
   end if;
-  -- Bounded so one press can't hold hundreds of row locks on a live system.
   if array_length(p_order_ids, 1) > 200 then
     raise exception 'لا يمكن اعتماد أكثر من 200 أوردر في المرة الواحدة' using errcode = '22023';
   end if;
@@ -1021,11 +2153,6 @@ begin
 end;
 $$;
 
--- ── assign a driver: the same split ─────────────────────────────────────
--- Used by the bulk screen's "move the selected orders to this driver" before
--- approving. set_order_distribution (rather than reassign_order_driver) is
--- the right primitive here: the screen only ever shows orders still waiting
--- for approval, and this leaves them waiting.
 create or replace function public.set_order_distribution_one(
   p_order_id uuid,
   p_driver_id uuid,
@@ -1091,8 +2218,6 @@ begin
     raise exception 'لا يمكن تعديل أكثر من 200 أوردر في المرة الواحدة' using errcode = '22023';
   end if;
 
-  -- Validated once, before touching anything: a bad driver id is a mistake
-  -- about the whole selection, not a per-order outcome.
   select * into v_driver from public.profiles where id = p_driver_id;
   if v_driver is null or v_driver.role <> 'driver' or not v_driver.is_active then
     raise exception 'المندوب المحدد غير صالح' using errcode = '22023';
@@ -1116,9 +2241,6 @@ begin
 end;
 $$;
 
--- ── grants ──────────────────────────────────────────────────────────────
--- The _one functions carry no authorization of their own, so they must never
--- be callable directly by a client — only through the wrappers above.
 revoke all on function public.approve_distribution_one(uuid) from public, anon, authenticated;
 revoke all on function public.set_order_distribution_one(uuid, uuid, boolean) from public, anon, authenticated;
 
@@ -1127,20 +2249,6 @@ revoke all on function public.set_order_distribution_bulk(uuid[], uuid) from pub
 grant execute on function public.approve_distribution_bulk(uuid[]) to authenticated;
 grant execute on function public.set_order_distribution_bulk(uuid[], uuid) to authenticated;
 
--- ── "needs a driver" flag ───────────────────────────────────────────────
--- The board shows every order with no driver that isn't finished, which is a
--- derived predicate and needs no column. These two exist for the part that
--- can't be derived: WHY an order is sitting there, and how urgent it is.
---
--- An order at 'new' with no driver is routine backlog — nobody covers that
--- area yet, or a manager cleared the suggestion. An order at 'assigned' or
--- later with no driver is an orphan mid-delivery, which is impossible today
--- and only becomes reachable once removing a driver can strand their work
--- (the next migration). The flag is what tells those apart and carries the
--- reason into the notification.
---
--- Columns land here, one migration ahead of the code that sets them, so the
--- board can ship complete rather than with a half-built queue.
 alter table public.orders add column if not exists needs_allocation_at timestamptz;
 alter table public.orders add column if not exists needs_allocation_reason text;
 
@@ -1153,13 +2261,6 @@ comment on column public.orders.needs_allocation_at is
   'area). Cleared automatically by stamp_order_assignee_names the moment a '
   'driver is assigned or the order reaches a terminal status.';
 
--- Clearing lives in the existing BEFORE INSERT OR UPDATE trigger rather than
--- in each RPC that can assign a driver. There are five such paths
--- (set_order_distribution, reassign_order_driver, approve_distribution,
--- create_order_internal, and a manual owner UPDATE); a flag that has to be
--- cleared by hand in each would eventually be forgotten in one, and a stale
--- "needs a driver" banner on an order that has one is worse than no banner.
--- Same signature as the 0033 version, so the trigger itself is untouched.
 create or replace function public.stamp_order_assignee_names()
 returns trigger
 language plpgsql
@@ -1193,26 +2294,6 @@ $$;
 
 -- ========== supabase/migrations/0036_driver_removal_reassignment.sql ==
 
--- 0036_driver_removal_reassignment.sql
---
--- Removing a driver used to silently strand their work. The foreign keys are
--- ON DELETE SET NULL, so every order they were carrying simply lost its
--- driver — no status change, no reassignment, no notification, nothing on any
--- screen to say it had happened. An order mid-delivery would just sit there
--- belonging to nobody.
---
--- Now their active orders move to another driver covering the same area, and
--- anything nobody covers is flagged and reported so a manager can place it.
-
--- ── successor picker ────────────────────────────────────────────────────
--- Same ranking as pick_fair_driver_for_region (0024) — fewest active orders,
--- then name — with the departing driver excluded.
---
--- A new name rather than a defaulted extra parameter on the existing
--- function: CREATE OR REPLACE with a changed argument list creates a second
--- overload instead of replacing, which this codebase has already been caught
--- by twice (0014's create_order_internal, and the note in 0029 about
--- can_read_order_channel).
 create or replace function public.pick_fair_driver_for_region_excluding(
   p_region_id uuid,
   p_exclude_driver_id uuid
@@ -1241,9 +2322,6 @@ as $$
   limit 1;
 $$;
 
--- ── move a departing driver's work ──────────────────────────────────────
--- Returns a row per order it touched so the caller can tell the manager what
--- actually happened, synchronously, instead of leaving them to discover it.
 create or replace function public.reassign_orders_from_driver(p_driver_id uuid)
 returns table (
   order_id uuid,
@@ -1275,11 +2353,6 @@ begin
   if v_driver is null then raise exception 'المندوب غير موجود'; end if;
   if v_driver.role <> 'driver' then raise exception 'هذا الحساب ليس مندوبًا'; end if;
 
-  -- FIRST, before anything else touches this driver: snapshot the areas they
-  -- cover. driver_regions is ON DELETE CASCADE, so the moment the profile row
-  -- goes those rows are gone and there is no way to recover what this driver
-  -- covered. It's also the only sensible basis for placing an order whose own
-  -- region_id is null (nullable since 0004).
   v_fallback_regions := array(
     select dr.region_id from public.driver_regions dr where dr.driver_id = p_driver_id
   );
@@ -1292,7 +2365,6 @@ begin
     order by o.id
     for update
   loop
-    -- The order's own area first, then anywhere the departing driver covered.
     v_successor := public.pick_fair_driver_for_region_excluding(v_order.region_id, p_driver_id);
 
     if v_successor is null then
@@ -1323,11 +2395,6 @@ begin
       outcome := 'unallocated';
 
     elsif v_order.status = 'new' then
-      -- Still waiting for approval, so the driver was only ever a suggestion
-      -- and the order was never visible to them (orders_select_driver
-      -- requires distribution_approved_at). Re-suggest and leave it pending:
-      -- promoting it here would hand an order to a driver no manager ever
-      -- confirmed, which is exactly what the approval step exists to prevent.
       update public.orders
          set assigned_driver_id = v_successor,
              suggested_driver_id = v_successor
@@ -1341,8 +2408,6 @@ begin
       outcome := 'resuggested';
 
     else
-      -- Already approved and in motion: hand it over as a real reassignment,
-      -- leaving status and the original approval timestamp untouched.
       update public.orders set assigned_driver_id = v_successor where id = v_order.id;
 
       select full_name into new_driver_name from public.profiles where id = v_successor;
@@ -1361,18 +2426,6 @@ begin
     return next;
   end loop;
 
-  -- Tell the other managers about anything left unplaced. Deliberately
-  -- driven by the ids collected in the loop above rather than by re-querying
-  -- for flagged orders: orders flagged by an earlier removal and still
-  -- unplaced would otherwise be re-announced every time any driver is
-  -- deleted, training everyone to ignore the alert.
-  --
-  -- Per order so the notification opens the right one — unless there are a
-  -- lot, in which case one summary is more use than forty separate alerts
-  -- (notifications.order_id is nullable and the bell already handles that).
-  --
-  -- notify_staff excludes the actor, which is right here: the manager doing
-  -- the deletion is told synchronously by the action's own summary.
   if array_length(v_unallocated_ids, 1) between 1 and 10 then
     for v_idx in 1 .. array_length(v_unallocated_ids, 1) loop
       perform public.notify_staff(v_unallocated_ids[v_idx], 'needs_allocation',
@@ -1394,24 +2447,6 @@ grant execute on function public.reassign_orders_from_driver(uuid) to authentica
 
 -- ========== supabase/migrations/0037_edit_driver_details.sql ==========
 
--- 0037_edit_driver_details.sql
---
--- A driver's name could not be corrected anywhere in the app — it was set
--- once at account creation and that was that, so a typo stayed on every order
--- they ever handled. This adds an edit path for it, and narrows who may edit
--- a driver's details to managers only.
---
--- Phone is deliberately NOT editable here. It is the login identity, so
--- changing it changes how someone signs in and needs the auth side kept in
--- step — out of scope for this change rather than half-done.
-
--- ── edit a worker's name ────────────────────────────────────────────────
--- The name is stamped onto orders at assignment time (migration 0032) so it
--- survives the account being deleted. That snapshot is what every order list
--- and report reads, so correcting the name without touching those rows would
--- fix it in one place and leave it wrong everywhere it's actually read.
--- Backfilling is therefore unconditional: a corrected name is corrected
--- everywhere, which is what "fix the name" means to the person asking.
 create or replace function public.update_staff_profile(p_user_id uuid, p_full_name text)
 returns void
 language plpgsql
@@ -1437,9 +2472,6 @@ begin
 
   update public.profiles set full_name = v_name where id = p_user_id;
 
-  -- Keep the order snapshots in step. Scoped to this person's own rows, and
-  -- only where the name actually differs, so it writes nothing when a manager
-  -- opens the dialog and saves without changing anything.
   update public.orders
      set assigned_driver_name = v_name
    where assigned_driver_id = p_user_id
@@ -1447,13 +2479,6 @@ begin
 end;
 $$;
 
--- ── coverage editing becomes manager-only ───────────────────────────────
--- 0025 deliberately left this at Manager-or-Moderator while assignment and
--- account creation were narrowed to Manager in 0024. That split is being
--- closed on purpose: coverage decides which driver gets auto-suggested for an
--- area, so it is an assignment decision in everything but name, and it now
--- sits with the same role that approves assignments. Body is otherwise
--- unchanged from 0025.
 create or replace function public.set_driver_regions_by_name(p_driver_id uuid, p_region_names text[])
 returns void
 language plpgsql
@@ -1498,21 +2523,6 @@ grant execute on function public.update_staff_profile(uuid, text) to authenticat
 
 -- ========== supabase/migrations/0038_retire_factory_role.sql ==========
 
--- 0038_retire_factory_role.sql
---
--- The last step of removing factory accounts: drops everything that only
--- existed to serve them, and closes the transitional allowances the earlier
--- migrations carried so they'd be correct for both the old and new builds.
---
--- RUN THIS LAST, and only once all of the following are true:
---   1. migrations 0033-0037 have been applied
---   2. the app build without /factory is live
---   3. `delete from public.profiles where role = 'factory';` has been run
---
--- The guard below enforces (3) rather than trusting it: dropping the factory
--- RLS policies while a factory account still exists would leave that account
--- signed in with no policy governing what it can read.
-
 do $$
 declare
   v_remaining integer;
@@ -1524,33 +2534,20 @@ begin
       '(delete from public.profiles where role = ''factory'';) and make sure the '
       'app build without /factory is live. Nothing has been changed.', v_remaining;
   end if;
-end $$;
+end$$;
 
--- ── the factory dashboard's view ────────────────────────────────────────
--- Only ever read by the factory screens, which no longer exist.
 drop view if exists public.factory_orders_view;
 
--- ── factory RLS policies ────────────────────────────────────────────────
--- No account can hold this role any more, so these can never match.
 drop policy if exists orders_select_factory on public.orders;
 drop policy if exists order_history_select_factory on public.order_history;
 
--- This one let an assigned driver read the factory's address off its profile
--- row. Drivers now read that from public.factories, which has its own policy
--- (migration 0033), so this is obsolete rather than merely dormant.
 drop policy if exists profiles_select_factory_for_assigned_driver on public.profiles;
 
--- ── a Moderator's editable rows ─────────────────────────────────────────
--- Was role in ('driver','factory'); with factory accounts gone it is drivers.
 drop policy if exists profiles_update_moderator on public.profiles;
 create policy profiles_update_moderator on public.profiles
   for update using (public.current_user_role() = 'moderator' and role = 'driver')
   with check (public.current_user_role() = 'moderator' and role = 'driver');
 
--- ── close the transitional allowances ───────────────────────────────────
--- 0034 let a factory account keep pressing these so it wouldn't break between
--- that migration and the deploy that removed its screens. That window is
--- closed. Bodies are otherwise identical to 0034.
 create or replace function public.factory_confirm_receipt(p_order_id uuid)
 returns void
 language plpgsql
@@ -1626,9 +2623,6 @@ begin
 end;
 $$;
 
--- The factory branch here can never be true again (nothing can be an
--- assigned_factory_id and a profile id at once now that factories are their
--- own table). Same signature, so this is a plain replace.
 create or replace function public.can_read_order_channel(
   p_order_id uuid,
   p_channel text,
@@ -1650,12 +2644,6 @@ as $$
   );
 $$;
 
--- ── make the role unreachable for new accounts ──────────────────────────
--- Postgres has no ALTER TYPE ... DROP VALUE, and the value must stay anyway:
--- order_history.actor_role and order_messages.sender_role still hold it for
--- work done while factories were accounts, and those records have to keep
--- rendering. This constraint makes it impossible to create another one by
--- accident, which is the part that actually matters.
 alter table public.profiles drop constraint if exists profiles_role_not_factory;
 alter table public.profiles add constraint profiles_role_not_factory check (role <> 'factory');
 
@@ -1668,87 +2656,19 @@ comment on type public.user_role is
 
 -- ========== supabase/migrations/0039_report_performance.sql ===========
 
--- 0039_report_performance.sql
---
--- Pure performance migration. No new columns, no new permissions, no
--- behavior change: monthly_report returns exactly the same row for the same
--- input as the version it replaces (verified by diffing both versions'
--- output over seven months of seeded data, including empty months so the
--- NULL branches were exercised). It is safe to apply before or after the
--- matching app deploy, because the app does not change at all.
---
--- Scope note: an earlier draft of this migration also replaced
--- is_order_delayed(o public.orders) with a scalar (status, created_at)
--- overload, on the theory that a composite-argument SQL function can't be
--- inlined and therefore blocks index use. That was measured against
--- Postgres 16 and is simply false — the planner inlines the row-typed form
--- too, producing a byte-identical plan (same Bitmap Index Scan, same
--- Recheck Cond with the function expanded away). The overload was dropped
--- from this migration rather than shipped on a rationale that doesn't hold.
--- What actually made "which orders are late" an index scan is the partial
--- index below, nothing else.
-
--- ── indexes ─────────────────────────────────────────────────────────────
-
--- Open (non-terminal) orders only. Delivered/cancelled/refused orders are
--- the ones that accumulate forever and can never be late, so keeping them
--- out means this index stays roughly the size of the active workload no
--- matter how long the business runs.
---
--- This is the one with the large measured effect. Benchmarked on a seeded
--- 60,400-order table with 220 still open, delayed_orders_report's predicate
--- went from a sequential scan reading all 60,400 rows to a bitmap index
--- scan reading 217 (18 heap blocks). The gap widens over time, because the
--- rows this index deliberately never stores are exactly the ones that
--- accumulate forever.
 create index if not exists orders_open_created_at_idx
   on public.orders (created_at)
   where status not in ('delivered', 'cancelled', 'refused');
 
--- The driver app's list is "my orders, newest first". This index does
--- nothing on its own — measured, the planner reads the same 1,334 rows and
--- sorts them either way — and only pays off once the query is also bounded,
--- which is the matching app change (listMyDriverOrders gained a .limit()).
--- With both: 1,334 rows plus a top-N sort becomes an ordered index scan of
--- exactly the 100 rows asked for. Neither half is worth much alone, which
--- is why they ship together.
 create index if not exists orders_driver_created_at_idx
   on public.orders (assigned_driver_id, created_at desc);
 
--- Same shape for the staff order list. Honest scope: this is the smallest
--- of the three. For a common status the planner already did well off
--- orders_created_at_idx (25 rows read, no help needed); this one earns its
--- place on *narrow* statuses, where it removes the sort, and on a status
--- filter combined with a date range.
 create index if not exists orders_status_created_at_idx
   on public.orders (status, created_at desc);
 
--- The two single-column indexes are now redundant: an index on (a, b)
--- serves every lookup an index on (a) served, because a is the leading
--- column. Keeping both would mean every order INSERT and every lifecycle
--- UPDATE maintains four index entries where two will do — and orders are
--- updated several times each as they move through the workflow, so this is
--- write cost on the hottest path in the system.
 drop index if exists public.orders_driver_idx;
 drop index if exists public.orders_status_idx;
 
--- ── monthly_report: eight scans of `orders` collapsed into one ──────────
---
--- The previous version counted two totals into variables and then ran six
--- more independent subqueries inside the RETURN, every one of them walking
--- the same rows of `orders` over again to produce a single output row.
--- Measured on the seeded data: 23 scans of `orders` for one call, down to 2.
---
--- This version reads the two months once — as a single range the created_at
--- index can serve — and splits current from previous with FILTER clauses.
--- v_prev_end was always exactly v_start, so "created_at < v_start" inside
--- the scanned range is precisely the previous month; no row can fall in
--- both halves or in neither.
---
--- Return values are unchanged, including every NULL case: avg over no
--- delivered orders is still NULL, on_time_rate over no delivered orders is
--- still NULL via nullif, and orders_change_percent is still NULL when the
--- previous month was empty.
 create or replace function public.monthly_report(p_month date default current_date)
 returns table (
   total_orders bigint,
@@ -1815,41 +2735,12 @@ begin
 end;
 $$;
 
--- CREATE OR REPLACE preserves existing grants, but these are re-stated so a
--- database freshly built from this chain ends up identical to an upgraded one.
 revoke all on function public.monthly_report(date) from public;
 grant execute on function public.monthly_report(date) to authenticated;
 
 
 -- ========== supabase/migrations/0040_push_subscriptions_and_manager_factories.sql 
 
--- 0040_push_subscriptions_and_manager_factories.sql
---
--- Groundwork for phone push notifications. Two new tables, their RLS, and
--- the RPCs that write them. Nothing in this migration sends anything or
--- changes any existing behavior — the dispatch trigger is 0041, and the app
--- ignores both tables until it is deployed. Safe to apply at any time.
---
--- Push here is the browser's own Web Push (the W3C standard, VAPID keys),
--- not Firebase. On the web, Firebase Cloud Messaging is a wrapper around
--- this same API — same browsers, same permission prompt, same iOS
--- restriction — so going direct costs nothing in reach and keeps device
--- endpoints in this database rather than a third party's.
-
--- ── who a manager covers ────────────────────────────────────────────────
---
--- Until now nothing linked a person to a factory. Orders have
--- assigned_factory_id; managers had no factory of their own, and
--- notify_staff/notify_role fan out to every active manager unconditionally.
---
--- This table does NOT change that. Managers still see every order and still
--- get every in-app notification — that was a deliberate product decision
--- and it stands. This is narrower: it decides whose *phone* rings for a
--- chat message. The bell stays the complete record; the push is only for
--- work that is yours.
---
--- A manager may cover several factories, and a factory may be covered by
--- several managers, hence a join table rather than a column on profiles.
 create table if not exists public.manager_factories (
   manager_id uuid not null references public.profiles (id) on delete cascade,
   factory_id uuid not null references public.factories (id) on delete cascade,
@@ -1857,55 +2748,26 @@ create table if not exists public.manager_factories (
   primary key (manager_id, factory_id)
 );
 
--- The lookup this exists for runs in the other direction — "given this
--- order's factory, whose phone rings" — and the primary key's leading
--- column is manager_id, so it cannot serve that.
 create index if not exists manager_factories_factory_idx
   on public.manager_factories (factory_id);
 
 alter table public.manager_factories enable row level security;
 
--- Readable by any signed-in staff member: the Team page shows each
--- manager's coverage the same way it shows a driver's regions, and there is
--- nothing sensitive in "which workshop does this person watch".
 drop policy if exists manager_factories_select on public.manager_factories;
 create policy manager_factories_select on public.manager_factories
   for select to authenticated using (public.is_owner_or_moderator());
 
--- No insert/update/delete policy on purpose. Writes go through
--- set_manager_factories() below, which is security definer and carries the
--- owner-only check. A table with no write policy fails closed.
-
 grant select on public.manager_factories to authenticated;
 
--- ── a device that agreed to be notified ─────────────────────────────────
---
--- One row per browser-on-one-device that has granted permission. A person
--- can have several (phone and laptop), and the same phone reinstalling the
--- app produces a new endpoint rather than reusing the old one, which is why
--- endpoint — not user_id — is the unique key.
---
--- p256dh and auth are the subscription's own encryption keys, handed over
--- by the browser. They are useless without the matching VAPID private key,
--- which lives in the server environment and never in this database.
 create table if not exists public.push_subscriptions (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references public.profiles (id) on delete cascade,
-  -- The push service URL the browser gave us. Unique because re-subscribing
-  -- on the same device returns the same endpoint, and inserting a second
-  -- row for it would mean sending every notification twice.
   endpoint text not null unique,
   p256dh text not null,
   auth text not null,
-  -- Purely for the "which of my devices is this?" list and for support
-  -- questions ("it works on my phone but not the tablet").
   user_agent text,
   created_at timestamptz not null default now(),
   last_success_at timestamptz,
-  -- Push services return 404/410 for an endpoint that is gone for good
-  -- (app uninstalled, permission revoked). The dispatcher deletes those
-  -- outright; this counts the soft failures, so a persistently broken
-  -- endpoint can be spotted rather than retried forever.
   failure_count integer not null default 0
 );
 
@@ -1914,9 +2776,6 @@ create index if not exists push_subscriptions_user_idx
 
 alter table public.push_subscriptions enable row level security;
 
--- Strictly your own devices. Nobody reads anyone else's endpoint through
--- the API — the dispatcher reads them server-side with the service role,
--- which is the only context that ever needs to see another person's.
 drop policy if exists push_subscriptions_select_own on public.push_subscriptions;
 create policy push_subscriptions_select_own on public.push_subscriptions
   for select to authenticated using (user_id = auth.uid());
@@ -1927,17 +2786,6 @@ create policy push_subscriptions_delete_own on public.push_subscriptions
 
 grant select, delete on public.push_subscriptions to authenticated;
 
--- ── register / forget a device ──────────────────────────────────────────
---
--- Inserts go through this rather than a policy so user_id is taken from
--- auth.uid() and cannot be supplied by the caller — no client can register
--- a device against someone else's account and start receiving their
--- notifications.
---
--- Re-registering the same endpoint updates it in place (the browser can
--- rotate the keys on an existing endpoint), and re-points it at the current
--- user: a shared device where one driver signs out and another signs in
--- must ring for whoever is actually signed in now, not the previous person.
 create or replace function public.save_push_subscription(
   p_endpoint text,
   p_p256dh text,
@@ -1960,8 +2808,6 @@ begin
      or coalesce(trim(p_auth), '') = '' then
     raise exception 'بيانات الاشتراك غير مكتملة' using errcode = '22023';
   end if;
-  -- A push endpoint is a URL from the browser vendor's push service. Bound
-  -- so a client can't park arbitrary amounts of data in this table.
   if length(p_endpoint) > 2000 or length(p_p256dh) > 500 or length(p_auth) > 500 then
     raise exception 'بيانات الاشتراك غير صالحة' using errcode = '22023';
   end if;
@@ -1977,9 +2823,6 @@ begin
 end;
 $$;
 
--- Turning notifications off. Scoped to the caller's own rows on top of the
--- delete policy — belt and braces, because this one is easy to get wrong
--- and the failure mode is silently unsubscribing someone else's phone.
 create or replace function public.delete_push_subscription(p_endpoint text)
 returns void
 language plpgsql
@@ -1997,14 +2840,6 @@ begin
 end;
 $$;
 
--- ── set a manager's factories ───────────────────────────────────────────
---
--- Owner-only, matching update_staff_profile and set_driver_regions_by_name
--- (0037): deciding who is accountable for a workshop is a management
--- decision, not a moderator one.
---
--- Replaces the whole set rather than adding one at a time, so the UI can
--- send what the checkboxes currently say without having to diff.
 create or replace function public.set_manager_factories(
   p_manager_id uuid,
   p_factory_ids uuid[]
@@ -2027,23 +2862,10 @@ begin
   if v_target is null then
     raise exception 'الحساب غير موجود';
   end if;
-  -- Drivers are covered by regions, not factories. Allowing a driver row
-  -- here would create coverage that nothing reads and that looks, in the
-  -- database, exactly like a real assignment.
   if v_target.role not in ('owner', 'moderator') then
     raise exception 'التغطية بالمصانع للمديرين فقط';
   end if;
 
-  -- Fail loudly on an id that isn't a factory rather than silently storing
-  -- fewer rows than the caller asked for.
-  --
-  -- The alias here is load-bearing. Written as `unnest(v_ids) as id`, the
-  -- `id` inside the subquery binds to factories.id — the inner scope wins —
-  -- so the test reads `f.id = f.id`, is true for every row, and the check
-  -- silently never fires. It was written that way first; the foreign key
-  -- still refused the bad row, so the data stayed correct, but the caller
-  -- got a raw constraint violation instead of this message. Naming the
-  -- column t(fid) makes the reference unambiguous.
   select count(*) into v_unknown
     from unnest(v_ids) as t(fid)
    where not exists (select 1 from public.factories f where f.id = t.fid);
@@ -2061,17 +2883,6 @@ begin
 end;
 $$;
 
--- ── bookkeeping for devices that didn't answer ──────────────────────────
---
--- Called only by the dispatcher (service role), which is why there is no
--- grant to `authenticated`: nothing a browser does should be able to mark
--- anyone's device as failing. Kept as an RPC rather than a client-side loop
--- so a batch of failures is one round trip instead of one per device.
---
--- Endpoints the push service says are gone for good are deleted outright by
--- the dispatcher; this counts only the soft failures — offline, timed out,
--- push service having a bad day — so a device that is permanently broken can
--- be told apart from one whose owner is on the metro.
 create or replace function public.increment_push_failures(p_ids uuid[])
 returns void
 language sql
@@ -2096,70 +2907,6 @@ grant execute on function public.set_manager_factories(uuid, uuid[]) to authenti
 
 -- ========== neon/migrations/0041_push_dispatch_trigger.neon.sql =======
 
--- neon/migrations/0041_push_dispatch_trigger.neon.sql
---
--- A byte-for-byte copy of supabase/migrations/0041_push_dispatch_trigger.sql
--- with EXACTLY ONE line changed: the `create extension pg_net` at the top is
--- commented out. Nothing else differs — diff the two files and you should see
--- that one hunk and nothing more.
---
--- WHY A COPY RATHER THAN AN EDIT TO THE ORIGINAL
---
--- supabase/migrations/ stays the single source of truth for both databases,
--- so a migration written next month does not have to be written twice and
--- cannot drift between them. 0000_prelude.sql absorbs every other
--- Supabase-ism by providing a stand-in — the auth schema, the PostgREST
--- roles, and a net.http_post() with pg_net's exact signature that queues to
--- public.push_outbox instead of opening a socket. `create extension`,
--- though, cannot be faked: Postgres looks for a control file on the server's
--- filesystem, which a managed host does not let you put there, so the
--- statement fails with `extension "pg_net" is not available` no matter what
--- else exists. This one file is the whole cost of that.
---
--- Apply this INSTEAD OF the original, in the same position in the order.
--- Everything it defines that matters on Neon — should_push_notification()
--- and the trigger — is unchanged. The dispatch function defined further down
--- is the pg_net version, and it is replaced wholesale by migration 0042
--- immediately afterwards, which is why removing the extension changes no
--- behaviour: the only body that survives the chain reads its endpoint from
--- public.app_settings and calls net.http_post(), which on this database is
--- the outbox writer.
-
--- 0041_push_dispatch_trigger.sql
---
--- Turns an in-app notification into a phone notification.
---
--- Why a trigger on `notifications` rather than a call inside each RPC:
--- every notification in this system already funnels through notify_user(),
--- which is a plain insert into this one table. Hooking the table catches
--- every path at once — single approval, bulk approval, reassignment, and
--- the cascade when a driver is deleted — without touching any workflow RPC
--- and without a second copy of the fan-out rules that could drift from the
--- first. Adding push to a new event later means picking a type string, not
--- editing another function.
---
--- This migration is inert until configured. It reads the endpoint URL and
--- shared secret from database settings that are deliberately NOT in this
--- file (see the bottom) — with either missing, the trigger returns quietly
--- and the app behaves exactly as it does today. Applying it before the
--- deploy is safe.
-
--- pg_net gives Postgres an async HTTP client. The call queues a request and
--- returns immediately, so the notification insert never waits on the
--- network, and the queue is transactional — a rolled-back transaction takes
--- its queued push with it rather than announcing something that never
--- happened.
--- No `with schema` clause: pg_net is not relocatable — it always installs
--- into its own `net` schema, and naming a different one is an error rather
--- than a preference.
--- create extension if not exists pg_net;  -- see the header: not available on Neon;
--- 0000_prelude.sql provides net.http_post() with the same signature instead.
-
--- ── who should this one ring? ───────────────────────────────────────────
---
--- Kept as its own function rather than inlined into the trigger so the rule
--- can be read, tested, and changed on its own. Returns true if this
--- specific notification row should become a push.
 create or replace function public.should_push_notification(n public.notifications)
 returns boolean
 language plpgsql
@@ -2173,32 +2920,17 @@ declare
 begin
   select role into v_role from public.profiles
    where id = n.user_id and is_active;
-  -- Deactivated, or the account is gone: nothing to ring.
   if v_role is null then return false; end if;
 
-  -- An order landing in a driver's list is the one thing they must not miss
-  -- — it is the whole reason they open the app. Always pushed, to the one
-  -- driver it was addressed to.
   if n.type = 'order_assigned' then
     return true;
   end if;
 
   if n.type = 'chat_message' then
-    -- The driver's side of the conversation. Pushing only the manager's
-    -- side would make this half a feature: the manager's phone rings when
-    -- the driver writes, and the driver never learns they were answered.
     if v_role = 'driver' then
       return true;
     end if;
 
-    -- The manager's side, and the only place factory coverage is consulted
-    -- anywhere in this system. Managers keep seeing every chat in the bell
-    -- — that stays deliberately unscoped — but a phone only rings for a
-    -- workshop that manager actually covers.
-    --
-    -- A manager with no factories assigned gets no chat pushes at all. That
-    -- is the honest consequence of an empty assignment rather than a
-    -- special case, and the Team page says so where the assignment is made.
     if v_role in ('owner', 'moderator') then
       if n.order_id is null then return false; end if;
       select assigned_factory_id into v_factory
@@ -2214,15 +2946,10 @@ begin
     return false;
   end if;
 
-  -- Everything else — collected, delivered, refused, cancelled,
-  -- needs_allocation and the rest — stays in-app only. They are a record to
-  -- read when you next look, not a reason to buzz someone's pocket. Adding
-  -- one is a matter of naming its type above.
   return false;
 end;
 $$;
 
--- ── the trigger ─────────────────────────────────────────────────────────
 create or replace function public.dispatch_push_notification()
 returns trigger
 language plpgsql
@@ -2233,8 +2960,6 @@ declare
   v_url text := nullif(current_setting('app.push_endpoint_url', true), '');
   v_secret text := nullif(current_setting('app.push_webhook_secret', true), '');
 begin
-  -- Not configured yet, or deliberately switched off by unsetting either
-  -- value. No push, no error, no effect on the notification itself.
   if v_url is null or v_secret is null then
     return null;
   end if;
@@ -2243,10 +2968,6 @@ begin
     return null;
   end if;
 
-  -- Only the row id crosses the wire. The dispatcher reads the notification
-  -- and the recipient's devices itself, so there is exactly one copy of the
-  -- message text (the row already in this table) and the request body
-  -- carries nothing worth intercepting on its own.
   perform net.http_post(
     url := v_url,
     body := jsonb_build_object('notification_id', new.id),
@@ -2259,10 +2980,6 @@ begin
 
   return null;
 exception when others then
-  -- Push is best effort; the bell is the durable record. A broken endpoint,
-  -- a missing extension, or a malformed setting must never stop an order
-  -- being assigned or a message being sent — without this the whole
-  -- workflow RPC would roll back on a networking problem.
   raise warning 'push dispatch skipped for notification %: %', new.id, sqlerrm;
   return null;
 end;
@@ -2276,40 +2993,9 @@ create trigger dispatch_push_on_notification
 revoke all on function public.should_push_notification(public.notifications) from public;
 revoke all on function public.dispatch_push_notification() from public;
 
--- ── configuration, which is NOT in this file ────────────────────────────
---
--- Credentials do not belong in a git-tracked migration. Run these once, by
--- hand, against the live database, substituting your own values:
---
---   alter database postgres
---     set app.push_endpoint_url = 'https://<your-domain>/api/push/dispatch';
---   alter database postgres
---     set app.push_webhook_secret = '<the same value as PUSH_WEBHOOK_SECRET
---                                     in the app environment>';
---
--- They take effect on new connections, so give it a moment (or restart the
--- project) before testing. To switch push off entirely without reverting
--- anything:
---
---   alter database postgres reset app.push_webhook_secret;
 
 
 -- ========== supabase/migrations/0042_push_settings_table.sql ==========
-
--- 0042_push_settings_table.sql
---
--- Fixes how 0041 stores its two configuration values.
---
--- 0041 read them from `current_setting('app.push_endpoint_url')`, to be set
--- once by hand with `alter database postgres set ...`. That does not work on
--- Supabase: setting a custom parameter at database level requires superuser,
--- and Supabase's `postgres` role is not one. The statement fails outright
--- with 42501, so the configuration step was impossible as written.
---
--- A table instead. It also travels: `alter database ... set` and Supabase
--- Vault are both tied to how a particular provider grants privileges,
--- whereas this is ordinary SQL that replays anywhere — which matters given
--- the Neon migration in `neon/`.
 
 create table if not exists public.app_settings (
   key text primary key,
@@ -2317,18 +3003,6 @@ create table if not exists public.app_settings (
   updated_at timestamptz not null default now()
 );
 
--- Belt and braces, in this order of strictness:
---
--- 1. No grants. PostgREST connects as `authenticator` and switches to
---    `anon`/`authenticated`; with no grant on this table, neither role can
---    reach it at all. This is the real boundary — not a policy that could be
---    loosened later by a broad `grant ... on all tables`.
--- 2. RLS on with no policy, so even if a grant were added by accident the
---    table still returns nothing and accepts nothing.
---
--- The trigger function reads it as its definer (the table owner), which is
--- not subject to RLS — deliberately not `force row level security`, since
--- that would lock the owner out too and break the very thing this exists for.
 alter table public.app_settings enable row level security;
 
 revoke all on public.app_settings from anon, authenticated;
@@ -2336,10 +3010,6 @@ revoke all on public.app_settings from anon, authenticated;
 comment on table public.app_settings is
   'Server-side configuration read only by security-definer functions. Never exposed to the API: no grants to anon/authenticated. Holds the push endpoint URL and webhook secret — see 0041/0042.';
 
--- ── the trigger, re-pointed at the table ────────────────────────────────
---
--- Identical to 0041 in every other respect: same filter, same payload, same
--- exception handling. Only the two lines that fetch the configuration change.
 create or replace function public.dispatch_push_notification()
 returns trigger
 language plpgsql
@@ -2353,8 +3023,6 @@ begin
   select value into v_url from public.app_settings where key = 'push_endpoint_url';
   select value into v_secret from public.app_settings where key = 'push_webhook_secret';
 
-  -- Not configured yet, or deliberately switched off by deleting either row.
-  -- No push, no error, no effect on the notification itself.
   if coalesce(v_url, '') = '' or coalesce(v_secret, '') = '' then
     return null;
   end if;
@@ -2363,9 +3031,6 @@ begin
     return null;
   end if;
 
-  -- Only the row id crosses the wire. The dispatcher reads the notification
-  -- and the recipient's devices itself, so there is exactly one copy of the
-  -- message text (the row already in this table).
   perform net.http_post(
     url := v_url,
     body := jsonb_build_object('notification_id', new.id),
@@ -2378,9 +3043,6 @@ begin
 
   return null;
 exception when others then
-  -- Push is best effort; the bell is the durable record. A broken endpoint,
-  -- a missing extension, or a malformed setting must never stop an order
-  -- being assigned or a message being sent.
   raise warning 'push dispatch skipped for notification %: %', new.id, sqlerrm;
   return null;
 end;
@@ -2388,59 +3050,16 @@ $$;
 
 revoke all on function public.dispatch_push_notification() from public;
 
--- ── configuration, which is NOT in this file ────────────────────────────
---
--- Credentials do not belong in a git-tracked migration. Run this once, by
--- hand, in the SQL editor, substituting your own values:
---
---   insert into public.app_settings (key, value) values
---     ('push_endpoint_url', 'https://<your-domain>/api/push/dispatch'),
---     ('push_webhook_secret', '<the same value as PUSH_WEBHOOK_SECRET in the
---                               app environment>')
---   on conflict (key) do update set value = excluded.value, updated_at = now();
---
--- Unlike the database-level parameter this replaces, it takes effect on the
--- very next notification — no waiting for connections to recycle.
---
--- To switch push off entirely without reverting anything:
---
---   delete from public.app_settings where key = 'push_webhook_secret';
 
 
 -- ========== supabase/migrations/0043_moderator_notifications_delivered_only.sql 
 
--- 0043_moderator_notifications_delivered_only.sql
---
--- A Moderator's bell now carries one thing: an order was delivered.
---
--- Until now they received eleven types — collected, heading to factory, left
--- factory, factory received, ready for pickup, delivered, refused, cancelled,
--- driver reassigned, factory reassigned, and needs_allocation. All of it came
--- through notify_staff(), which fans out to every active owner and moderator
--- with no distinction between them, so this is one change rather than eleven
--- call sites edited.
---
--- Several of those were never actionable for a Moderator anyway:
--- needs_allocation asks someone to allocate an order, and allocation has been
--- Manager-only at the database level since 0035; driver_reassigned and
--- factory_reassigned report a decision only a Manager can make. They were
--- noise in the one place that is supposed to mean "something needs you".
---
--- Not affected: new_order and chat_message already went to owners only
--- (notify_role('owner')), and a Manager's bell is unchanged in every respect.
-
--- Which notification types reach a Moderator. A function rather than a
--- literal inside notify_staff so there is one obvious place to look, and one
--- line to change if another type ever earns a Moderator's attention.
 create or replace function public.moderator_notification_types()
 returns text[]
 language sql
 immutable
-as $$ select array['order_delivered'] $$;
+as $$ select array['order_delivered']$$;
 
--- notify_staff, with the one added condition. Everything else — the active
--- check, the p_exclude that keeps the person who acted from being told about
--- their own action, the delegation to notify_user — is unchanged from 0019.
 create or replace function public.notify_staff(
   p_order_id uuid,
   p_type text,
@@ -2460,11 +3079,6 @@ begin
     select id from public.profiles
     where role in ('owner', 'moderator') and is_active
       and (p_exclude is null or id <> p_exclude)
-      -- Managers get everything, as before. Moderators get only the types
-      -- listed above. Written this way round on purpose: a new notification
-      -- type added later reaches Managers automatically and Moderators only
-      -- if someone deliberately adds it, which is the safer default for the
-      -- role with the narrower job.
       and (role = 'owner' or p_type = any (public.moderator_notification_types()))
   loop
     perform public.notify_user(v_user.id, p_order_id, p_type, p_title, p_body);
@@ -2475,23 +3089,45 @@ $$;
 revoke all on function public.notify_staff(uuid, text, text, text, uuid) from public;
 revoke all on function public.moderator_notification_types() from public;
 
--- ── the ones already sitting in their bells ─────────────────────────────
---
--- The change above stops new ones being written; it does nothing about what
--- is already there, and a Moderator opening the bell would still see months
--- of the types they are no longer meant to get.
---
--- Deleting is safe here specifically because notifications are not the
--- record. Every one of these events is written to order_history by
--- log_order_event() in the same transaction, and that is what the order
--- timeline and every report read. A notification is a nudge that something
--- happened; the history is the fact that it did. Nothing auditable is lost.
---
--- Scoped to moderators and to types that are no longer sent, so a Manager's
--- bell is untouched and a Moderator keeps every delivered notification they
--- already had.
 delete from public.notifications n
  using public.profiles p
  where p.id = n.user_id
    and p.role = 'moderator'
    and not (n.type = any (public.moderator_notification_types()));
+
+
+-- ========== supabase/migrations/0045_field_orders_enum_and_creator.sql 
+
+alter type public.order_source add value if not exists 'driver_field';
+
+alter table public.orders add column if not exists created_by_name text;
+alter table public.orders add column if not exists created_by_role public.user_role;
+
+update public.orders o
+   set created_by_name = p.full_name,
+       created_by_role = p.role
+  from public.profiles p
+ where p.id = o.created_by
+   and o.created_by_name is null;
+
+create or replace function public.stamp_order_creator_name()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if new.created_by is not null then
+    select full_name, role into new.created_by_name, new.created_by_role
+      from public.profiles where id = new.created_by;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists stamp_order_creator on public.orders;
+create trigger stamp_order_creator
+  before insert on public.orders
+  for each row execute function public.stamp_order_creator_name();
+
+revoke all on function public.stamp_order_creator_name() from public;

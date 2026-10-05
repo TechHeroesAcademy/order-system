@@ -1,6 +1,3 @@
--- 0010_reporting_and_views.sql
--- Factory-safe view (no customer PII) + Owner reporting/analytics RPCs.
-
 create or replace view public.factory_orders_view
 with (security_invoker = false) as
 select
@@ -22,9 +19,6 @@ left join public.profiles p on p.id = o.assigned_driver_id
 where o.status in ('collected', 'at_factory', 'ready')
   and public.current_user_role() in ('factory', 'owner', 'moderator');
 
--- (grant select on this view to authenticated is in 0011_table_grants.sql)
-
--- Owner dashboard summary cards.
 create or replace function public.dashboard_stats()
 returns table (
   total_orders bigint,
@@ -63,10 +57,6 @@ begin
 end;
 $$;
 
--- Daily report for a given day (defaults to today).
--- Return type changed once during development (extra in-factory/ready/exited
--- columns were added) — CREATE OR REPLACE can't change a function's return
--- type, so this drops it first to stay safely re-runnable.
 drop function if exists public.daily_report(date);
 
 create function public.daily_report(p_day date default current_date)
@@ -101,9 +91,6 @@ begin
 end;
 $$;
 
--- Monthly report for the month containing p_month (defaults to current
--- month), including a month-over-month comparison. Same drop-first note as
--- daily_report above.
 drop function if exists public.monthly_report(date);
 
 create function public.monthly_report(p_month date default current_date)
@@ -157,16 +144,6 @@ begin
 end;
 $$;
 
--- Per-driver performance.
--- Defined in 0013_driver_reassignment_and_login.sql instead of here: its
--- return type changed once already (an on_time_rate column was added), and
--- CREATE OR REPLACE can't change a function's return type — same
--- drop-and-recreate hazard as daily_report/monthly_report above, so it gets
--- the same fix, which is to have exactly one file define it. Defining it a
--- second time here (even identically) would recreate that hazard the next
--- time either file changes.
-
--- Currently delayed orders, with enough context for the Owner to act.
 create or replace function public.delayed_orders_report()
 returns table (
   id uuid,
@@ -197,7 +174,6 @@ begin
 end;
 $$;
 
--- Most-requested regions.
 create or replace function public.top_regions_report()
 returns table (region_name text, order_count bigint)
 language plpgsql
@@ -216,9 +192,6 @@ begin
 end;
 $$;
 
--- driver_performance_report's own revoke/grant now live in 0013 alongside
--- its definition (see the comment above) — it doesn't exist yet at this
--- point on a fresh run, so granting on it here would fail.
 revoke all on function public.dashboard_stats() from public;
 revoke all on function public.daily_report(date) from public;
 revoke all on function public.monthly_report(date) from public;

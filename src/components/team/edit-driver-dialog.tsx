@@ -20,18 +20,6 @@ import { RegionTagsInput } from "./region-tags-input";
 import { updateStaffProfileAction, setDriverRegionsAction } from "@/lib/actions/admin";
 import type { Region } from "@/types/database";
 
-/**
- * Editing a driver — name and the areas they cover, in one place, which is
- * how a manager thinks about it. Manager-only; the two RPCs behind it refuse
- * anyone else regardless of what this renders.
- *
- * The phone number is shown but not editable: it's how the driver signs in,
- * so changing it changes their login and is a bigger job than a detail edit.
- *
- * Correcting the name also corrects it on their past orders — those carry a
- * snapshot of the name (migration 0032), and fixing it in one place while
- * leaving it wrong everywhere it's actually read wouldn't be much of a fix.
- */
 export function EditDriverButton({
   driverId,
   fullName,
@@ -72,8 +60,6 @@ export function EditDriverButton({
     setError(null);
 
     startTransition(async () => {
-      // Only touch the name if it actually changed, so saving an unchanged
-      // dialog doesn't rewrite every order this driver ever had.
       if (trimmed !== fullName) {
         const res = await updateStaffProfileAction(driverId, trimmed);
         if (!res.ok) {
@@ -97,8 +83,6 @@ export function EditDriverButton({
       onSaved(trimmed);
       setOpen(false);
       toast.success("تم تحديث بيانات المندوب");
-      // A typed area name may have created a brand-new region — refresh so
-      // the list and this driver's areas stay in step with it.
       router.refresh();
     });
   }

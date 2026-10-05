@@ -15,12 +15,10 @@ import { formatRelative } from "@/lib/domain/format";
 import { markAllNotificationsReadAction, markNotificationReadAction } from "@/lib/actions/notifications";
 import type { AppNotification, UserRole } from "@/types/database";
 
-/** Where each role's own order-detail page lives — used to open the right screen when a notification carrying an order_id is clicked. */
 const ORDER_DETAIL_BASE: Record<UserRole, string> = {
   owner: "/owner/orders",
   moderator: "/moderator/orders",
   driver: "/driver/orders",
-  // retired role, kept only so the Record<UserRole, ...> stays exhaustive
   factory: "/login",
 };
 

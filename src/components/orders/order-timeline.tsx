@@ -20,10 +20,6 @@ export function OrderTimeline({ entries }: { entries: OrderHistoryEntry[] }) {
     <ol className="space-y-4">
       {entries.map((entry, idx) => {
         const isNegative = NEGATIVE_EVENTS.has(entry.event_type);
-        // Every row here already happened — it's a log of completed steps,
-        // not a plan of upcoming ones — so every non-negative entry gets the
-        // "done" checkmark, not just the most recent one ("the steps
-        // happened should be marked done with the right sign").
         const Icon = isNegative ? XCircle : CheckCircle2;
         return (
           <li

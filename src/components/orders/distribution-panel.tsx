@@ -26,7 +26,6 @@ export function DistributionPanel({
   orderId: string;
   assignedDriverId: string | null;
   assignedDriverName: string | null;
-  /** Owner only (migration 0024) — a Moderator can see the suggested/pending driver here but not pick or clear one. */
   canAssign: boolean;
   canApprove: boolean;
 }) {

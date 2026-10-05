@@ -1,18 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { extractLatLngFromMapsUrl } from "../maps";
 
-/**
- * A Google place URL carries TWO coordinate pairs and they are not the same
- * point:
- *
- *   .../place/Some+Factory/@29.9369844,30.9186728,764m/data=...!3d29.9369798!4d30.9212477
- *                           ^ where the camera was pointing     ^ where the place actually is
- *
- * In this real pasted link they sit about 250 m apart — enough to put a
- * factory on the wrong side of a road. The !3d/!4d pair must always win.
- * These tests exist so reordering the pattern list can never quietly swap
- * that preference.
- */
 const REAL =
   "https://www.google.com/maps/place/Misr+October+Industrial+Co.+-+MOIC/@29.9369844,30.9186728,764m/data=!3m2!1e3!4b1!4m6!3m5!1s0x145855c32380fb4f:0xf9e7e3cefa59edf7!8m2!3d29.9369798!4d30.9212477!16s%2Fg%2F11g6qrcb34?entry=ttu&g_ep=EgoyMDI2MDkyOC4wIKXMDSoASAFQAw%3D%3D";
 
@@ -22,7 +10,6 @@ describe("extractLatLngFromMapsUrl", () => {
     expect(r).not.toBeNull();
     expect(r!.lat).toBeCloseTo(29.9369798, 6);
     expect(r!.lng).toBeCloseTo(30.9212477, 6);
-    // Explicitly NOT the @ pair.
     expect(r!.lng).not.toBeCloseTo(30.9186728, 6);
   });
 
@@ -51,8 +38,6 @@ describe("extractLatLngFromMapsUrl", () => {
   });
 
   it("returns null for a short share link, which carries no coordinates at all", () => {
-    // These come from the phone's Share button and can only be resolved by
-    // following the redirect, which resolveMapsUrlCoordsAction does server-side.
     expect(extractLatLngFromMapsUrl("https://maps.app.goo.gl/PZ2h1nP7b8qLqKqW9")).toBeNull();
   });
 

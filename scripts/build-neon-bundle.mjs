@@ -1,35 +1,3 @@
-/**
- * Bundles the migration chain into a handful of files you can paste into
- * Neon's SQL Editor.
- *
- * WHY THIS EXISTS
- *
- * Setting up Neon means applying 50 migrations plus three Neon-specific
- * files. With psql that is a for-loop; in a browser SQL editor it is 53
- * copy-pastes, and the 30th one going in twice or out of order is a
- * genuinely hard problem to unpick. So this concatenates them into a few
- * parts, in the right order, with the substitutions already applied.
- *
- * TWO THINGS DECIDE WHERE THE SPLITS GO
- *
- * 1. A HARD boundary after migration 0045. It adds a value to the
- *    order_source enum, and Postgres refuses to let a later statement USE a
- *    new enum value in the same transaction — which is exactly what 0046
- *    does. A SQL editor runs a pasted script as one transaction, so these
- *    two cannot share a part. This is not a preference; combining them
- *    fails.
- *
- * 2. Size. Browser editors get unhappy past a few hundred KB, so the rest of
- *    the chain is split to keep each part under MAX_BYTES.
- *
- * The substitutions, which are the same ones the runbook describes:
- *   - 0041 is replaced by the pg_net-free variant (Neon has no pg_net)
- *   - 0044 is dropped (PostGIS region boundaries, from the cancelled Mapbox
- *     work; nothing references them)
- *
- * Regenerate after adding a migration:  node scripts/build-neon-bundle.mjs
- */
-
 import { readFileSync, writeFileSync, mkdirSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 
@@ -43,23 +11,13 @@ const chain = readdirSync("supabase/migrations")
   .sort()
   .flatMap((f) => {
     const n = num(f);
-    if (n === 44) return []; // dropped: see the header
+    if (n === 44) return [];
     if (n === 41) return ["neon/migrations/0041_push_dispatch_trigger.neon.sql"];
     return [join("supabase/migrations", f)];
   });
 
 const PRELUDE = "neon/migrations/0000_prelude.sql";
 
-/**
- * Every Neon-specific migration after the prelude, discovered rather than
- * listed. This file used to name 0001 and 0002 explicitly, and when 0003 was
- * added it was silently left out of the bundles — the same staleness that
- * made neon/README.md claim the chain stopped at 0032. A hardcoded list of
- * migrations is a list that goes out of date without telling anyone.
- *
- * The 0041 variant is excluded here because it is substituted INTO the
- * Supabase chain above, not appended after it.
- */
 const NEON_AFTER_PRELUDE = readdirSync("neon/migrations")
   .filter((f) => f.endsWith(".sql"))
   .filter((f) => f !== "0000_prelude.sql")
@@ -67,11 +25,9 @@ const NEON_AFTER_PRELUDE = readdirSync("neon/migrations")
   .sort()
   .map((f) => join("neon/migrations", f));
 
-/** The enum boundary. Everything from 0046 on must be a later transaction. */
 const beforeEnum = chain.filter((f) => num(f.split("/").pop()) <= 45);
 const afterEnum = chain.filter((f) => num(f.split("/").pop()) >= 46);
 
-/** Greedy split to keep each part paste-able. */
 function chunk(files) {
   const parts = [];
   let current = [];

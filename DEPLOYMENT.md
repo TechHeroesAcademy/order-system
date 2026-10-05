@@ -30,21 +30,20 @@ Scale-to-zero can stay on.
 
 ## 2. Create the tables
 
-Open **SQL Editor**. Run the six files in `neon/bundled/` in order — paste
+Open **SQL Editor**. Run the four files in `neon/bundled/` in order — paste
 one, run it, wait for it to finish, then the next.
 
 | | File | What it adds |
 |---|---|---|
-| 1 | `part1_of_6.sql` | roles, schemas, tables, the core order workflow |
-| 2 | `part2_of_6.sql` | chat, delivery/pickup codes, reports, region matching |
-| 3 | `part3_of_6.sql` | factories, bulk distribution, push subscriptions |
-| 4 | `part4_of_6.sql` | one migration, alone — see below |
-| 5 | `part5_of_6.sql` | driver field orders, repeat-customer check, the role-guard fix |
-| 6 | `part6_of_6.sql` | auth: passwords, login, throttling |
+| 1 | `part1_of_4.sql` | roles, schemas, tables, the core order workflow |
+| 2 | `part2_of_4.sql` | chat, codes, reports, region matching, factories, bulk distribution, push |
+| 3 | `part3_of_4.sql` | driver field orders, repeat-customer check, the role-guard fix |
+| 4 | `part4_of_4.sql` | auth: passwords, login, throttling |
 
-**Part 4 is alone deliberately.** It adds a value to the `order_source` enum,
-and Postgres will not let a later statement *use* a new enum value in the same
-transaction — which is exactly what part 5 does. A SQL editor runs your whole
+**The split between parts 2 and 3 is not cosmetic.** Part 2 ends by adding a
+value to the `order_source` enum, and Postgres will not let a later statement
+*use* a new enum value in the same transaction — which is exactly what part 3
+starts by doing. A SQL editor runs your whole
 paste as one transaction, so combining them fails. Every part is idempotent,
 so re-running one after losing your place is safe.
 

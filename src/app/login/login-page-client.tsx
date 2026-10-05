@@ -30,8 +30,6 @@ function LoginPageInner() {
 
   return (
     <main className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden p-6">
-      {/* Same professional photo background as the homepage, so signing in
-          doesn't feel like a bare, disconnected screen — see HeroBackground. */}
       <HeroBackground />
 
       <BrandLogoFull className="relative z-10 mb-6 h-20 w-auto drop-shadow-sm" />
@@ -54,13 +52,6 @@ function LoginPageInner() {
   );
 }
 
-/**
- * Two steps: enter phone number, then either create a password (first-ever
- * login) or enter the one already set — checkPhoneAction tells us which
- * without ever sending the account's real (internal, synthetic) email to
- * the browser. This is the only login path in the system — no email/password
- * form exists anywhere, including for the Owner (see /setup for bootstrap).
- */
 function PhoneLoginFlow() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -110,9 +101,6 @@ function PhoneLoginFlow() {
       return;
     }
     toast.success("تم إنشاء كلمة المرور وتسجيل الدخول");
-    // Straight to the role's own dashboard — the homepage no longer
-    // auto-redirects signed-in visitors (it always shows the main page now,
-    // per request), so login can't rely on "/" bouncing us there anymore.
     router.replace(searchParams.get("next") || `/${res.data.role}`);
     router.refresh();
   }

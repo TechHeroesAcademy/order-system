@@ -1,23 +1,4 @@
 // @vitest-environment node
-/**
- * The real DbClient, against a real database, asserting the three values
- * that were reported missing from the live system:
- *
- *   - the order number
- *   - the pickup code
- *   - the delivery code
- *
- * The sibling rpc-result-shape test checks the catalog predicate the fix
- * relies on. This one checks the thing the person actually sees: that after
- * creating an order, `data.order_number` is a string and not `undefined`.
- * Before the fix `data` was a one-element array, so all three were
- * undefined, every call site read them off the wrong object, and nothing
- * anywhere raised.
- *
- * Skipped unless DATABASE_URL is set:
- *
- *   DATABASE_URL=postgres://app_user:...@127.0.0.1:5432/neondb npx vitest run rpc-end-to-end
- */
 
 import { describe, it, expect, beforeAll } from "vitest";
 import { DbClient } from "../query-builder";
@@ -55,10 +36,6 @@ suite("rpc end to end: the order number and both codes", () => {
     if (row?.status === "ok" && row.profile_id) {
       ownerId = row.profile_id;
     } else {
-      // Already bootstrapped. Looking the owner up needs a role RLS does not
-      // apply to, because profiles_select_staff requires a session and we do
-      // not have one yet — a plain select returns zero rows and makes the
-      // whole suite look broken. (It did, the first time this was written.)
       if (!ADMIN) {
         throw new Error(
           "This database already has an owner; set ADMIN_DATABASE_URL to look it up, " +
@@ -118,8 +95,6 @@ suite("rpc end to end: the order number and both codes", () => {
 
   it("the order number is present and formatted", async () => {
     const data = await createOrder();
-    // The exact assertion that was failing in production, where this was
-    // undefined because `data` was `[{ order_number: "ORD-00001", ... }]`.
     expect(data.order_number).toMatch(/^ORD-\d{5}$/);
   });
 
@@ -146,7 +121,6 @@ suite("rpc end to end: the order number and both codes", () => {
     expect(pickup.error, pickup.error?.message).toBeNull();
     expect(pickup.data).toBe(data.pickup_code);
 
-    // The list page's batch call, which must agree with both.
     const batch = await owner.rpc<{ order_id: string; code: string }[]>(
       "get_order_delivery_codes",
       { p_order_ids: [data.order_id] },
@@ -180,8 +154,6 @@ suite("rpc end to end: the order number and both codes", () => {
     expect(typeof s.total_orders).toBe("number");
     expect(s.total_orders).toBeGreaterThan(0);
 
-    // The owner dashboard's "مع المندوبين" card, verbatim. As strings this
-    // produced "000".
     const withDrivers = s.assigned_orders + s.collected_orders + s.with_driver_orders;
     expect(typeof withDrivers).toBe("number");
     expect(Number.isNaN(withDrivers)).toBe(false);

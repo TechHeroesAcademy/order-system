@@ -35,30 +35,10 @@ export function OrderForm({
   showRegionHint = true,
 }: {
   regions: Region[];
-  /** Active factories, for the "route to factory" field below. */
   factories?: Factory[];
-  /**
-   * Whether picking a factory is mandatory before submitting. See
-   * createModeratorOrderAction. Ignored when showFactoryField is false.
-   */
   requireFactory?: boolean;
-  /**
-   * false hides the factory field entirely — used for the public/customer
-   * form, which never routes to a specific factory.
-   *
-   * There is no driver field here at all (as of migration 0027): the
-   * driver is always auto-suggested by region (create_order_internal),
-   * pending the Owner's approval from <DistributionPanel> — nobody, Owner
-   * included, picks a driver directly at order-creation time anymore.
-   */
   showFactoryField?: boolean;
   action: (values: OrderFormValues) => Promise<ActionResult<NewOrderResult>>;
-  /**
-   * The "this decides which driver gets suggested" note under المنطقة.
-   * Useful to a moderator, who is typing the area so the system can pick
-   * someone. Pointless to a driver creating their own order — the order is
-   * already theirs, so nothing is being suggested.
-   */
   showRegionHint?: boolean;
   submitLabel?: string;
 }) {
@@ -66,33 +46,11 @@ export function OrderForm({
   const [submitting, setSubmitting] = useState(false);
   const regionListId = useId();
 
-  /**
-   * The customer's previous orders, paired with the phone key they were
-   * looked up for. The key is stored alongside, not derived later: holding
-   * the history alone would leave a count on screen after the number is
-   * edited, and a stale count is worse than none — it would be confirming
-   * the wrong customer.
-   *
-   * Plain state rather than a ref, because the inline line below is rendered
-   * from it. (A ref read during render is exactly what React Compiler
-   * refuses to memoize, and this is the largest form in the app.)
-   */
   const [cached, setCached] = useState<{ key: string; history: CustomerOrderHistory } | null>(null);
   const [checking, setChecking] = useState(false);
   const [notice, setNotice] = useState<RepeatCustomerNotice | null>(null);
   const [pending, setPending] = useState<OrderFormValues | null>(null);
 
-  /**
-   * Looks the number up unless the answer for this exact number is already
-   * in hand. Returns null when the number is too short to identify anyone or
-   * the lookup fails — a convenience check that is unavailable must not stop
-   * an order being taken while the customer is on the line.
-   *
-   * Pressing submit before a blur-triggered lookup has come back repeats the
-   * query rather than waiting on it. One extra read of an indexed count, in
-   * exchange for not having to coordinate two callers around a shared
-   * in-flight promise.
-   */
   async function historyFor(phone: string): Promise<CustomerOrderHistory | null> {
     const key = phoneMatchKey(phone);
     if (!isPhoneLookupReady(phone)) return null;
@@ -107,17 +65,6 @@ export function OrderForm({
     return res.data;
   }
 
-  /**
-   * Fired when the phone field loses focus, so a repeat customer is shown
-   * under the field while the rest of the form is still being filled in
-   * rather than only at the end.
-   *
-   * The submit handler looks the number up again if it has to, so this is
-   * genuinely only an early hint — a number pasted into the field and
-   * submitted without it ever blurring (which is how the mandatory Maps link
-   * ended up with no coordinates) still gets checked before the order is
-   * created.
-   */
   function onPhoneBlur(phone: string) {
     void historyFor(phone);
   }
@@ -140,26 +87,14 @@ export function OrderForm({
     },
   });
 
-  /**
-   * The repeat-customer line shown under the phone field, once the number
-   * has been looked up. Recomputed from the typed name too, so correcting
-   * the name clears a name-mismatch warning without another round trip.
-   */
-  // useWatch, not form.watch(): watch() hands back a function, which makes
-  // React Compiler skip memoizing this whole component — and this is the
-  // largest form in the app. useWatch subscribes to the two fields and
-  // returns values, so the rest of the form stays memoized.
   const watchedPhone = useWatch({ control: form.control, name: "customer_phone" });
   const watchedName = useWatch({ control: form.control, name: "customer_name" });
   const inlineNotice = (() => {
-    // Only valid for the number it was fetched for. Editing the number drops
-    // the line rather than leaving a count that belongs to someone else.
     if (!cached || cached.key !== phoneMatchKey(watchedPhone ?? "")) return null;
     const built = buildRepeatCustomerNotice(cached.history, watchedName ?? "");
     return built.isRepeat ? built : null;
   })();
 
-  /** The actual create call, reached either directly or via the dialog. */
   async function submitOrder(values: OrderFormValues) {
     setSubmitting(true);
     const res = await action(values);
@@ -172,8 +107,6 @@ export function OrderForm({
 
     setResult(res.data);
     form.reset();
-    // A fresh form is a different customer; keeping the old history would
-    // make the next order's count wrong.
     setCached(null);
   }
 
@@ -184,9 +117,6 @@ export function OrderForm({
       return;
     }
 
-    // Looked up here and not only on blur, so a number that was pasted and
-    // submitted in one go is still checked. Awaited rather than fired off:
-    // the whole point is to ask before the order exists.
     const history = await historyFor(values.customer_phone);
     if (history) {
       const built = buildRepeatCustomerNotice(history, values.customer_name);
