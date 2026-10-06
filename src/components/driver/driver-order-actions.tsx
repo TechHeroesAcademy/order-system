@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Loader2, PackageCheck, Factory as FactoryIcon, Truck, KeyRound, Ban, MapPin } from "lucide-react";
+import { Loader2, PackageCheck, Factory as FactoryIcon, Truck, KeyRound, Ban, MapPin, Repeat } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -25,6 +25,7 @@ import {
   factoryMarkReadyAction,
   driverDeliverToCustomerAction,
   driverLogRefusalAction,
+  retryDeliveryAction,
 } from "@/lib/actions/orders";
 import { deliveryCodeSchema, pickupCodeSchema, refusalReasonSchema } from "@/lib/domain/validators";
 import { mapsUrlFor } from "@/lib/domain/maps";
@@ -133,9 +134,47 @@ export function DriverOrderActions({ order, factory = null }: { order: Order; fa
     case "with_driver":
       return <DeliverToCustomerCard orderId={order.id} />;
 
+    case "refused":
+      return <RetryDeliveryCard orderId={order.id} reason={order.refusal_reason} />;
+
     default:
       return null;
   }
+}
+
+function RetryDeliveryCard({
+  orderId,
+  reason,
+}: {
+  orderId: string;
+  reason?: string | null;
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">العميل رفض الاستلام</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3 pt-0">
+        {reason ? (
+          <p className="rounded-md bg-muted/50 p-3 text-sm text-muted-foreground">
+            السبب المسجّل: {reason}
+          </p>
+        ) : null}
+        <p className="text-sm text-muted-foreground">
+          لو اتفقت مع العميل على ميعاد تاني، افتح الأوردر للتسليم مرة أخرى. كود
+          التسليم هو نفسه ولم يتغير.
+        </p>
+        <ConfirmActionButton
+          label="حاول التسليم مرة أخرى"
+          confirmTitle="إعادة فتح الأوردر للتسليم"
+          confirmDescription="هيرجع الأوردر لحالة (مع المندوب) وتقدر تسلّمه في ميعاد تاني بنفس الكود."
+          onConfirm={() => retryDeliveryAction(orderId)}
+          successMessage="تم فتح الأوردر للتسليم مرة أخرى"
+          icon={<Repeat />}
+        />
+      </CardContent>
+    </Card>
+  );
 }
 
 function CollectFromCustomerCard({ orderId }: { orderId: string }) {

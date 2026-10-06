@@ -48,6 +48,7 @@ const LOOK: Record<string, { icon: LucideIcon; tint: string }> = {
   driver_left_factory: { icon: Truck, tint: "bg-amber-500/10 text-amber-600 dark:text-amber-400" },
   order_delivered: { icon: Check, tint: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" },
   order_refused: { icon: PackageX, tint: "bg-destructive/10 text-destructive" },
+  delivery_retry: { icon: Repeat, tint: "bg-sky-500/10 text-sky-600 dark:text-sky-400" },
   order_cancelled: { icon: Ban, tint: "bg-destructive/10 text-destructive" },
   needs_allocation: { icon: AlertTriangle, tint: "bg-destructive/10 text-destructive" },
   driver_reassigned: { icon: Repeat, tint: "bg-muted text-muted-foreground" },

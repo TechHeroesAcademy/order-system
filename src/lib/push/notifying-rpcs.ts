@@ -9,6 +9,7 @@ export const NOTIFYING_RPCS: ReadonlySet<string> = new Set([
   "driver_hand_to_factory",
   "driver_log_refusal",
   "driver_mark_collected",
+  "driver_retry_delivery",
   "factory_confirm_receipt",
   "factory_mark_ready",
   "moderator_create_order",

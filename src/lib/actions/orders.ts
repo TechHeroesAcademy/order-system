@@ -361,6 +361,17 @@ export async function driverLogRefusalAction(orderId: string, reason: string): P
   return ok(undefined);
 }
 
+export async function retryDeliveryAction(orderId: string): Promise<ActionResult> {
+  await requireRole("owner", "moderator", "driver");
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("driver_retry_delivery", { p_order_id: orderId });
+  if (error) return fail(toErrorMessage(error, "تعذر إعادة فتح الأوردر للتسليم"));
+  revalidatePath("/driver");
+  revalidatePath("/owner");
+  revalidatePath("/moderator");
+  return ok(undefined);
+}
+
 export async function factoryConfirmReceiptAction(orderId: string): Promise<ActionResult> {
   await requireRole("owner", "moderator", "driver");
   const supabase = await createClient();

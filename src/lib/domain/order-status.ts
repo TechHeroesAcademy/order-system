@@ -76,6 +76,7 @@ export const EVENT_TYPE_LABELS_AR: Record<string, string> = {
   delivery_code_mismatch: "محاولة تسليم بكود غير صحيح",
   delivered: "تم التسليم للعميل",
   refused: "رفض العميل الاستلام",
+  delivery_retry: "إعادة محاولة التسليم",
   cancelled: "تم إلغاء الأوردر",
   details_edited: "تم تعديل بيانات الأوردر",
 };
